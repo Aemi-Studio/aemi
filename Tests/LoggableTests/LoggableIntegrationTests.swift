@@ -79,6 +79,22 @@ fileprivate class FileprivateClass {
     }
 }
 
+@Loggable
+struct GenericStruct<T: Codable> {
+    let value: T
+
+    func doWork() {
+        logger.info("Working with generic")
+    }
+}
+
+@Loggable
+actor GenericActor<T: Sendable> {
+    func doWork() {
+        logger.info("Working with generic actor")
+    }
+}
+
 // MARK: - Struct Tests
 
 @Suite("Struct Integration")
@@ -187,6 +203,42 @@ struct EnumIntegrationTests {
         _ = PublicEnum.logger
         let value = PublicEnum.b
         _ = value.logger
+    }
+}
+
+// MARK: - Generic Tests
+
+@Suite("Generic Integration")
+struct GenericIntegrationTests {
+    @Test("Static logger accessible on generic struct")
+    func genericStructStaticLogger() {
+        let logger = GenericStruct<Int>.logger
+        #expect(type(of: logger) == Logger.self)
+    }
+
+    @Test("Instance logger accessible on generic struct")
+    func genericStructInstanceLogger() {
+        let instance = GenericStruct(value: 42)
+        #expect(type(of: instance.logger) == Logger.self)
+    }
+
+    @Test("Static logger accessible on generic actor")
+    func genericActorStaticLogger() {
+        let logger = GenericActor<Int>.logger
+        #expect(type(of: logger) == Logger.self)
+    }
+
+    @Test("Instance logger accessible on generic actor without await")
+    func genericActorInstanceLogger() {
+        let instance = GenericActor<Int>()
+        let logger = instance.logger
+        #expect(type(of: logger) == Logger.self)
+    }
+
+    @Test("Generic type can log without crashing")
+    func genericLogging() {
+        GenericStruct<String>.logger.info("Generic struct logging")
+        GenericActor<Int>.logger.debug("Generic actor logging")
     }
 }
 

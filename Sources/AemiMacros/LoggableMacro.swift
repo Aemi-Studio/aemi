@@ -15,11 +15,18 @@ public struct LoggableMacro: MemberMacro {
         }
 
         let access = accessModifier(from: declaration)
+        let generic = isGeneric(declaration)
 
         let staticLogger: DeclSyntax =
-            """
-            \(raw: access)nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: \(literal: name))
-            """
+            generic
+                ? """
+                \(raw: access)nonisolated static var logger: Logger {
+                    Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: \(literal: name))
+                }
+                """
+                : """
+                \(raw: access)nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: \(literal: name))
+                """
 
         let instanceLogger: DeclSyntax =
             """

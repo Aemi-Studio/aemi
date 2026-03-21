@@ -246,6 +246,56 @@ struct MacroExpansionTests {
     }
 }
 
+    @Test("Generic struct emits computed static var")
+    func genericStruct() {
+        assertMacroExpansion(
+            """
+            @Loggable
+            struct Container<Value: Codable> {
+            }
+            """,
+            expandedSource: """
+            struct Container<Value: Codable> {
+
+                nonisolated static var logger: Logger {
+                    Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "Container")
+                }
+
+                nonisolated var logger: Logger {
+                    Self.logger
+                }
+            }
+            """,
+            macros: testMacros,
+            indentationWidth: .spaces(4)
+        )
+    }
+
+    @Test("Generic actor emits computed static var")
+    func genericActor() {
+        assertMacroExpansion(
+            """
+            @Loggable
+            public actor Store<T: Sendable> {
+            }
+            """,
+            expandedSource: """
+            public actor Store<T: Sendable> {
+
+                public nonisolated static var logger: Logger {
+                    Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "Store")
+                }
+
+                public nonisolated var logger: Logger {
+                    Self.logger
+                }
+            }
+            """,
+            macros: testMacros,
+            indentationWidth: .spaces(4)
+        )
+    }
+
 // MARK: - Diagnostic Tests
 
 @Suite("Diagnostics")

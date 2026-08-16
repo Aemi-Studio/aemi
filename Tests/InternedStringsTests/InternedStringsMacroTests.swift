@@ -1,5 +1,8 @@
+import Foundation
 import InternedStrings
 import SwiftSyntax
+import SwiftSyntaxBuilder
+import SwiftSyntaxMacroExpansion
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import Testing
@@ -127,78 +130,77 @@ struct ObfuscationQualityTests {
 
 // MARK: - Macro Expansion Tests
 
+// The macro derives a fresh random key on every expansion, so the expanded source cannot be
+// compared against a fixed string. These tests call the macro directly and verify the shape of
+// the generated getter plus a semantic roundtrip: the emitted `SI.v(bytes, key)` call must
+// decode back to the original literal.
 @Suite("Macro Expansion")
 struct MacroExpansionTests {
     @Test("Property with argument form")
-    func argumentForm() {
-        assertMacroExpansion(
-            """
-            @Interned("hello") static var greeting: String
-            """,
-            expandedSource: """
-            static var greeting: String {
-                get {
-                    SI.v([$BYTES$], $KEY$)
-                }
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    func argumentForm() throws {
+        let getter = try expandInternedGetter("@Interned(\"hello\") static var greeting: String")
+        try expectDecodes(getter, to: "hello")
     }
 
     @Test("Property with initializer form")
-    func initializerForm() {
-        assertMacroExpansion(
-            """
-            @Interned static var greeting = "hello"
-            """,
-            expandedSource: """
-            static var greeting = "hello" {
-                get {
-                    SI.v([$BYTES$], $KEY$)
-                }
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    func initializerForm() throws {
+        let getter = try expandInternedGetter("@Interned static var greeting = \"hello\"")
+        try expectDecodes(getter, to: "hello")
     }
 
     @Test("Instance property")
-    func instanceProperty() {
-        assertMacroExpansion(
-            """
-            @Interned("value") var instance: String
-            """,
-            expandedSource: """
-            var instance: String {
-                get {
-                    SI.v([$BYTES$], $KEY$)
-                }
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    func instanceProperty() throws {
+        let getter = try expandInternedGetter("@Interned(\"value\") var instance: String")
+        try expectDecodes(getter, to: "value")
     }
 
     @Test("Let binding works")
-    func letBindingWorks() {
-        assertMacroExpansion(
-            """
-            @Interned("x") static let x: String
-            """,
-            expandedSource: """
-            static let x: String {
-                get {
-                    SI.v([$BYTES$], $KEY$)
-                }
+    func letBindingWorks() throws {
+        let getter = try expandInternedGetter("@Interned(\"x\") static let x: String")
+        try expectDecodes(getter, to: "x")
+    }
+
+    /// Expands `@Interned` on the given single-property declaration and returns the generated
+    /// getter's source text.
+    private func expandInternedGetter(
+        _ source: String, sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> String {
+        let decl: DeclSyntax = "\(raw: source)"
+        let varDecl = try #require(
+            decl.as(VariableDeclSyntax.self), sourceLocation: sourceLocation)
+        let attribute = try #require(
+            varDecl.attributes.first?.as(AttributeSyntax.self), sourceLocation: sourceLocation)
+        let accessors = try InternedMacro.expansion(
+            of: attribute,
+            providingAccessorsOf: varDecl,
+            in: BasicMacroExpansionContext())
+        #expect(accessors.count == 1, sourceLocation: sourceLocation)
+        let getter = try #require(accessors.first, sourceLocation: sourceLocation).description
+        #expect(getter.contains("get"), sourceLocation: sourceLocation)
+        #expect(getter.contains("SI.v("), sourceLocation: sourceLocation)
+        return getter
+    }
+
+    /// Parses `SI.v([0x…, …], key)` out of the generated getter and checks that the runtime
+    /// deobfuscator recovers the original literal.
+    private func expectDecodes(
+        _ getter: String, to expected: String, sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws {
+        let open = try #require(getter.firstIndex(of: "["), sourceLocation: sourceLocation)
+        let close = try #require(getter.firstIndex(of: "]"), sourceLocation: sourceLocation)
+        let bytes: [UInt8] = try getter[getter.index(after: open)..<close]
+            .split(separator: ",")
+            .map { chunk in
+                let hex = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+                let digits = hex.hasPrefix("0x") ? String(hex.dropFirst(2)) : hex
+                return try #require(UInt8(digits, radix: 16), sourceLocation: sourceLocation)
             }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+        let afterBytes = getter[getter.index(after: close)...]
+        let keyText = afterBytes
+            .drop(while: { $0 == "," || $0 == " " })
+            .prefix(while: \.isNumber)
+        let key = try #require(UInt64(keyText), sourceLocation: sourceLocation)
+        #expect(SI.v(bytes, key) == expected, sourceLocation: sourceLocation)
     }
 }
 

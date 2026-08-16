@@ -5,14 +5,35 @@ import PackageDescription
 private let package = Package(
     name: "Aemi",
     platforms: [
-        .iOS(.v14),
-        .macOS(.v11),
+        .iOS(.v17),
+        .macOS(.v14),
+        .watchOS(.v10),
+        .tvOS(.v17),
+        .visionOS(.v1),
     ],
     products: [
         .library(
             name: "Aemi",
             targets: [
                 "Aemi"
+            ]
+        ),
+        .library(
+            name: "AemiCore",
+            targets: [
+                "AemiCore"
+            ]
+        ),
+        .library(
+            name: "AemiUI",
+            targets: [
+                "AemiUI"
+            ]
+        ),
+        .library(
+            name: "AemiTesting",
+            targets: [
+                "AemiTesting"
             ]
         ),
         .library(
@@ -29,7 +50,7 @@ private let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "602.0.0")
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "602.0.0"),
     ],
     targets: [
         .macro(
@@ -50,8 +71,28 @@ private let package = Package(
         .target(
             name: "Aemi",
             dependencies: [
+                "AemiCore",
+                "AemiUI",
                 "InternedStrings",
                 "Loggable",
+            ],
+            swiftSettings: swiftSettings
+        ),
+        .target(
+            name: "AemiCore",
+            swiftSettings: swiftSettings
+        ),
+        .target(
+            name: "AemiUI",
+            dependencies: [
+                "AemiCore"
+            ],
+            swiftSettings: swiftSettings
+        ),
+        .target(
+            name: "AemiTesting",
+            dependencies: [
+                "AemiCore"
             ],
             swiftSettings: swiftSettings
         ),
@@ -66,6 +107,21 @@ private let package = Package(
             name: "Loggable",
             dependencies: [
                 "AemiMacros"
+            ],
+            swiftSettings: swiftSettings
+        ),
+        .testTarget(
+            name: "AemiCoreTests",
+            dependencies: [
+                "AemiCore"
+            ],
+            swiftSettings: swiftSettings
+        ),
+        .testTarget(
+            name: "AemiTestingTests",
+            dependencies: [
+                "AemiCore",
+                "AemiTesting",
             ],
             swiftSettings: swiftSettings
         ),

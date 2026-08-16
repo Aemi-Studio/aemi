@@ -1,0 +1,456 @@
+name: Swift Quality
+
+# Reusable workflow — the SINGLE CI definition for every g-cqd Swift package ("full adopt" model).
+# A consumer's .github/workflows/ci.yml is a thin caller:
+#
+#   jobs:
+#     quality:
+#       uses: g-cqd/ADBuildTools/.github/workflows/swift-quality.yml@v1
+#       with:
+#         dev-env-var: ADF_DEV
+#         requires-published-siblings: true   # set when the package has first-party AD-family deps
+#         enable-sanitizers: true
+#         sanitizers: "address thread"
+#         enable-docs: true
+#         docs-target: ADFoundation
+#
+# This workflow owns the COMMON gate + build/test/sanitizer/docs. Package-UNIQUE jobs (ADFoundation's
+# tier-isolation invariant, the ordo-one benchmark suites, ADJSON's NIO/fuzz legs) stay in a separate
+# per-package workflow that runs alongside this one.
+#
+# Canonical toolchain: the family's pinned 6.4 nightly Linux image; macOS installs the pinned
+# swift.org 6.4 dev-snapshot toolchain via the sibling setup-swift action (no hosted macOS image
+# ships Swift 6.4 — macos-26 tops out at Xcode 26.6 / Swift 6.3.3; checked 2026-07-02).
+# File-based gates (format/metrics/drift/tags) always run; anything needing SwiftPM resolution
+# (`swift package lint`, build, test, sanitizers, docs) is gated on AD_SWIFT_SIBLINGS_PUBLISHED for
+# packages whose first-party siblings resolve from `branch: main` and may not be published yet.
+#
+# Supply-chain hygiene (OWASP A03): third-party actions (`actions/checkout`) are pinned to a commit
+# SHA with the human-readable tag in a trailing comment; bump the SHA deliberately like a dependency.
+# First-party `g-cqd/ADBuildTools` self-references stay on the `@v1`/`ref: v1` tag — that IS the
+# consumer-facing version contract for this reusable workflow. Offline-authored; the first real-runner
+# run may need a tweak.
+
+on:
+  workflow_call:
+    inputs:
+      dev-env-var:
+        description: "Dev gate env var (e.g. ADF_DEV) that activates the lint/build plugins."
+        required: true
+        type: string
+      container-image:
+        description: "Canonical Linux toolchain image."
+        required: false
+        type: string
+        # Dated nightly pins the toolchain for reproducible CI: the moving `nightly-6.4.x-noble` tag
+        # drifts daily (the root of the #14 stale-incremental build flakes). Bump this deliberately,
+        # like any other dependency, after verifying the new snapshot is green.
+        default: "swiftlang/swift:nightly-6.4.x-noble@sha256:54970846d48a8255eee5986aa5bbd259b7f73bbf38429cc2428ce6a62a390b47"
+      macos-runner:
+        required: false
+        type: string
+        # macos-26 so the setup-swift 6.4 snapshot toolchain rides a current SDK (macos-15's
+        # default Xcode 16.4 / Swift 6.1.2 is two majors behind the family's tools-version).
+        default: "macos-26"
+      enable-coverage:
+        required: false
+        type: boolean
+        default: true
+      strict-tags:
+        required: false
+        type: boolean
+        default: true
+      requires-published-siblings:
+        description: "Gate resolution-dependent jobs on the AD_SWIFT_SIBLINGS_PUBLISHED repo var."
+        required: false
+        type: boolean
+        default: false
+      enable-sanitizers:
+        required: false
+        type: boolean
+        default: false
+      sanitizers:
+        description: "Space-separated sanitizer list, e.g. 'address thread'."
+        required: false
+        type: string
+        default: "address"
+      enable-docs:
+        required: false
+        type: boolean
+        default: false
+      docs-target:
+        description: "DocC target name (required when enable-docs is true)."
+        required: false
+        type: string
+        default: ""
+      build-system:
+        description: >-
+          SwiftPM build-system engine to force on every swift build/test/package command
+          (e.g. 'native' for packages with a .macro target hit by the swiftbuild macro/test-link
+          bug — ADHTML, see its ADR-0008). Empty = the toolchain default.
+        required: false
+        type: string
+        default: ""
+      system-packages:
+        description: >-
+          Space-separated apt packages to install in the Linux container before build/test
+          (e.g. 'libsqlite3-dev' for ADDB). Linux-only; macOS ships these in its SDK. Empty = none.
+        required: false
+        type: string
+        default: ""
+      homebrew-packages:
+        description: >-
+          Space-separated Homebrew formulae to install on the macOS build/test/sanitizer legs
+          (e.g. 'jemalloc' for packages whose dev graph pulls ordo-one package-benchmark's
+          malloc-stats module). The Linux analogue is system-packages. Empty = none.
+        required: false
+        type: string
+        default: ""
+      fixtures-command:
+        description: >-
+          A shell command run (in the package root) before build/test on BOTH platforms to
+          materialize test fixtures (e.g. ADJSON's fetch-fixtures). Empty = no fixtures step.
+        required: false
+        type: string
+        default: ""
+      linux-release-advisory:
+        description: >-
+          Mark the Linux release-mode test leg advisory (continue-on-error). For a package that hits
+          a nightly-Linux-toolchain release-mode teardown crash — all tests pass, then the process
+          segfaults on exit — while no stable 6.4 Linux toolchain has shipped. The Linux debug leg and
+          both macOS legs stay required. Default false (the release leg gates).
+        required: false
+        type: boolean
+        default: false
+      enable-static-analysis:
+        description: >-
+          Run the swift-syntax analysers (arcleak, dolly, deadwood) from their published release
+          binaries. arcleak and dolly GATE; deadwood is report-only (SARIF upload) because its
+          syntax-mode reachability over-reports — see STATIC-ANALYSIS-FINDINGS.md in the workspace
+          root, where 4/4 of its dead-branch findings were false positives (closure-captured and
+          mutating-method writes it cannot see). Opt-in: baseline the package first.
+        required: false
+        type: boolean
+        default: false
+      analysis-paths:
+        description: "Source roots passed to arcleak/dolly (space-separated)."
+        required: false
+        type: string
+        default: "Sources"
+      arcleak-version:
+        required: false
+        type: string
+        default: "0.7.1"
+      dolly-version:
+        required: false
+        type: string
+        default: "0.6.1"
+      deadwood-version:
+        required: false
+        type: string
+        default: "0.7.1"
+
+permissions:
+  contents: read
+
+# Type-check-budget calibration for the family manifests' env-tunable
+# `-warn-long-function-bodies` / `-warn-long-expression-type-checking` flags: with
+# `treatAllWarnings(as: .error)` an overrun is a HARD build error, but the measured quantity is
+# type-check WALL TIME — structurally flaky on shared hosted runners (observed 102–168 ms flips for
+# bodies comfortably under 100 ms locally). 250 ms absorbs runner noise on the build/test/sanitizer
+# legs; local builds keep the strict 100 ms default (manifests read this via `Context.environment`).
+env:
+  AD_TYPECHECK_BUDGET_MS: "250"
+
+jobs:
+  gate:
+    name: gate (format • discipline • metrics • drift)
+    runs-on: ${{ inputs.macos-runner }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Checkout ADBuildTools (canonical config + scripts)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: g-cqd/ADBuildTools
+          ref: v1
+          path: .adbuildtools
+      - name: Config drift (.swift-format + .swiftlint.yml == canonical)
+        shell: bash
+        run: |
+          fail=0
+          diff -u .adbuildtools/.swift-format .swift-format \
+            || { echo "::error::.swift-format drifted from canonical — run scripts/sync-config.sh"; fail=1; }
+          diff -u .adbuildtools/.swiftlint.yml .swiftlint.yml \
+            || { echo "::error::.swiftlint.yml drifted from canonical — run scripts/sync-config.sh"; fail=1; }
+          exit $fail
+      - name: Manifest settings drift (canonical swiftSettings present)
+        shell: bash
+        run: .adbuildtools/scripts/check-manifest-settings.sh Package.swift
+      - name: SwiftLint metrics (size / complexity)
+        # swift-format cannot express file-length / cyclomatic-complexity; SwiftLint adds ONLY those
+        # metrics (see .swiftlint.yml). ENFORCING (WS3 complete): `--strict` promotes every metric
+        # warning to a failure and the step is blocking (no continue-on-error). A reviewed large-legacy
+        # file opts out with an in-file `// swiftlint:disable <rule>` + TODO, never by relaxing the gate.
+        shell: bash
+        run: |
+          brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
+          swiftlint lint --strict --config .swiftlint.yml --reporter github-actions-logging
+      - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
+        # Only the `swift package lint` step below needs SwiftPM (a 6.4 manifest), so the install is
+        # gated exactly like it; the file-based gates above run on the image's stock tools.
+        if: ${{ !inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true' }}
+        uses: g-cqd/ADBuildTools/.github/actions/setup-swift@v1
+      - name: Lint (format gate + shipped-library discipline)
+        # `swift package lint` runs the ADBuildTools plugin, which resolves the package graph — so it is
+        # gated on published siblings. The file-based gates above always run.
+        if: ${{ !inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true' }}
+        shell: bash
+        # `--disable-sandbox` is REQUIRED by the Lint plugin (documented on runSwiftLintMetrics): it
+        # execs the Homebrew `swiftlint`, whose cache write the plugin sandbox denies — the run dies
+        # with a bare "error: lint failed" AFTER all checks pass. Same flag apple-docs' caller uses.
+        run: |
+          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          ${{ inputs.dev-env-var }}=1 swift package $BS --disable-sandbox lint
+      - name: Internal-tag check
+        if: ${{ inputs.strict-tags }}
+        shell: bash
+        run: STRICT_TAGS=1 .adbuildtools/scripts/check-tags.sh all
+
+  static-analysis:
+    name: static analysis (arc • clones • dead code)
+    if: ${{ inputs.enable-static-analysis }}
+    runs-on: ${{ inputs.macos-runner }}
+    # No `permissions:` block: a called reusable workflow cannot request more than the caller granted,
+    # and every caller here declares `permissions: contents: read`. Requesting `security-events: write`
+    # for a code-scanning upload made the whole run fail at startup. deadwood's SARIF is published as a
+    # build artifact instead, which needs no extra grant — it is report-only anyway.
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install analysers (published binaries, checksum-verified)
+        # Release tarballs, not `swift build`: the tools' own manifests are tools-version 6.4 and
+        # pull swift-syntax, so building them here would cost minutes per run and drag in the same
+        # unreleased-toolchain problem the setup-swift action exists to work around.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/analysers"
+          cd "$RUNNER_TEMP/analysers"
+          install_tool() {
+            local name="$1" version="$2" stem="$1-$2-macos-arm64" asset="$1-$2-macos-arm64.tar.gz"
+            gh release download "v$version" --repo "g-cqd/$name" \
+              --pattern "$asset" --pattern "$asset.sha256"
+            shasum -a 256 -c "$asset.sha256"
+            # The tarball unpacks into a VERSIONED directory ("$stem/$name"), so lift the binary to
+            # the directory that goes on PATH — extracting alone leaves it one level down and every
+            # later step dies with "command not found".
+            tar xzf "$asset"
+            mv "$stem/$name" .
+            "./$name" --version
+          }
+          install_tool arcleak  "${{ inputs.arcleak-version }}"
+          install_tool dolly    "${{ inputs.dolly-version }}"
+          install_tool deadwood "${{ inputs.deadwood-version }}"
+          echo "$RUNNER_TEMP/analysers" >> "$GITHUB_PATH"
+      - name: arcleak — ARC safety (GATE)
+        # Gates at --strict: the whole family measured zero findings, so this protects an invariant
+        # that already holds rather than importing a backlog. --no-cache: the facts cache is dead
+        # weight on an ephemeral runner.
+        shell: bash
+        run: arcleak analyze ${{ inputs.analysis-paths }} --strict --no-cache
+      - name: dolly — duplicate code (REPORT ONLY — see note)
+        # Token pass only; --semantic is macOS-only, ~90s/330 files and explicitly not a CI gate.
+        #
+        # NOT gated, despite the committed .dolly-baseline.json, because dolly's baseline
+        # fingerprints embed ABSOLUTE paths. A baseline written on a dev machine matches nothing
+        # under /Users/runner/work/..., so every baselined clone resurfaces and --strict fails on
+        # findings that were explicitly accepted. Verified by copying an unmodified checkout to a
+        # second absolute path: identical content, zero baseline hits.
+        #
+        # Promote back to a gate once dolly fingerprints on a repo-relative path (upstream fix).
+        shell: bash
+        run: |
+          base=()
+          [ -f .dolly-baseline.json ] && base=(--baseline .dolly-baseline.json)
+          dolly analyze ${{ inputs.analysis-paths }} --no-cache "${base[@]}" || true
+      - name: deadwood — dead code (REPORT ONLY)
+        # Never gates. Without an index store its reachability is a name-based graph over the files
+        # passed, and its dataflow misses writes made through closures and mutating methods.
+        shell: bash
+        run: |
+          set -o pipefail
+          tests=(); [ -d Tests ] && tests=(Tests)
+          deadwood analyze ${{ inputs.analysis-paths }} "${tests[@]}" \
+            --format sarif --no-cache --production > deadwood.sarif || true
+          # Also surface it in the log, so the report is readable without downloading anything.
+          deadwood analyze ${{ inputs.analysis-paths }} "${tests[@]}" \
+            --no-cache --production || true
+      - name: Upload deadwood report
+        uses: actions/upload-artifact@v4
+        with:
+          name: deadwood-sarif-${{ github.run_id }}
+          path: deadwood.sarif
+          if-no-files-found: warn
+        continue-on-error: true
+
+  consumer-path:
+    # Everything else in this workflow prefixes `<DEV>=1` onto every SwiftPM invocation, so the
+    # path an actual consumer takes — a bare clone, no env — was never exercised. That gap hid
+    # real breakage: ADDB ran ZERO tests and exited 0; ADJSON and URLBuilder failed to compile
+    # their test bundles; ADHTML failed at link. This job is the regression lock.
+    name: consumer path (no env)
+    runs-on: ${{ inputs.macos-runner }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
+        uses: g-cqd/ADBuildTools/.github/actions/setup-swift@v1
+      - name: Install Homebrew packages
+        if: ${{ inputs.homebrew-packages != '' }}
+        shell: bash
+        run: |
+          for f in ${{ inputs.homebrew-packages }}; do
+            brew list "$f" >/dev/null 2>&1 || brew install "$f"
+          done
+      - name: Fetch fixtures
+        if: ${{ inputs.fixtures-command != '' }}
+        shell: bash
+        run: ${{ inputs.fixtures-command }}
+      - name: Build and test with NO environment set
+        shell: bash
+        # Deliberately does not set the dev env var, and deliberately does not use `continue-on-error`.
+        run: |
+          bs=()
+          [ -n "${{ inputs.build-system }}" ] && bs=(--build-system "${{ inputs.build-system }}")
+          swift build "${bs[@]}"
+          swift test "${bs[@]}" 2>&1 | tee consumer-test.log
+      - name: Assert the suite was not empty
+        # The failure mode this exists to catch is exit-0-with-zero-tests, which no ordinary
+        # check sees. Requires at least one non-zero "Test run with N tests" line.
+        shell: bash
+        run: |
+          if ! grep -qE 'Test run with [1-9][0-9]* tests?' consumer-test.log; then
+            echo "::error::consumer path ran no tests — the suite is gated off for a plain 'swift test'"
+            exit 1
+          fi
+          grep -oE 'Test run with [0-9]+ tests? in [0-9]+ suites?' consumer-test.log
+
+  test-macos:
+    name: macOS (${{ matrix.config }})
+    if: ${{ !inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true' }}
+    runs-on: ${{ inputs.macos-runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [debug, release]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
+        uses: g-cqd/ADBuildTools/.github/actions/setup-swift@v1
+      - name: Install Homebrew packages
+        if: ${{ inputs.homebrew-packages != '' }}
+        shell: bash
+        run: |
+          for f in ${{ inputs.homebrew-packages }}; do
+            brew list "$f" >/dev/null 2>&1 || brew install "$f"
+          done
+      - run: swift --version
+      - name: Fetch fixtures
+        if: ${{ inputs.fixtures-command != '' }}
+        shell: bash
+        run: ${{ inputs.fixtures-command }}
+      - name: Build
+        shell: bash
+        run: |
+          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          ${{ inputs.dev-env-var }}=1 swift build $BS -c ${{ matrix.config }}
+      - name: Test
+        shell: bash
+        run: |
+          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          if [ "${{ inputs.enable-coverage }}" = "true" ] && [ "${{ matrix.config }}" = "debug" ]; then
+            ${{ inputs.dev-env-var }}=1 swift test $BS -c debug --enable-code-coverage
+          else
+            ${{ inputs.dev-env-var }}=1 swift test $BS -c ${{ matrix.config }}
+          fi
+
+  test-linux:
+    name: Linux (${{ matrix.config }})
+    if: ${{ !inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true' }}
+    runs-on: ubuntu-latest
+    container: ${{ inputs.container-image }}
+    # Opt-in advisory, release leg only: a nightly-Linux-toolchain release-mode teardown crash (tests
+    # pass, the process segfaults on exit). Debug stays required, so a real Linux regression still gates.
+    continue-on-error: ${{ inputs.linux-release-advisory && matrix.config == 'release' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [debug, release]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: swift --version
+      - name: Install system packages
+        if: ${{ inputs.system-packages != '' }}
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ${{ inputs.system-packages }}
+      - name: Fetch fixtures
+        if: ${{ inputs.fixtures-command != '' }}
+        shell: bash
+        run: ${{ inputs.fixtures-command }}
+      - name: Build
+        shell: bash
+        run: |
+          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          ${{ inputs.dev-env-var }}=1 swift build $BS -c ${{ matrix.config }}
+      - name: Test
+        shell: bash
+        run: |
+          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          ${{ inputs.dev-env-var }}=1 swift test $BS -c ${{ matrix.config }}
+
+  sanitizers:
+    name: sanitizers
+    if: ${{ inputs.enable-sanitizers && (!inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
+    runs-on: ${{ inputs.macos-runner }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
+        uses: g-cqd/ADBuildTools/.github/actions/setup-swift@v1
+      - name: Install Homebrew packages
+        if: ${{ inputs.homebrew-packages != '' }}
+        shell: bash
+        run: |
+          for f in ${{ inputs.homebrew-packages }}; do
+            brew list "$f" >/dev/null 2>&1 || brew install "$f"
+          done
+      - name: Test under each sanitizer
+        shell: bash
+        run: |
+          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          for s in ${{ inputs.sanitizers }}; do
+            echo "::group::sanitizer=$s"
+            ${{ inputs.dev-env-var }}=1 swift test $BS --sanitize="$s"
+            echo "::endgroup::"
+          done
+
+  docs:
+    name: Documentation (DocC)
+    if: ${{ inputs.enable-docs && (!inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
+    runs-on: ubuntu-latest
+    container: ${{ inputs.container-image }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install system packages
+        if: ${{ inputs.system-packages != '' }}
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ${{ inputs.system-packages }}
+      - name: Generate documentation
+        shell: bash
+        run: |
+          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          ${{ inputs.dev-env-var }}=1 swift package $BS --allow-writing-to-directory ./docs \
+            generate-documentation --target ${{ inputs.docs-target }} --output-path ./docs

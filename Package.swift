@@ -1,4 +1,4 @@
-// swift-tools-version: 6.4
+// swift-tools-version: 6.3
 import CompilerPluginSupport
 import PackageDescription
 
@@ -55,7 +55,7 @@ let testSettings: [SwiftSetting] =
 let appSettings: [SwiftSetting] = [
     .strictMemorySafety(),
     .enableExperimentalFeature("StrictConcurrency"),
-    .swiftLanguageMode(.version("6.2")),
+    .swiftLanguageMode(.v6),
 ]
 
 // Dev-only tooling is gated behind `AEMI_DEV` so consumers never resolve it.

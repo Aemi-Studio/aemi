@@ -74,7 +74,12 @@ General-purpose foundation, no UI dependency.
 
 - **Typed identity** (from `Presentable/AppProjection` → `AppIdentity`):
   `Identifier<Owner, RawValue>` phantom-typed IDs, `AnyIdentifier` owner-erased
-  keys for mixed collections.
+  keys for mixed collections. Every witness is `@inlinable`, and
+  `_rawHashValue(seed:)` forwards to the raw value so `Set`/`Dictionary`
+  lookups skip a `Hasher` build (2.5x on `Set<Identifier<_, Int>>`). Surface:
+  `Codable` as the bare raw value, literals, `Strideable` + stride-taking
+  offsetting operators (`id + 1`, `id2 - id1`; `id1 + id2` stays a compile
+  error), `parse(_:)`, and a forwarded `String` API for string-backed IDs.
 - **Projections** (from `AppProjection`): `Projection`, read-side `Snapshot`,
   observable write-side `Mutable` (`@Observable`, buffered edits, `update()` /
   `revert()`), `Snapshot.updating(_:)`.

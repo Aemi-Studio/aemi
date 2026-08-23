@@ -29,8 +29,10 @@ import Synchronization
 public final class TaskProviderSpy: TaskProvider {
     private let spawned: CountProbe<Never>
     private let completed: CountProbe<Never>
+    private let observationsSpawned: CountProbe<Never>
+    private let observationsFinished: CountProbe<Never>
     private let workCancels = Mutex<[UUID: @Sendable () -> Void]>([:])
-    private let observationCancels = Mutex<[@Sendable () -> Void]>([])
+    private let observationCancels = Mutex<[UUID: @Sendable () -> Void]>([:])
     private let label: String
     private let defaultTimeout: Duration
     private let file: StaticString
@@ -56,6 +58,12 @@ public final class TaskProviderSpy: TaskProvider {
         self.line = line
         spawned = CountProbe(label: "\(label).spawned", file: file, function: function, line: line)
         completed = CountProbe(label: "\(label).completed", file: file, function: function, line: line)
+        observationsSpawned = CountProbe(
+            label: "\(label).observationsSpawned", file: file, function: function, line: line
+        )
+        observationsFinished = CountProbe(
+            label: "\(label).observationsFinished", file: file, function: function, line: line
+        )
     }
 
     deinit {
@@ -78,7 +86,7 @@ public final class TaskProviderSpy: TaskProvider {
         workCancels.withLock(\.count)
     }
 
-    /// Number of currently tracked flow-lifetime observers.
+    /// Number of tracked flow-lifetime observers that have not finished yet.
     public var observationCount: Int {
         observationCancels.withLock(\.count)
     }
@@ -99,10 +107,17 @@ public final class TaskProviderSpy: TaskProvider {
 
     /// Tracks a flow-lifetime observer. Excluded from ``waitForAllTasks(timeout:)`` and
     /// ``waitForSpawnedTasks(atLeast:timeout:)`` — observers only finish when their input ends
-    /// or ``cancelObservations()`` runs.
+    /// or ``cancelObservations()`` runs. ``waitForObservationsToFinish(timeout:)`` awaits that
+    /// moment; a monitor counts the completion on the side, like the work counters.
     func register(observation task: Task<some Sendable, some Error>) {
-        let cancel: @Sendable () -> Void = { task.cancel() }
-        observationCancels.withLock { $0.append(cancel) }
+        let id = UUID()
+        observationsSpawned.record()
+        observationCancels.withLock { $0[id] = { task.cancel() } }
+        Task { [weak self, observationsFinished] in
+            _ = await task.result
+            self?.observationCancels.withLock { $0[id] = nil }
+            observationsFinished.record()
+        }
     }
 
     /// Cancels every outstanding work task and stops tracking it. Cancelling an already-finished
@@ -121,7 +136,7 @@ public final class TaskProviderSpy: TaskProvider {
     /// Cancels every tracked observer and stops tracking it.
     public func cancelObservations() {
         let cancels = observationCancels.withLock { cancels in
-            let snapshot = cancels
+            let snapshot = Array(cancels.values)
             cancels.removeAll()
             return snapshot
         }
@@ -166,6 +181,37 @@ public final class TaskProviderSpy: TaskProvider {
                     expected: spawned.count,
                     recordedCount: completed.count,
                     recorded: completed.events,
+                    file: file,
+                    function: function,
+                    line: line
+                )
+            }
+        }
+    }
+
+    /// Suspends until every tracked observer has finished, or the timeout elapses.
+    ///
+    /// Observers only finish when their input ends or they are cancelled, so call this after
+    /// tearing the system under test down (or after finishing its input streams). Observers
+    /// registered while waiting are awaited too; the deadline covers the whole wait.
+    public func waitForObservationsToFinish(timeout: Duration? = nil) async throws {
+        // Same real-clock deadline rationale as `waitForAllTasks`: the wait must fail fast
+        // even when the system under test runs on an injected fake clock.
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout ?? defaultTimeout)
+        while true {
+            let target = observationsSpawned.count
+            let remaining = max(.zero, clock.now.duration(to: deadline))
+            try await observationsFinished.wait(forAtLeast: target, timeout: remaining)
+            if observationsSpawned.count == target {
+                return
+            }
+            guard clock.now < deadline else {
+                throw CountProbeTimeoutError<Never>(
+                    label: "\(label).observationsFinished",
+                    expected: observationsSpawned.count,
+                    recordedCount: observationsFinished.count,
+                    recorded: observationsFinished.events,
                     file: file,
                     function: function,
                     line: line

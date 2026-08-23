@@ -107,6 +107,54 @@ struct TaskProviderSpyTests {
 
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 
+    @Test func waitForObservationsToFinishReturnsImmediatelyWithNoObservers() async throws {
+        let spy = TaskProviderSpy()
+        try await spy.waitForObservationsToFinish()
+        #expect(spy.observationCount == 0)
+    }
+
+    @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+
+    @Test func waitForObservationsToFinishSuspendsUntilAnObserverEnds() async throws {
+        let spy = TaskProviderSpy()
+        let gate = TaskGate()
+        let observer = spy.task(role: .observation, priority: nil) {
+            try await gate.wait()
+        }
+        #expect(spy.observationCount == 1)
+
+        gate.open()
+        try await spy.waitForObservationsToFinish()
+
+        #expect(!observer.isCancelled)
+        // The finished observer is released before its completion is counted.
+        #expect(spy.observationCount == 0)
+    }
+
+    @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+
+    @Test func waitForObservationsToFinishTimeoutNamesTheObservationProbe() async throws {
+        let spy = TaskProviderSpy(label: "spy-under-test")
+        let gate = TaskGate()
+        spy.task(role: .observation, priority: nil) {
+            try await gate.wait()
+        }
+        do {
+            try await spy.waitForObservationsToFinish(timeout: .milliseconds(50))
+            Issue.record("Expected waitForObservationsToFinish to time out")
+        } catch let error as CountProbeTimeoutError<Never> {
+            #expect(error.label == "spy-under-test.observationsFinished")
+            #expect(error.expected == 1)
+            #expect(error.recordedCount == 0)
+        }
+
+        gate.open()
+        try await spy.waitForObservationsToFinish()
+        #expect(spy.observationCount == 0)
+    }
+
+    @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+
     @Test func waitForSpawnedTasksObservesASpawnFromAnotherTask() async throws {
         let spy = TaskProviderSpy()
         Task.detached {

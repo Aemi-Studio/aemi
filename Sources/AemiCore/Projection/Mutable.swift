@@ -19,17 +19,46 @@ public final class Mutable<Model> {
     /// The read-side counterpart of this projection.
     public typealias Snapshot = AemiCore.Snapshot<Model>
 
+    @ObservationIgnored private var _storage: Model
+    @ObservationIgnored private let original: Model
+
+    /// Key paths rooted in a *generic* type are instantiated by the runtime on
+    /// every use, and each instantiation allocates. Letting the `@Observable`
+    /// macro synthesise `wrappedValue` therefore cost 531 ns and 2 mallocs per
+    /// read here, against 10 ns for the same shape on a concrete class.
+    /// Hoisting the key path to a per-instance `let` brings it to 6 ns.
+    ///
+    /// The accessors below are the macro's own expansion verbatim, with
+    /// `\.wrappedValue` replaced by this stored key path.
+    @ObservationIgnored
+    private let wrappedValueKeyPath: KeyPath<Mutable<Model>, Model> = \Mutable<Model>.wrappedValue
+
     /// The buffered working copy of the core model.
-    public private(set) var wrappedValue: Model
-    private let original: Model
+    public private(set) var wrappedValue: Model {
+        get {
+            access(keyPath: wrappedValueKeyPath)
+            return _storage
+        }
+        set {
+            withMutation(keyPath: wrappedValueKeyPath) { _storage = newValue }
+        }
+        // Yields in place so container mutations do not CoW-clone; mirrors the
+        // macro's `_modify`, which the hand-written accessors above replace.
+        _modify {
+            access(keyPath: wrappedValueKeyPath)
+            _$observationRegistrar.willSet(self, keyPath: wrappedValueKeyPath)
+            defer { _$observationRegistrar.didSet(self, keyPath: wrappedValueKeyPath) }
+            yield &_storage
+        }
+    }
 
     public init(_ snapshot: Snapshot) {
-        self.wrappedValue = snapshot.wrappedValue
+        self._storage = snapshot.wrappedValue
         self.original = snapshot.wrappedValue
     }
 
     public init(_ wrappedValue: Model) {
-        self.wrappedValue = wrappedValue
+        self._storage = wrappedValue
         self.original = wrappedValue
     }
 

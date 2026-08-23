@@ -12,8 +12,8 @@ import Synchronization
 /// task exists at all (for tests that must drive a task's input after it started). Both fail fast
 /// with a `CountProbeTimeoutError` instead of hanging.
 ///
-/// The two counters are payload-free `CountProbe<Never>`s, so the spy keeps a running count of work
-/// it spawns and completes without retaining a backing array.
+/// The counters are payload-free `CountProbe<Never>`s — one spawn/completion pair for work and
+/// one for observations — so the spy keeps a running count without retaining a backing array.
 ///
 /// It lives in `AemiTesting` — a module that only links into test targets — so it can conform to
 /// ``TaskProvider`` directly with no `#if DEBUG` guard, instead of needing a `@retroactive`

@@ -8,8 +8,8 @@
 //   bits 32..59  aux   (28 bits) — caller-defined (e.g. (length << k) | flags, or element count)
 //   bits  0..31  low   (32 bits) — a byte offset into the source, or a next-sibling tape index
 //
-// Offsets are capped at 4 GiB (the 32-bit `low`); `aux` at 2^28-1. Callers needing those bounds
-// enforced reject oversized inputs at build time (as ADJSON's `TapeBuilder` does).
+// Offsets are bounded by both the 32-bit `low` field and the platform's Int range; `aux` at 2^28-1.
+// Callers needing those bounds enforced reject oversized inputs at build time (as ADJSON's `TapeBuilder` does).
 //
 // This is the kernel ADJSON's `Slot` (value tape) and ADHTML's `HTMLTape` (DOM tape) both build on:
 // ADJSON's `scalar(tag, offset, length, flags)` is `make(tag:, aux: (length << 2) | flags, low: offset)`
@@ -20,8 +20,9 @@ public enum TapeSlot {
     public static let auxMask: UInt64 = 0x0FFF_FFFF
     /// Mask for the 32-bit `low` field.
     public static let lowMask: UInt64 = 0xFFFF_FFFF
-    /// Largest representable `low` (byte offset / tape index): 4 GiB − 1.
-    public static let maxLow = 0xFFFF_FFFF
+    /// Largest `low` byte offset / tape index representable by both the field and the platform's `Int`.
+    /// This is 4 GiB − 1 on 64-bit platforms and 2 GiB − 1 on 32-bit platforms.
+    public static let maxLow = Int(clamping: lowMask)
     /// Largest representable `aux` payload: 2^28 − 1.
     public static let maxAux = 0x0FFF_FFFF
 
@@ -36,6 +37,7 @@ public enum TapeSlot {
     /// The 28-bit caller-defined payload.
     @inlinable @inline(__always) public static func aux(_ s: UInt64) -> UInt64 { (s >> 32) & auxMask }
     /// The 32-bit byte offset / tape index.
+    /// - Precondition: The masked `low` field is at most `Int.max`.
     @inlinable @inline(__always) public static func low(_ s: UInt64) -> Int { Int(s & lowMask) }
 
     /// Index of the slot immediately after the node at `node`, given its slot `s`: containers store

@@ -55,7 +55,7 @@ let testSettings: [SwiftSetting] =
 let appSettings: [SwiftSetting] = [
     .strictMemorySafety(),
     .enableExperimentalFeature("StrictConcurrency"),
-    .swiftLanguageMode(.v6),
+    .swiftLanguageMode(.v6)
 ]
 
 // Dev-only tooling is gated behind `AEMI_DEV` so consumers never resolve it.
@@ -99,7 +99,7 @@ let package = Package(
         .macOS(.v15),
         .watchOS(.v11),
         .tvOS(.v18),
-        .visionOS(.v2),
+        .visionOS(.v2)
     ],
     products: [
         // ── Pre-existing app-level products ──
@@ -126,7 +126,7 @@ let package = Package(
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
         // Shared swift-syntax helpers for macro compiler plugins. Never re-exported by an umbrella.
         .library(name: "AemiMacroSupport", targets: ["AemiMacroSupport"]),
-        .library(name: "AemiTestKitSeams", targets: ["AemiTestKitSeams"]),
+        .library(name: "AemiTestKitSeams", targets: ["AemiTestKitSeams"])
     ],
     dependencies: packageDependencies,
     targets: [
@@ -143,7 +143,7 @@ let package = Package(
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacroExpansion", package: "swift-syntax"),
-                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax")
             ]
         ),
         .target(
@@ -194,7 +194,7 @@ let package = Package(
             name: "AemiFoundation",
             dependencies: [
                 "AemiKernel", "AemiKernels", "AemiIO", "AemiText", "AemiUnicode", "AemiMetrics",
-                "AemiRuntime",
+                "AemiRuntime"
             ],
             swiftSettings: strictSettings, plugins: libraryBuildPlugins),
 
@@ -203,7 +203,7 @@ let package = Package(
             name: "AemiMacroSupport",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
-                .product(name: "SwiftDiagnostics", package: "swift-syntax"),
+                .product(name: "SwiftDiagnostics", package: "swift-syntax")
             ],
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins),
@@ -232,14 +232,14 @@ let package = Package(
             name: "InternedStringsTests",
             dependencies: [
                 "InternedStrings", "AemiMacros",
-                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax")
             ],
             swiftSettings: appSettings),
         .testTarget(
             name: "LoggableTests",
             dependencies: [
                 "Loggable", "AemiMacros",
-                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax")
             ],
             swiftSettings: appSettings),
 
@@ -266,33 +266,32 @@ let package = Package(
             name: "AemiRuntimeTests", dependencies: ["AemiRuntime"], swiftSettings: strictSettings),
         .testTarget(
             name: "AemiTestKitTests", dependencies: ["AemiTestKit", "AemiTestKitSeams"],
-            swiftSettings: strictSettings),
+            swiftSettings: strictSettings)
     ]
 )
 
-// ── Build-quality plugins (absorbed from ADBuildTools; AEMI_DEV-gated) ──
-if isDev {
-    package.products.append(contentsOf: [
-        .plugin(name: "Format", targets: ["Format"]),
-        .plugin(name: "Lint", targets: ["Lint"]),
-        .plugin(name: "LintBuild", targets: ["LintBuild"]),
-    ])
-    package.targets.append(contentsOf: [
-        .plugin(
-            name: "Format",
-            capability: .command(
-                intent: .custom(verb: "format", description: "Format Swift sources with swift-format"),
-                permissions: [
-                    .writeToPackageDirectory(reason: "Format Swift sources with swift-format")
-                ])),
-        .plugin(
-            name: "Lint",
-            capability: .command(
-                intent: .custom(
-                    verb: "lint", description: "Check formatting and shipped-library discipline"))),
-        .plugin(name: "LintBuild", capability: .buildTool()),
-    ])
-}
+// Consumers select these dependency-free plugins with their own development flags.
+// AEMI_DEV controls attachment to Aemi's targets, not availability to other packages.
+package.products.append(contentsOf: [
+    .plugin(name: "Format", targets: ["Format"]),
+    .plugin(name: "Lint", targets: ["Lint"]),
+    .plugin(name: "LintBuild", targets: ["LintBuild"])
+])
+package.targets.append(contentsOf: [
+    .plugin(
+        name: "Format",
+        capability: .command(
+            intent: .custom(verb: "format", description: "Format Swift sources with swift-format"),
+            permissions: [
+                .writeToPackageDirectory(reason: "Format Swift sources with swift-format")
+            ])),
+    .plugin(
+        name: "Lint",
+        capability: .command(
+            intent: .custom(
+                verb: "lint", description: "Check formatting and shipped-library discipline"))),
+    .plugin(name: "LintBuild", capability: .buildTool())
+])
 
 // libFuzzer kernel target (AEMI_FUZZ-gated; Linux-CI-only — `-sanitize=fuzzer` is Darwin-rejected).
 if isFuzz {
@@ -313,7 +312,7 @@ if isDev {
             name: "AemiFoundationSuite",
             dependencies: [
                 "AemiKernel", "AemiText", "AemiKernels",
-                .product(name: "Benchmark", package: "benchmark"),
+                .product(name: "Benchmark", package: "benchmark")
             ],
             path: "Benchmarks/AemiFoundationSuite",
             swiftSettings: strictSettings,

@@ -32,7 +32,10 @@ public final class PosixFile: @unchecked Sendable {
                 flags = O_RDWR | O_CLOEXEC
                 if create { flags |= O_CREAT }
         }
-        let fd = path.withCString { unsafe open($0, flags, 0o644) }
+        @unsafe func openPath(_ pointer: UnsafePointer<CChar>) -> Int32 {
+            unsafe open(pointer, flags, 0o644)
+        }
+        let fd = unsafe path.withCString(openPath)
         guard fd >= 0 else { throw IOError.capturingErrno("open(\(path))") }
         self.fileDescriptor = fd
         self.closeOnDeinit = true
@@ -113,7 +116,7 @@ public final class PosixFile: @unchecked Sendable {
             // Build the iovec batch in scratch storage (stack for typical fan-out, heap for large)
             // instead of allocating a fresh `[iovec]` per batch. `iovec` is trivial, so the temporary
             // needs no explicit deinitialization.
-            let n = withUnsafeTemporaryAllocation(of: iovec.self, capacity: count) { iov -> Int in
+            @unsafe func writeBatch(_ iov: UnsafeMutableBufferPointer<iovec>) -> Int {
                 for k in 0 ..< count {
                     let buf = unsafe buffers[index + k]
                     unsafe iov.initializeElement(
@@ -128,6 +131,7 @@ public final class PosixFile: @unchecked Sendable {
                     return unsafe Glibc.pwritev(fileDescriptor, iov.baseAddress, Int32(count), off_t(at))
                 #endif
             }
+            let n = unsafe withUnsafeTemporaryAllocation(of: iovec.self, capacity: count, writeBatch)
             if n < 0 {
                 if errno == EINTR { continue }
                 throw IOError.capturingErrno("pwritev")

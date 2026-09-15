@@ -95,7 +95,7 @@ struct ContinuationRegistryTests {
         await withTaskGroup(of: Void.self) { group in
             for (offset, key) in keys.enumerated() {
                 let id = parking.makeID()
-                group.addTask {
+                group.addTask { @Sendable in
                     guard (try? await parking.park(id: id, key: key)) != nil else { return }
                     resumeOrder.withLock { $0.append(offset) }
                 }

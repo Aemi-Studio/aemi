@@ -88,6 +88,9 @@ public enum XXH64 {
 
     @inlinable
     public static func hash(_ bytes: [UInt8], seed: UInt64 = 0) -> UInt64 {
-        bytes.withUnsafeBytes { unsafe hash($0, seed: seed) }
+        @unsafe func hashBuffer(_ buffer: UnsafeRawBufferPointer) -> UInt64 {
+            unsafe hash(buffer, seed: seed)
+        }
+        return unsafe bytes.withUnsafeBytes(hashBuffer)
     }
 }

@@ -65,7 +65,7 @@ private func withDeadline<T: Sendable>(
         try await withDeadline(5000) {
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for _ in 0 ..< 40 {
-                    group.addTask {
+                    group.addTask { @Sendable in
                         try await pool.run {
                             tracker.withLock { state in
                                 state.inFlight += 1

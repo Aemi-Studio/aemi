@@ -28,13 +28,14 @@ extension IOError: CustomStringConvertible {
         // variant is NOT what the importer vends on the family's pinned Linux toolchain — so a single
         // branch serves both platforms. The buffer is zero-initialized first so no path can ever read
         // uninitialized stack memory.
-        let detail = withUnsafeTemporaryAllocation(of: CChar.self, capacity: 256) { buffer in
+        @unsafe func describe(_ buffer: UnsafeMutableBufferPointer<CChar>) -> String {
             guard let base = buffer.baseAddress else { return "errno \(errno)" }
             unsafe base.initialize(repeating: 0, count: buffer.count)
             // On failure don't trust a partially written buffer — surface the bare errno instead.
             guard unsafe strerror_r(errno, base, buffer.count) == 0 else { return "errno \(errno)" }
             return unsafe String(cString: base)
         }
+        let detail = unsafe withUnsafeTemporaryAllocation(of: CChar.self, capacity: 256, describe)
         return "I/O error in \(op): \(detail) (errno \(errno))"
     }
 }

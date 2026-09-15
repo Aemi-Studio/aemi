@@ -86,10 +86,13 @@ public enum AemiKernels {
                 initialized = 0
                 return
             }
-            bytes.withUnsafeBufferPointer { src in
+            // Named unsafe callbacks keep the pointer boundary explicit on Swift 6.3 and 6.4.
+            // The input and output buffers remain valid throughout this synchronous callback.
+            @unsafe func fold(_ src: UnsafeBufferPointer<UInt8>) {
                 guard let base = src.baseAddress else { return }
                 unsafe foldASCII(into: dst, from: base, count: count, backend: backend)
             }
+            unsafe bytes.withUnsafeBufferPointer(fold)
             initialized = count
         }
     }
@@ -128,11 +131,12 @@ public enum AemiKernels {
     ) -> Int? {
         let count = bytes.count
         guard count > 0 else { return nil }
-        let index = bytes.withUnsafeBufferPointer { src -> Int in
+        @unsafe func scan(_ src: UnsafeBufferPointer<UInt8>) -> Int {
             guard let base = src.baseAddress else { return count }
             return unsafe indexOfStringStop(
                 base: base, count: count, quote: quote, escape: escape, backend: backend)
         }
+        let index = unsafe bytes.withUnsafeBufferPointer(scan)
         return index == count ? nil : index
     }
 
@@ -161,10 +165,11 @@ public enum AemiKernels {
     ) -> Int? {
         let count = bytes.count
         guard count > 0 else { return nil }
-        let index = bytes.withUnsafeBufferPointer { src -> Int in
+        @unsafe func scan(_ src: UnsafeBufferPointer<UInt8>) -> Int {
             guard let base = src.baseAddress else { return count }
             return unsafe firstIndexOfByte(base: base, count: count, needle: needle, backend: backend)
         }
+        let index = unsafe bytes.withUnsafeBufferPointer(scan)
         return index == count ? nil : index
     }
 
@@ -253,10 +258,11 @@ public enum AemiKernels {
     public static func firstInvalidUTF8(_ bytes: [UInt8], backend: Backend = .fastest) -> Int? {
         let count = bytes.count
         guard count > 0 else { return nil }
-        let index = bytes.withUnsafeBufferPointer { src -> Int in
+        @unsafe func scan(_ src: UnsafeBufferPointer<UInt8>) -> Int {
             guard let base = src.baseAddress else { return count }
             return unsafe firstInvalidUTF8(base: base, count: count, backend: backend)
         }
+        let index = unsafe bytes.withUnsafeBufferPointer(scan)
         return index == count ? nil : index
     }
 
@@ -317,10 +323,11 @@ public enum AemiKernels {
     public static func firstNonASCII(_ bytes: [UInt8], backend: Backend = .fastest) -> Int? {
         let count = bytes.count
         guard count > 0 else { return nil }
-        let index = bytes.withUnsafeBufferPointer { src -> Int in
+        @unsafe func scan(_ src: UnsafeBufferPointer<UInt8>) -> Int {
             guard let base = src.baseAddress else { return count }
             return unsafe firstNonASCII(base: base, count: count, backend: backend)
         }
+        let index = unsafe bytes.withUnsafeBufferPointer(scan)
         return index == count ? nil : index
     }
 }

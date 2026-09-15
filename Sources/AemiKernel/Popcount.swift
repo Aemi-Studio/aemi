@@ -94,11 +94,13 @@ public enum Popcount {
     @inlinable
     public static func hammingDistance(_ a: [UInt8], _ b: [UInt8]) -> Int {
         let n = Swift.min(a.count, b.count)
-        return a.withUnsafeBytes { pa in
-            b.withUnsafeBytes { pb in
+        @unsafe func compareA(_ pa: UnsafeRawBufferPointer) -> Int {
+            @unsafe func compareB(_ pb: UnsafeRawBufferPointer) -> Int {
                 unsafe hammingDistance(pa, pb, count: n)
             }
+            return unsafe b.withUnsafeBytes(compareB)
         }
+        return unsafe a.withUnsafeBytes(compareA)
     }
 
     /// Asserts the SWAR and byte-LUT paths return the identical distance over `a`/`b` (`count`

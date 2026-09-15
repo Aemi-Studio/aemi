@@ -89,17 +89,27 @@ extension Array where Element == UInt8 {
     @inlinable
     public mutating func appendLE16(_ value: UInt16) {
         var le = value.littleEndian
-        Swift.withUnsafeBytes(of: &le) { unsafe append(contentsOf: $0) }
+        // The scalar's borrowed bytes are copied before this synchronous callback returns.
+        @unsafe func appendBytes(_ bytes: UnsafeRawBufferPointer) {
+            unsafe append(contentsOf: bytes)
+        }
+        unsafe Swift.withUnsafeBytes(of: &le, appendBytes)
     }
     @inlinable
     public mutating func appendLE32(_ value: UInt32) {
         var le = value.littleEndian
-        Swift.withUnsafeBytes(of: &le) { unsafe append(contentsOf: $0) }
+        @unsafe func appendBytes(_ bytes: UnsafeRawBufferPointer) {
+            unsafe append(contentsOf: bytes)
+        }
+        unsafe Swift.withUnsafeBytes(of: &le, appendBytes)
     }
     @inlinable
     public mutating func appendLE64(_ value: UInt64) {
         var le = value.littleEndian
-        Swift.withUnsafeBytes(of: &le) { unsafe append(contentsOf: $0) }
+        @unsafe func appendBytes(_ bytes: UnsafeRawBufferPointer) {
+            unsafe append(contentsOf: bytes)
+        }
+        unsafe Swift.withUnsafeBytes(of: &le, appendBytes)
     }
 }
 

@@ -51,13 +51,14 @@ Foundation-free, zero-dependency runtime tiers, plus a test kit. Naming map
 
 ## Dev tooling (`AEMI_DEV`) and plugins (absorbed from ADBuildTools)
 
-Dev-only tooling is gated behind the `AEMI_DEV` environment variable so
-consumers never resolve it. With `AEMI_DEV=1`:
+The dependency-free plugins are always available to consumers. `AEMI_DEV=1`
+attaches `LintBuild` to Aemi's kernel targets and enables the benchmark and
+documentation dependencies:
 
 - **Plugins** (in `Plugins/`): `Format` (`swift package format`), `Lint`
   (`swift package lint` — formatting gate + shipped-library discipline +
   SwiftLint metrics), `LintBuild` (prebuild `swift format lint --strict` on
-  the kernel library targets).
+  the kernel library targets when `AEMI_DEV=1`).
 - **Benchmarks**: the ordo-one suite (`AEMI_DEV=1 swift package benchmark`).
 - Canonical `.swift-format` / `.swiftlint.yml` live at the repo root;
   `scripts/sync-config.sh`, `scripts/check-manifest-settings.sh`, and

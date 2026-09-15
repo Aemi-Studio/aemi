@@ -3,14 +3,16 @@ import Testing
 
 struct TapeSlotTests {
     @Test func packsAndUnpacksEachField() {
-        let s = TapeSlot.make(tag: 0xA, aux: 0x0123_456, low: 0x89AB_CDEF)
+        let offset = Int(UInt64(0x89AB_CDEF) & UInt64(Int.max))
+        let s = TapeSlot.make(tag: 0xA, aux: 0x0123_456, low: offset)
         #expect(TapeSlot.tag(s) == 0xA)
         #expect(TapeSlot.aux(s) == 0x0123_456)
-        #expect(TapeSlot.low(s) == 0x89AB_CDEF)
+        #expect(TapeSlot.low(s) == offset)
     }
 
     @Test func fieldsAreIndependent() {
         // Each field round-trips at its maximum without bleeding into the others.
+        #expect(UInt64(TapeSlot.maxLow) == min(UInt64(Int.max), TapeSlot.lowMask))
         let s = TapeSlot.make(tag: 0xF, aux: UInt64(TapeSlot.maxAux), low: TapeSlot.maxLow)
         #expect(TapeSlot.tag(s) == 0xF)
         #expect(TapeSlot.aux(s) == UInt64(TapeSlot.maxAux))

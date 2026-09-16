@@ -30,7 +30,6 @@ import Synchronization
 /// ```
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 public final class AsyncSemaphore: Sendable {
-
     private let state: Mutex<State>
 
     private struct State {
@@ -65,6 +64,13 @@ public final class AsyncSemaphore: Sendable {
     /// Acquires a permit. Suspends if no permits are available.
     /// Throws `CancellationError` if the awaiting task is cancelled.
     public func wait() async throws {
+        try await wait(onEnqueue: {})
+    }
+
+    /// Observes registration outside the lock so tests can establish queue order.
+    /// The callback runs only when the waiter enters the queue, including if it is
+    /// subsequently cancelled or signalled before the callback runs.
+    func wait(onEnqueue: @Sendable () -> Void) async throws {
         try Task.checkCancellation()
 
         let waiterID: UInt64 = state.withLock { current in
@@ -86,7 +92,7 @@ public final class AsyncSemaphore: Sendable {
                 switch outcome {
                     case .acquired: cont.resume()
                     case .cancelled: cont.resume(throwing: CancellationError())
-                    case .queued: break  // waits in queue
+                    case .queued: onEnqueue()
                 }
             }
         } onCancel: {

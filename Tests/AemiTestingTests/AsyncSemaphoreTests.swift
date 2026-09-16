@@ -2,12 +2,9 @@ import Testing
 
 @testable import AemiTesting
 
-/// `AsyncSemaphore` regression coverage. Uses `TaskGate` as the
-/// oracle for FIFO ordering — one gate per parallel slot; the
-/// order gates open in mirrors the order signal() resumes waiters.
+/// Semaphore permits, cancellation, and FIFO handoff after observed registration.
 @Suite("AsyncSemaphore")
 struct AsyncSemaphoreTests {
-
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 
     @Test func waitReturnsImmediatelyWhenPermitAvailable() async throws {
@@ -36,34 +33,29 @@ struct AsyncSemaphoreTests {
 
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 
-    @Test func waitersResumeFIFO() async throws {
-        // Oracle: one TaskGate per waiter, opened from inside the
-        // resumed body. Order of opens = order of signal-resumes.
-        let sem = AsyncSemaphore()
-        let n = 4
-        let order = OrderRecorder()
-        let gates = (0..<n).map { _ in TaskGate() }
+    @Test func `signals resume waiters in registration order`() async throws {
+        let sut = AsyncSemaphore()
+        let queued = CountProbe()
+        let resumed = CountProbe<Int>()
+        let count = 4
 
-        await withTaskGroup(of: Void.self) { group in
-            for i in 0..<n {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            defer { group.cancelAll() }
+            for index in 0 ..< count {
                 group.addTask {
-                    try? await sem.wait()
-                    await order.record(i)
-                    gates[i].open()
+                    try await sut.wait(onEnqueue: { queued.record() })
+                    resumed.record(index)
                 }
+                // Creation order alone does not establish semaphore registration order.
+                try await queued.wait(forAtLeast: index + 1)
             }
-
-            // Signal one at a time, waiting for each gate before
-            // signalling the next. This forces strict serial
-            // observation of resume order.
-            for i in 0..<n {
-                sem.signal()
-                try? await gates[i].wait()
+            for index in 0 ..< count {
+                sut.signal()
+                try await resumed.wait(forAtLeast: index + 1)
+                #expect(resumed.events == Array(0 ... index))
             }
+            try await group.waitForAll()
         }
-
-        let observed = await order.snapshot
-        #expect(observed == Array(0..<n))
     }
 
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
@@ -80,10 +72,4 @@ struct AsyncSemaphoreTests {
         sem.signal()
         try await sem.wait()
     }
-}
-
-/// Trivial actor for ordering observations across concurrent tasks.
-actor OrderRecorder {
-    private(set) var snapshot: [Int] = []
-    func record(_ index: Int) { snapshot.append(index) }
 }

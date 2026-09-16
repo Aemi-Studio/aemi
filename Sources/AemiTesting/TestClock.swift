@@ -32,6 +32,13 @@ import Synchronization
 /// waits, include sleepers that are still queued in the requested count. For example,
 /// after waiting for one sleeper, use `count: 3` to await two more while the first remains.
 ///
+/// ## Further registrations
+///
+/// ``waitForAdditionalSleepers(_:)`` counts registrations after the call instead of the queue
+/// size, for staging a second wave while the first is still queued. When the wait cannot be
+/// parked before the sleeper registers, take a ``registrationMark()`` synchronously first and
+/// use ``waitForSleepers(_:after:)``.
+///
 /// ## Cancellation
 ///
 /// Both `sleep(until:tolerance:)` and `waitForSleepers(count:)` are
@@ -83,6 +90,10 @@ public final class TestClock: Clock, Sendable {
         var now: Instant = Instant(offset: .zero)
         var sleepers: [Sleeper] = []
         var registrationWaiters: [RegistrationWaiter] = []
+        var markWaiters: [MarkWaiter] = []
+        /// Sleepers registered since the clock was created, cancelled ones included; the
+        /// baseline every ``RegistrationMark`` is taken against.
+        var registrations: UInt64 = 0
         var nextSleeperID: UInt64 = 0
         var nextWaiterID: UInt64 = 0
     }
@@ -97,6 +108,19 @@ public final class TestClock: Clock, Sendable {
         let id: UInt64
         let target: Int
         let continuation: CheckedContinuation<Void, any Error>
+    }
+
+    private struct MarkWaiter {
+        let id: UInt64
+        let target: UInt64
+        let continuation: CheckedContinuation<Void, any Error>
+    }
+
+    /// A point in the clock's registration history, taken synchronously with
+    /// ``registrationMark()`` so a later ``waitForSleepers(_:after:)`` counts exactly the
+    /// sleepers that registered after it, whatever task ran first.
+    public struct RegistrationMark: Sendable, Hashable {
+        fileprivate let registrations: UInt64
     }
 
     public init() {
@@ -127,6 +151,7 @@ public final class TestClock: Clock, Sendable {
                         if current.now >= deadline { return (.deadlineAlreadyPast, []) }
                         current.sleepers.append(
                             Sleeper(id: sleeperID, deadline: deadline, continuation: cont))
+                        current.registrations &+= 1
 
                         var resumed: [CheckedContinuation<Void, any Error>] = []
                         var stillWaiting: [RegistrationWaiter] = []
@@ -138,6 +163,15 @@ public final class TestClock: Clock, Sendable {
                             }
                         }
                         current.registrationWaiters = stillWaiting
+                        var marksStillWaiting: [MarkWaiter] = []
+                        for waiter in current.markWaiters {
+                            if current.registrations >= waiter.target {
+                                resumed.append(waiter.continuation)
+                            } else {
+                                marksStillWaiting.append(waiter)
+                            }
+                        }
+                        current.markWaiters = marksStillWaiting
                         return (.suspended, resumed)
                     }
                 switch outcome {
@@ -202,6 +236,76 @@ public final class TestClock: Clock, Sendable {
             }
             resumer?.resume(throwing: CancellationError())
         }
+    }
+
+    /// The current point in the registration history, for ``waitForSleepers(_:after:)``.
+    ///
+    /// Synchronous, so a test takes it before spawning the work whose sleeper it wants to wait
+    /// for; the wait itself may then start on any task, in any order, without losing the sleeper.
+    public func registrationMark() -> RegistrationMark {
+        RegistrationMark(registrations: state.withLock { $0.registrations })
+    }
+
+    /// Suspends until `count` sleepers have registered after `mark`, counting a sleeper that was
+    /// cancelled or released in the meantime.
+    ///
+    /// Unlike ``waitForSleepers(count:)``, which observes the queue size, this counts
+    /// registrations, so it stages a second wave of sleepers while the first is still queued and
+    /// is never satisfied by a sleeper that registered before the mark.
+    ///
+    /// - Parameters:
+    ///   - count: The number of further registrations to wait for; a non-positive count returns
+    ///     immediately.
+    ///   - mark: The baseline, from ``registrationMark()``.
+    /// - Throws: `CancellationError` if cancelled before the registrations happened.
+    public func waitForSleepers(_ count: Int, after mark: RegistrationMark) async throws {
+        try Task.checkCancellation()
+        guard count > 0 else { return }
+        let target = mark.registrations &+ UInt64(count)
+
+        let waiterID: UInt64 = state.withLock { current in
+            current.nextWaiterID += 1
+            return current.nextWaiterID
+        }
+
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
+                let outcome: WaitOutcome = state.withLock { current in
+                    if Task.isCancelled { return .cancelled }
+                    if current.registrations >= target { return .satisfied }
+                    current.markWaiters.append(
+                        MarkWaiter(id: waiterID, target: target, continuation: cont))
+                    return .queued
+                }
+                switch outcome {
+                    case .cancelled: cont.resume(throwing: CancellationError())
+                    case .satisfied: cont.resume()
+                    case .queued: break
+                }
+            }
+        } onCancel: {
+            let resumer: CheckedContinuation<Void, any Error>? = state.withLock { current in
+                guard let idx = current.markWaiters.firstIndex(where: { $0.id == waiterID })
+                else { return nil }
+                let cont = current.markWaiters[idx].continuation
+                current.markWaiters.remove(at: idx)
+                return cont
+            }
+            resumer?.resume(throwing: CancellationError())
+        }
+    }
+
+    /// Suspends until `count` further sleepers register, counting only registrations after this
+    /// call; the same as ``waitForSleepers(_:after:)`` with a mark taken now.
+    ///
+    /// Prefer the mark form when the sleepers may register before this call runs, for example
+    /// when the wait lives in a task spawned alongside the work.
+    ///
+    /// - Parameter count: The number of further registrations; a non-positive count returns
+    ///   immediately.
+    /// - Throws: `CancellationError` if cancelled before the registrations happened.
+    public func waitForAdditionalSleepers(_ count: Int) async throws {
+        try await waitForSleepers(count, after: registrationMark())
     }
 
     /// Moves the virtual clock forward by `duration`, resuming every

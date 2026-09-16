@@ -8,6 +8,7 @@
 // `import AemiFoundation` never drags swift-syntax into a consumer's resolution or link graph.
 @_exported import AemiIO
 @_exported import AemiKernel
+@_exported import AemiKernels
 @_exported import AemiMetrics
 @_exported import AemiRuntime
 @_exported import AemiText

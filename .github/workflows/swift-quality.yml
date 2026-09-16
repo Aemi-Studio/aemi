@@ -34,7 +34,16 @@ name: Swift Quality
 
 on:
   workflow_call:
+    secrets:
+      dependency-ssh-key:
+        description: Read-only deploy key for the optional private dependency.
+        required: false
     inputs:
+      dependency-repository:
+        description: GitHub owner/repository for an optional private dependency.
+        required: false
+        type: string
+        default: ""
       dev-env-var:
         description: "Dev gate env var (e.g. ADF_DEV) that activates the lint/build plugins."
         required: true
@@ -188,6 +197,12 @@ jobs:
         working-directory: ${{ inputs.package-path }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Authenticate private dependency
+        if: inputs.dependency-repository != ''
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        with:
+          repository: ${{ inputs.dependency-repository }}
+          ssh-key: ${{ secrets.dependency-ssh-key }}
       - name: Checkout Aemi (canonical config + scripts)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -251,6 +266,12 @@ jobs:
     # build artifact instead, which needs no extra grant — it is report-only anyway.
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Authenticate private dependency
+        if: inputs.dependency-repository != ''
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        with:
+          repository: ${{ inputs.dependency-repository }}
+          ssh-key: ${{ secrets.dependency-ssh-key }}
       - name: Install analysers (published binaries, checksum-verified)
         # Release tarballs, not `swift build`: the tools' own manifests are tools-version 6.4 and
         # pull swift-syntax, so building them here would cost minutes per run and drag in the same
@@ -331,6 +352,12 @@ jobs:
         working-directory: ${{ inputs.package-path }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Authenticate private dependency
+        if: inputs.dependency-repository != ''
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        with:
+          repository: ${{ inputs.dependency-repository }}
+          ssh-key: ${{ secrets.dependency-ssh-key }}
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
         uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
@@ -376,6 +403,12 @@ jobs:
         config: [debug, release]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Authenticate private dependency
+        if: inputs.dependency-repository != ''
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        with:
+          repository: ${{ inputs.dependency-repository }}
+          ssh-key: ${{ secrets.dependency-ssh-key }}
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
         uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
@@ -422,6 +455,12 @@ jobs:
         config: [debug, release]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Authenticate private dependency
+        if: inputs.dependency-repository != ''
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        with:
+          repository: ${{ inputs.dependency-repository }}
+          ssh-key: ${{ secrets.dependency-ssh-key }}
       - run: swift --version
       - name: Install system packages
         if: ${{ inputs.system-packages != '' }}
@@ -453,6 +492,12 @@ jobs:
         working-directory: ${{ inputs.package-path }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Authenticate private dependency
+        if: inputs.dependency-repository != ''
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        with:
+          repository: ${{ inputs.dependency-repository }}
+          ssh-key: ${{ secrets.dependency-ssh-key }}
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
         uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
@@ -482,6 +527,12 @@ jobs:
     container: ${{ inputs.container-image }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Authenticate private dependency
+        if: inputs.dependency-repository != ''
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        with:
+          repository: ${{ inputs.dependency-repository }}
+          ssh-key: ${{ secrets.dependency-ssh-key }}
       - name: Install system packages
         if: ${{ inputs.system-packages != '' }}
         shell: bash

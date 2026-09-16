@@ -33,11 +33,7 @@ public final class TaskProviderSpy: TaskProvider {
     private let observationsFinished: CountProbe<Never>
     private let workCancels = Mutex<[UUID: @Sendable () -> Void]>([:])
     private let observationCancels = Mutex<[UUID: @Sendable () -> Void]>([:])
-    private let label: String
     private let defaultTimeout: Duration
-    private let file: StaticString
-    private let function: String
-    private let line: UInt
 
     /// Creates a spy. The creation site is reported by timeout errors.
     ///
@@ -51,11 +47,7 @@ public final class TaskProviderSpy: TaskProvider {
         function: String = #function,
         line: UInt = #line
     ) {
-        self.label = label
         self.defaultTimeout = defaultTimeout
-        self.file = file
-        self.function = function
-        self.line = line
         spawned = CountProbe(label: "\(label).spawned", file: file, function: function, line: line)
         completed = CountProbe(label: "\(label).completed", file: file, function: function, line: line)
         observationsSpawned = CountProbe(
@@ -163,30 +155,8 @@ public final class TaskProviderSpy: TaskProvider {
     ///   raw `Task { }`, or registered after its parent has already completed, is invisible here and
     ///   may still be pending when this returns.
     public func waitForAllTasks(timeout: Duration? = nil) async throws {
-        // The safety deadline runs on a real `ContinuousClock` on purpose: it must fire even when
-        // the system under test is driven by an injected fake clock (e.g. `TestClock`), so a
-        // stalled or runaway spawn chain fails fast instead of hanging the suite.
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout ?? defaultTimeout)
-        while true {
-            let target = spawned.count
-            let remaining = max(.zero, clock.now.duration(to: deadline))
-            try await completed.wait(forAtLeast: target, timeout: remaining)
-            if spawned.count == target {
-                return
-            }
-            guard clock.now < deadline else {
-                throw CountProbeTimeoutError<Never>(
-                    label: "\(label).completed",
-                    expected: spawned.count,
-                    recordedCount: completed.count,
-                    recorded: completed.events,
-                    file: file,
-                    function: function,
-                    line: line
-                )
-            }
-        }
+        try await TaskCompletionWait.wait(
+            spawned: spawned, completed: completed, timeout: timeout ?? defaultTimeout)
     }
 
     /// Suspends until every tracked observer has finished, or the timeout elapses.
@@ -195,29 +165,8 @@ public final class TaskProviderSpy: TaskProvider {
     /// tearing the system under test down (or after finishing its input streams). Observers
     /// registered while waiting are awaited too; the deadline covers the whole wait.
     public func waitForObservationsToFinish(timeout: Duration? = nil) async throws {
-        // Same real-clock deadline rationale as `waitForAllTasks`: the wait must fail fast
-        // even when the system under test runs on an injected fake clock.
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout ?? defaultTimeout)
-        while true {
-            let target = observationsSpawned.count
-            let remaining = max(.zero, clock.now.duration(to: deadline))
-            try await observationsFinished.wait(forAtLeast: target, timeout: remaining)
-            if observationsSpawned.count == target {
-                return
-            }
-            guard clock.now < deadline else {
-                throw CountProbeTimeoutError<Never>(
-                    label: "\(label).observationsFinished",
-                    expected: observationsSpawned.count,
-                    recordedCount: observationsFinished.count,
-                    recorded: observationsFinished.events,
-                    file: file,
-                    function: function,
-                    line: line
-                )
-            }
-        }
+        try await TaskCompletionWait.wait(
+            spawned: observationsSpawned, completed: observationsFinished, timeout: timeout ?? defaultTimeout)
     }
 
     // MARK: - TaskProvider
@@ -231,10 +180,10 @@ public final class TaskProviderSpy: TaskProvider {
     ) -> Task<Success, Never> {
         let task = Task(priority: priority, operation: operation)
         switch role {
-        case .work:
-            register(work: task)
-        case .observation:
-            register(observation: task)
+            case .work:
+                register(work: task)
+            case .observation:
+                register(observation: task)
         }
         return task
     }
@@ -248,10 +197,10 @@ public final class TaskProviderSpy: TaskProvider {
     ) -> Task<Success, Error> {
         let task = Task(priority: priority, operation: operation)
         switch role {
-        case .work:
-            register(work: task)
-        case .observation:
-            register(observation: task)
+            case .work:
+                register(work: task)
+            case .observation:
+                register(observation: task)
         }
         return task
     }
@@ -264,10 +213,10 @@ public final class TaskProviderSpy: TaskProvider {
     ) -> Task<Success, Never> {
         let task = Task.detached(priority: priority, operation: operation)
         switch role {
-        case .work:
-            register(work: task)
-        case .observation:
-            register(observation: task)
+            case .work:
+                register(work: task)
+            case .observation:
+                register(observation: task)
         }
         return task
     }
@@ -280,10 +229,10 @@ public final class TaskProviderSpy: TaskProvider {
     ) -> Task<Success, Error> {
         let task = Task.detached(priority: priority, operation: operation)
         switch role {
-        case .work:
-            register(work: task)
-        case .observation:
-            register(observation: task)
+            case .work:
+                register(work: task)
+            case .observation:
+                register(observation: task)
         }
         return task
     }

@@ -14,6 +14,9 @@ name: Swift Quality
 #         enable-docs: true
 #         docs-target: ADFoundation
 #
+# An umbrella repository holding several packages calls it once per package with `package-path`
+# (every job runs from that directory) and `enable-linux: false` for Apple-only packages.
+#
 # This workflow owns the COMMON gate + build/test/sanitizer/docs. Package-UNIQUE jobs (ADFoundation's
 # tier-isolation invariant, the ordo-one benchmark suites, ADJSON's NIO/fuzz legs) stay in a separate
 # per-package workflow that runs alongside this one.
@@ -36,6 +39,21 @@ on:
         description: "Dev gate env var (e.g. ADF_DEV) that activates the lint/build plugins."
         required: true
         type: string
+      package-path:
+        description: >-
+          Repository-relative directory of the package to check (for umbrella repositories holding
+          several packages, each with its own Package.swift). Every job runs its commands from this
+          directory; the canonical config files are expected there too. Default: the repository root.
+        required: false
+        type: string
+        default: "."
+      enable-linux:
+        description: >-
+          Run the Linux build/test legs. Set false for a package that links Apple-only frameworks
+          (AppKit, CryptoKit, TextKit) and can never build in the Linux container.
+        required: false
+        type: boolean
+        default: true
       container-image:
         description: "Canonical Linux toolchain image."
         required: false
@@ -165,6 +183,9 @@ jobs:
   gate:
     name: gate (format • discipline • metrics • drift)
     runs-on: ${{ inputs.macos-runner }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Checkout Aemi (canonical config + scripts)
@@ -177,14 +198,15 @@ jobs:
         shell: bash
         run: |
           fail=0
-          diff -u .aemi-tools/.swift-format .swift-format \
+          diff -u "$GITHUB_WORKSPACE/.aemi-tools/.swift-format" .swift-format \
             || { echo "::error::.swift-format drifted from canonical — run scripts/sync-config.sh"; fail=1; }
-          diff -u .aemi-tools/.swiftlint.yml .swiftlint.yml \
+          diff -u "$GITHUB_WORKSPACE/.aemi-tools/.swiftlint.yml" .swiftlint.yml \
             || { echo "::error::.swiftlint.yml drifted from canonical — run scripts/sync-config.sh"; fail=1; }
           exit $fail
       - name: Manifest settings drift (canonical swiftSettings present)
         shell: bash
-        run: .aemi-tools/scripts/check-manifest-settings.sh Package.swift
+        run: |
+          "$GITHUB_WORKSPACE/.aemi-tools/scripts/check-manifest-settings.sh" Package.swift
       - name: SwiftLint metrics (size / complexity)
         # swift-format cannot express file-length / cyclomatic-complexity; SwiftLint adds ONLY those
         # metrics (see .swiftlint.yml). ENFORCING (WS3 complete): `--strict` promotes every metric
@@ -213,12 +235,16 @@ jobs:
       - name: Internal-tag check
         if: ${{ inputs.strict-tags }}
         shell: bash
-        run: STRICT_TAGS=1 .aemi-tools/scripts/check-tags.sh all
+        run: |
+          STRICT_TAGS=1 "$GITHUB_WORKSPACE/.aemi-tools/scripts/check-tags.sh" all
 
   static-analysis:
     name: static analysis (arc • clones • dead code)
     if: ${{ inputs.enable-static-analysis }}
     runs-on: ${{ inputs.macos-runner }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     # No `permissions:` block: a called reusable workflow cannot request more than the caller granted,
     # and every caller here declares `permissions: contents: read`. Requesting `security-events: write`
     # for a code-scanning upload made the whole run fail at startup. deadwood's SARIF is published as a
@@ -300,6 +326,9 @@ jobs:
     # their test bundles; ADHTML failed at link. This job is the regression lock.
     name: consumer path (no env)
     runs-on: ${{ inputs.macos-runner }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
@@ -338,6 +367,9 @@ jobs:
     name: macOS (${{ matrix.config }})
     if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
     runs-on: ${{ inputs.macos-runner }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     strategy:
       fail-fast: false
       matrix:
@@ -375,8 +407,11 @@ jobs:
 
   test-linux:
     name: Linux (${{ matrix.config }})
-    if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
+    if: ${{ inputs.enable-linux && (!inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true')) }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     container: ${{ inputs.container-image }}
     # Opt-in advisory, release leg only: a nightly-Linux-toolchain release-mode teardown crash (tests
     # pass, the process segfaults on exit). Debug stays required, so a real Linux regression still gates.
@@ -413,6 +448,9 @@ jobs:
     name: sanitizers
     if: ${{ inputs.enable-sanitizers && (!inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true')) }}
     runs-on: ${{ inputs.macos-runner }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
@@ -438,6 +476,9 @@ jobs:
     name: Documentation (DocC)
     if: ${{ inputs.enable-docs && (!inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true')) }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     container: ${{ inputs.container-image }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

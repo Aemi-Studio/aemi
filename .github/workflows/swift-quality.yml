@@ -5,7 +5,7 @@ name: Swift Quality
 #
 #   jobs:
 #     quality:
-#       uses: g-cqd/ADBuildTools/.github/workflows/swift-quality.yml@v1
+#       uses: Aemi-Studio/aemi/.github/workflows/swift-quality.yml@main
 #       with:
 #         dev-env-var: ADF_DEV
 #         requires-published-siblings: true   # set when the package has first-party AD-family deps
@@ -27,9 +27,7 @@ name: Swift Quality
 #
 # Supply-chain hygiene (OWASP A03): third-party actions (`actions/checkout`) are pinned to a commit
 # SHA with the human-readable tag in a trailing comment; bump the SHA deliberately like a dependency.
-# First-party `g-cqd/ADBuildTools` self-references stay on the `@v1`/`ref: v1` tag — that IS the
-# consumer-facing version contract for this reusable workflow. Offline-authored; the first real-runner
-# run may need a tweak.
+# First-party actions and canonical configuration follow the published Aemi main branch.
 
 on:
   workflow_call:
@@ -160,6 +158,7 @@ permissions:
 # bodies comfortably under 100 ms locally). 250 ms absorbs runner noise on the build/test/sanitizer
 # legs; local builds keep the strict 100 ms default (manifests read this via `Context.environment`).
 env:
+  AEMI_TYPECHECK_BUDGET_MS: "250"
   AD_TYPECHECK_BUDGET_MS: "250"
 
 jobs:
@@ -168,24 +167,24 @@ jobs:
     runs-on: ${{ inputs.macos-runner }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Checkout ADBuildTools (canonical config + scripts)
+      - name: Checkout Aemi (canonical config + scripts)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          repository: g-cqd/ADBuildTools
-          ref: v1
-          path: .adbuildtools
+          repository: Aemi-Studio/aemi
+          ref: main
+          path: .aemi-tools
       - name: Config drift (.swift-format + .swiftlint.yml == canonical)
         shell: bash
         run: |
           fail=0
-          diff -u .adbuildtools/.swift-format .swift-format \
+          diff -u .aemi-tools/.swift-format .swift-format \
             || { echo "::error::.swift-format drifted from canonical — run scripts/sync-config.sh"; fail=1; }
-          diff -u .adbuildtools/.swiftlint.yml .swiftlint.yml \
+          diff -u .aemi-tools/.swiftlint.yml .swiftlint.yml \
             || { echo "::error::.swiftlint.yml drifted from canonical — run scripts/sync-config.sh"; fail=1; }
           exit $fail
       - name: Manifest settings drift (canonical swiftSettings present)
         shell: bash
-        run: .adbuildtools/scripts/check-manifest-settings.sh Package.swift
+        run: .aemi-tools/scripts/check-manifest-settings.sh Package.swift
       - name: SwiftLint metrics (size / complexity)
         # swift-format cannot express file-length / cyclomatic-complexity; SwiftLint adds ONLY those
         # metrics (see .swiftlint.yml). ENFORCING (WS3 complete): `--strict` promotes every metric
@@ -198,23 +197,23 @@ jobs:
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
         # Only the `swift package lint` step below needs SwiftPM (a 6.4 manifest), so the install is
         # gated exactly like it; the file-based gates above run on the image's stock tools.
-        if: ${{ !inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true' }}
-        uses: g-cqd/ADBuildTools/.github/actions/setup-swift@v1
+        if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
+        uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Lint (format gate + shipped-library discipline)
-        # `swift package lint` runs the ADBuildTools plugin, which resolves the package graph — so it is
+        # `swift package lint` runs the Aemi plugin, which resolves the package graph — so it is
         # gated on published siblings. The file-based gates above always run.
-        if: ${{ !inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true' }}
+        if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
         shell: bash
         # `--disable-sandbox` is REQUIRED by the Lint plugin (documented on runSwiftLintMetrics): it
         # execs the Homebrew `swiftlint`, whose cache write the plugin sandbox denies — the run dies
         # with a bare "error: lint failed" AFTER all checks pass. Same flag apple-docs' caller uses.
         run: |
-          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
-          ${{ inputs.dev-env-var }}=1 swift package $BS --disable-sandbox lint
+          BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
+          ${{ inputs.dev-env-var }}=1 swift package "${BS[@]}" --disable-sandbox lint
       - name: Internal-tag check
         if: ${{ inputs.strict-tags }}
         shell: bash
-        run: STRICT_TAGS=1 .adbuildtools/scripts/check-tags.sh all
+        run: STRICT_TAGS=1 .aemi-tools/scripts/check-tags.sh all
 
   static-analysis:
     name: static analysis (arc • clones • dead code)
@@ -304,7 +303,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
-        uses: g-cqd/ADBuildTools/.github/actions/setup-swift@v1
+        uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}
         shell: bash
@@ -337,7 +336,7 @@ jobs:
 
   test-macos:
     name: macOS (${{ matrix.config }})
-    if: ${{ !inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true' }}
+    if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
     runs-on: ${{ inputs.macos-runner }}
     strategy:
       fail-fast: false
@@ -346,7 +345,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
-        uses: g-cqd/ADBuildTools/.github/actions/setup-swift@v1
+        uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}
         shell: bash
@@ -362,21 +361,21 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
-          ${{ inputs.dev-env-var }}=1 swift build $BS -c ${{ matrix.config }}
+          BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
+          ${{ inputs.dev-env-var }}=1 swift build "${BS[@]}" -c ${{ matrix.config }}
       - name: Test
         shell: bash
         run: |
-          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
           if [ "${{ inputs.enable-coverage }}" = "true" ] && [ "${{ matrix.config }}" = "debug" ]; then
-            ${{ inputs.dev-env-var }}=1 swift test $BS -c debug --enable-code-coverage
+            ${{ inputs.dev-env-var }}=1 swift test "${BS[@]}" -c debug --enable-code-coverage
           else
-            ${{ inputs.dev-env-var }}=1 swift test $BS -c ${{ matrix.config }}
+            ${{ inputs.dev-env-var }}=1 swift test "${BS[@]}" -c ${{ matrix.config }}
           fi
 
   test-linux:
     name: Linux (${{ matrix.config }})
-    if: ${{ !inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true' }}
+    if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
     runs-on: ubuntu-latest
     container: ${{ inputs.container-image }}
     # Opt-in advisory, release leg only: a nightly-Linux-toolchain release-mode teardown crash (tests
@@ -402,22 +401,22 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
-          ${{ inputs.dev-env-var }}=1 swift build $BS -c ${{ matrix.config }}
+          BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
+          ${{ inputs.dev-env-var }}=1 swift build "${BS[@]}" -c ${{ matrix.config }}
       - name: Test
         shell: bash
         run: |
-          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
-          ${{ inputs.dev-env-var }}=1 swift test $BS -c ${{ matrix.config }}
+          BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
+          ${{ inputs.dev-env-var }}=1 swift test "${BS[@]}" -c ${{ matrix.config }}
 
   sanitizers:
     name: sanitizers
-    if: ${{ inputs.enable-sanitizers && (!inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
+    if: ${{ inputs.enable-sanitizers && (!inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true')) }}
     runs-on: ${{ inputs.macos-runner }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
-        uses: g-cqd/ADBuildTools/.github/actions/setup-swift@v1
+        uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}
         shell: bash
@@ -428,16 +427,16 @@ jobs:
       - name: Test under each sanitizer
         shell: bash
         run: |
-          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
+          BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
           for s in ${{ inputs.sanitizers }}; do
             echo "::group::sanitizer=$s"
-            ${{ inputs.dev-env-var }}=1 swift test $BS --sanitize="$s"
+            ${{ inputs.dev-env-var }}=1 swift test "${BS[@]}" --sanitize="$s"
             echo "::endgroup::"
           done
 
   docs:
     name: Documentation (DocC)
-    if: ${{ inputs.enable-docs && (!inputs.requires-published-siblings || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
+    if: ${{ inputs.enable-docs && (!inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true')) }}
     runs-on: ubuntu-latest
     container: ${{ inputs.container-image }}
     steps:
@@ -451,6 +450,6 @@ jobs:
       - name: Generate documentation
         shell: bash
         run: |
-          BS=""; [ -n "${{ inputs.build-system }}" ] && BS="--build-system ${{ inputs.build-system }}"
-          ${{ inputs.dev-env-var }}=1 swift package $BS --allow-writing-to-directory ./docs \
+          BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
+          ${{ inputs.dev-env-var }}=1 swift package "${BS[@]}" --allow-writing-to-directory ./docs \
             generate-documentation --target ${{ inputs.docs-target }} --output-path ./docs

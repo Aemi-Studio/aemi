@@ -1,0 +1,27 @@
+name: Read a private Swift dependency
+description: Configure one GitHub dependency with a read-only deploy key.
+inputs:
+  repository:
+    description: GitHub owner/repository whose deploy key is supplied.
+    required: true
+  ssh-key:
+    description: Read-only deploy key for the dependency repository.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Configure dependency transport
+      shell: bash
+      env:
+        DEPENDENCY_REPOSITORY: ${{ inputs.repository }}
+        DEPENDENCY_SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        set -euo pipefail
+        [[ "$DEPENDENCY_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
+        [[ -n "$DEPENDENCY_SSH_KEY" ]] || { echo 'Missing dependency deploy key'; exit 1; }
+        umask 077
+        key_dir=$(mktemp -d "$RUNNER_TEMP/dependency-ssh.XXXXXX")
+        printf '%s\n' "$DEPENDENCY_SSH_KEY" > "$key_dir/key"
+        printf '%s\n' 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$key_dir/known_hosts"
+        git config --global "url.ssh://git@github.com/$DEPENDENCY_REPOSITORY.git.insteadOf" "https://github.com/$DEPENDENCY_REPOSITORY.git"
+        printf 'GIT_SSH_COMMAND=ssh -i "%s/key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="%s/known_hosts"\n' "$key_dir" "$key_dir" >> "$GITHUB_ENV"

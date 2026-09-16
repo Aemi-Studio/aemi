@@ -1,136 +1,122 @@
 # Aemi
 
-The kernel package of the Aemi ecosystem. One package, many small targets —
-link exactly what you need. Consolidates what previously lived in
-`AemiUtilities`, `AemiUI`, `AemiSwift`, `Presentable/AppProjection`, and now
-absorbs the former `ADFoundation` (runtime kernel tiers + deterministic test
-kit) and `ADBuildTools` (lint/format plugins, canonical configs, quality
-scripts).
+Shared Swift building blocks for applications, libraries, and developer tools.
 
-Platforms: iOS 18 / macOS 15 / watchOS 11 / tvOS 18 / visionOS 2.
-Swift 6 language mode, strict concurrency; the pointer/POSIX kernel tiers
-additionally adopt SE-0458 strict memory safety.
+Aemi provides typed identifiers, concurrency utilities, byte and text primitives,
+macros, SwiftUI helpers, and deterministic test support. Choose the products your
+target uses; a command-line parser does not need to link UI code, and an application
+does not need to ship its test tools.
 
-## Kernel tiers (absorbed from ADFoundation)
+## Requirements
 
-Foundation-free, zero-dependency runtime tiers, plus a test kit. Naming map
-(old ADF name → new Aemi name):
+- Swift 6.3 or later, in Swift 6 language mode.
+- Apple platforms: iOS 18, macOS 15, tvOS 18, watchOS 11, and visionOS 2.
+- The kernel/runtime products also support Linux. SwiftUI and Combine APIs require
+  their Apple frameworks.
 
-| ADFoundation | Aemi |
-|---|---|
-| `ADFCore` | `AemiKernel` |
-| `ADFKernels` / `CADFKernels` | `AemiKernels` / `CAemiKernels` |
-| `ADFUnicode` | `AemiUnicode` |
-| `ADFText` | `AemiText` |
-| `ADFIO` | `AemiIO` |
-| `ADFMetrics` | `AemiMetrics` |
-| `ADConcurrency` | `AemiRuntime` |
-| `ADFMacroSupport` | `AemiMacroSupport` |
-| `ADTestKit` / `ADTestKitSeams` / `CADTestKitMalloc` | `AemiTestKit` / `AemiTestKitSeams` / `CAemiTestKitMalloc` |
-| `ADFoundation` (umbrella) | `AemiFoundation` (umbrella) |
-| `ADTesting` (umbrella) | `AemiTestKit` product (targets `AemiTestKit` + `AemiTestKitSeams`) |
+## Add Aemi
 
-- **`AemiFoundation`** — umbrella: one `import AemiFoundation` re-exports
-  `AemiKernel`, `AemiKernels`, `AemiIO`, `AemiText`, `AemiUnicode`,
-  `AemiMetrics`, and `AemiRuntime`. `AemiMacroSupport` is deliberately NOT
-  re-exported (swift-syntax stays opt-in), and neither is `AemiCore`.
-- **`AemiKernel`** — pointer-level byte/number primitives (strict memory safe).
-- **`AemiKernels`** — runtime-dispatched SIMD byte kernels over the C target
-  `CAemiKernels`; `AemiKernelsProbe` is the cross-arch differential checker.
-- **`AemiUnicode` / `AemiText` / `AemiIO` / `AemiMetrics`** — Unicode kernel,
-  text algorithms, POSIX IO, process self-metrics.
-- **`AemiRuntime`** — zero-dep concurrency seams (`TaskProvider`/`Clock`) and
-  pools (`ResourcePool`, `BlockingOffloadPool`). NOTE: distinct from
-  `AemiCore`'s app-level `TaskProvider`/`TaskRole`; the two modules are never
-  co-exported from a single umbrella.
-- **`AemiTestKit`** (product) — the deterministic-testing kit (`AemiTestKit` +
-  `AemiTestKitSeams` targets): Testing-backed asserts, `SeededRNG`, `Fuzz`,
-  oracles, `TestClock`/`AsyncProbe`, gates, malloc counting via
-  `CAemiTestKitMalloc`. Distinct from the app-level `AemiTesting` product
-  (both define a `TestClock`; different modules, never co-exported).
+Declare the remote package and select products on each target:
 
-## Dev tooling (`AEMI_DEV`) and plugins (absorbed from ADBuildTools)
+```swift
+dependencies: [
+    .package(url: "https://github.com/Aemi-Studio/aemi.git", branch: "main")
+],
+targets: [
+    .target(
+        name: "MyFeature",
+        dependencies: [.product(name: "AemiCore", package: "aemi")]
+    ),
+    .testTarget(
+        name: "MyFeatureTests",
+        dependencies: [
+            "MyFeature",
+            .product(name: "AemiTesting", package: "aemi")
+        ]
+    )
+]
+```
 
-The dependency-free plugins are always available to consumers. `AEMI_DEV=1`
-attaches `LintBuild` to Aemi's kernel targets and enables the benchmark and
-documentation dependencies:
+For example, give identifiers a type that describes what they identify:
 
-- **Plugins** (in `Plugins/`): `Format` (`swift package format`), `Lint`
-  (`swift package lint` — formatting gate + shipped-library discipline +
-  SwiftLint metrics), `LintBuild` (prebuild `swift format lint --strict` on
-  the kernel library targets when `AEMI_DEV=1`).
-- **Benchmarks**: the ordo-one suite (`AEMI_DEV=1 swift package benchmark`).
-- Canonical `.swift-format` / `.swiftlint.yml` live at the repo root;
-  `scripts/sync-config.sh`, `scripts/check-manifest-settings.sh`, and
-  `scripts/check-tags.sh` plus `.github/workflows/swift-quality.yml` keep them
-  from drifting.
+```swift
+import AemiCore
 
-`AEMI_FUZZ=1` additionally enables the Linux-only libFuzzer target
-`AemiKernelsFuzz` (`-sanitize=fuzzer` is rejected by the Darwin SDK).
+enum User {}
+enum Document {}
 
-## App-level products
+let userID = Identifier<User, String>("user-42")
+let documentID = Identifier<Document, String>("document-42")
+```
 
-### `AemiCore`
-General-purpose foundation, no UI dependency.
+The two identifiers have different types, even though both store a `String`.
+`Identifier` supports `Hashable` and `Codable` when its raw value does.
 
-- **Typed identity** (from `Presentable/AppProjection` → `AppIdentity`):
-  `Identifier<Owner, RawValue>` phantom-typed IDs, `AnyIdentifier` owner-erased
-  keys for mixed collections. Every witness is `@inlinable`, and
-  `_rawHashValue(seed:)` forwards to the raw value so `Set`/`Dictionary`
-  lookups skip a `Hasher` build (2.5x on `Set<Identifier<_, Int>>`). Surface:
-  `Codable` as the bare raw value, literals, `Strideable` + stride-taking
-  offsetting operators (`id + 1`, `id2 - id1`; `id1 + id2` stays a compile
-  error), `parse(_:)`, and a forwarded `String` API for string-backed IDs.
-- **Projections** (from `AppProjection`): `Projection`, read-side `Snapshot`,
-  observable write-side `Mutable` (`@Observable`, buffered edits, `update()` /
-  `revert()`), `Snapshot.updating(_:)`.
-- **Concurrency injection** (from `AemiSwift` → `AemiConcurrency`):
-  `TaskProvider`, `TaskRole`, `DefaultTaskProvider`.
-- **Task utilities** (from `AemiUtilities`): `Throttler`, `DependantTask`.
-- **Helpers** (from `AemiUtilities` + canonical versions of app-duplicated
-  helpers): `Collection[safe:]`, `Collection[guard:]`,
-  `MutableCollection[guard:]`, `Comparable.clamped(to:)`,
-  `Publisher.stream` (Combine → `AsyncStream`), `Platform` detection.
+## Choose a product
 
-### `AemiUI`
-SwiftUI helpers. Depends on `AemiCore`.
+### Applications
 
-- **From `AemiUtilities` (SwiftUI parts)**: `.if` conditional modifiers, size
-  updater (`.update(_:)`), visibility tracker (`.track(visibility:...)`, iOS),
-  bounds tracker (`.track(bounds:)`), visual debug overlay (`.debug()`),
-  platform-specific modifier (`.for(_:)`), keyboard-height publishers and
-  `.update(keyboardSize:)` (iOS), `EdgeInsets.safeAreaInsets` (iOS),
-  `UIApplication.currentScene/currentScreen` (iOS).
-- **From the old `AemiUI` package**: autosizing popover and sheet modifiers,
-  checkbox styles (`BooleanCheckbox`, `NativeToggleCheckboxStyle`,
-  `ObservingCheckbox`), `FixedSize`.
-- **New**: `Color(hex:)` canonical implementation; haptics vocabulary modeled
-  on Glassware's `GlassHaptics` — `HapticEvent`, `HapticsConfiguration`,
-  `.haptics(_:)` environment modifier, `.haptic(_:trigger:)` sensory-feedback
-  emitter, and a pre-warmed `HapticEngine` (iOS) for imperative call sites.
+| Product | Provides |
+| --- | --- |
+| `AemiCore` | Typed identifiers, projections, task providers, throttling, and collection helpers. |
+| `AemiUI` | SwiftUI presentation, layout, visibility, and haptics helpers. Depends on `AemiCore`. |
+| `InternedStrings` | Attached and expression macros for string obfuscation. |
+| `Loggable` | Macro-generated logging support. |
+| `Aemi` | Apple application umbrella: re-exports `AemiCore`, `AemiUI`, `InternedStrings`, and `Loggable`. |
 
-### `AemiTesting`
-Deterministic async test infrastructure (from `AemiSwift` → `AemiTesting`):
-`TestClock`, `TaskGate`, `CountProbe`, `AsyncProbe`, `AsyncSemaphore`,
-`TaskProviderSpy`. Requires iOS 18 / macOS 15 at runtime (`Mutex` from the
-Synchronization framework); annotated with `@available` accordingly.
+Prefer a specific product when building a reusable library. Use the `Aemi`
+umbrella when an Apple application needs that whole group.
 
-### `AemiTCA` (separate package: `aemi-tca`)
-Composable Architecture helpers live in the sibling `aemi-tca` package,
-because its `Dependence` dependency requires the iOS 26 platform
-generation and would otherwise raise this package's floor. It depends on
-`aemi` (AemiCore), `Aemi-Studio/dependence` (DI surface, re-exported),
-and `swift-composable-architecture` (`Effect.debounce` helper).
+### Runtime and parser building blocks
 
-### `Aemi` (umbrella)
-Re-exports `AemiCore`, `AemiUI`, `InternedStrings`, `Loggable`.
+| Product | Provides |
+| --- | --- |
+| `AemiKernel` | Byte, integer, floating-point, and tape primitives. |
+| `AemiKernels` | Swift access to the C byte-scanning and SIMD kernels. |
+| `AemiUnicode` | Unicode primitives. |
+| `AemiText` | Text algorithms built on the Unicode and byte primitives. |
+| `AemiIO` | POSIX file and storage operations. |
+| `AemiMetrics` | Process metrics. |
+| `AemiRuntime` | Task/clock interfaces, resource pools, and blocking-work offloading. |
+| `AemiFoundation` | Runtime umbrella for the kernel, text, IO, metrics, and concurrency products. |
+| `AemiMacroSupport` | SwiftSyntax helpers for compiler plugins. Select this only in macro targets. |
 
-### `Loggable` / `InternedStrings`
-Pre-existing macro-backed products, unchanged. External consumers
-(AemiSDR, AlertKit) depend on them.
+`AemiFoundation` does not re-export UI, application helpers, test tools, or macro
+compiler support. The manifest still resolves package-level dependencies such as
+SwiftSyntax; selecting a small product controls what is built and linked.
 
-## Deliberately not migrated
+### Tests
 
-- `Presentable`'s `AppNetworking`, `LoadState` (superseded by `AemiTCA`'s),
-  and DTOs — app-specific, out of scope for the shared foundation.
-- Glassware's haptics were re-modeled, not copied.
+| Product | Use it for |
+| --- | --- |
+| `AemiTesting` | Testing application code that uses `AemiCore` task providers: clocks, gates, probes, semaphores, and spies. |
+| `AemiTestKit` | Library and runtime tests: seeded data, fuzzing helpers, temporary files, allocation checks, clocks, and task coordination. |
+| `AemiTestKitSeams` | The runtime task/clock interfaces re-exported for test support. |
+
+Add testing products to test targets. `AemiTesting` and `AemiTestKit` currently
+have distinct clock and task-provider APIs; select the kit that matches the
+production module rather than importing both unqualified.
+
+## Development
+
+```sh
+swift build
+swift test
+swift package --disable-sandbox lint
+swift package --allow-writing-to-package-directory format
+```
+
+The `Format`, `Lint`, and `LintBuild` plugins are available to downstream packages.
+Aemi's optional benchmark and documentation tooling uses `AEMI_DEV=1`; normal
+consumers do not need that environment variable. `AEMI_FUZZ=1` enables the Linux
+kernel fuzzer. These options use remote package dependencies.
+
+## Consolidation
+
+Aemi is the shared home for functionality previously maintained in ADFoundation,
+AemiUtilities, AemiUI, and AemiSwift. The product names above are the dependency
+surface for new consumers. Application-specific packages stay separate.
+
+## License
+
+[MIT](LICENSE).

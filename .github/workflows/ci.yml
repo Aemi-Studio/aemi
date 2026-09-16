@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aemi-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test:
+    name: Swift ${{ matrix.swift }} (${{ matrix.configuration }})
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        swift: ['6.3', '6.4']
+        configuration: [debug, release]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Select the stable SDK
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - name: Install Swift 6.4 snapshot
+        if: matrix.swift == '6.4'
+        uses: ./.github/actions/setup-swift
+      - run: swift --version
+      - name: Resolve remote dependencies
+        run: swift package resolve
+      - name: Build
+        run: swift build -c '${{ matrix.configuration }}'
+      - name: Test
+        run: swift test -c '${{ matrix.configuration }}'

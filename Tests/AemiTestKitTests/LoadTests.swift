@@ -41,21 +41,22 @@ struct LoadTests {
     }
 
     @Test
-    func `a worker that overruns the deadline is reported timed out, not hung`() async {
-        // The deliberate overrun makes `expectAllConcurrent` record its "not all settled" Issue — that IS
-        // the signal in real use, so `withKnownIssue` absorbs it here while we assert the reported shape.
-        var outcome: LoadOutcome<Void>?
+    func `a worker that overruns the deadline is reported timed out, not hung`() async throws {
+        let gate = AsyncGate()
+        var recorded: LoadOutcome<Void>?
         await withKnownIssue {
-            outcome = await expectAllConcurrent(count: 2, within: .milliseconds(150)) { worker in
-                if worker == 1 { try await Task.sleep(for: .seconds(30)) }  // never settles in time
+            recorded = await expectAllConcurrent(count: 1, within: .milliseconds(150)) { _ in
+                try await gate.waitUntilOpen()
             }
         }
-        #expect(outcome?.complete == false)
-        #expect(outcome?.successCount == 1)
-        if case .failure(let error) = outcome?.results[1] {
-            #expect(error.typeName.contains("LoadWorkerTimedOut"))
-        } else {
-            Issue.record("worker 1 should be reported as a timeout failure")
-        }
+        let outcome = try #require(recorded)
+        #expect(!outcome.complete)
+        #expect(outcome.successCount == 0)
+        #expect(outcome.results.count == 1)
+        #expect(
+            outcome.results.contains { result in
+                guard case .failure(let error) = result else { return false }
+                return error.typeName.contains("LoadWorkerTimedOut")
+            })
     }
 }

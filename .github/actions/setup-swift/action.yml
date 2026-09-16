@@ -1,0 +1,35 @@
+name: "Setup Swift 6.4 (dev snapshot, macOS)"
+description: >-
+  Installs a dated Swift 6.4 development snapshot on macOS and exports TOOLCHAINS.
+  Select an Xcode SDK before invoking this action. The snapshot is pinned so updates
+  can be reviewed and verified alongside the Linux toolchain pin.
+inputs:
+  snapshot:
+    description: >-
+      swift.org swift-6.4.x-branch snapshot name. Default: the newest snapshot with a published
+      osx pkg at the time of pinning. Keep roughly in step with the Linux container pin in
+      swift-quality.yml when bumping.
+    required: false
+    default: "swift-6.4.x-DEVELOPMENT-SNAPSHOT-2026-06-15-a"
+runs:
+  using: composite
+  steps:
+    - name: Install ${{ inputs.snapshot }} and export TOOLCHAINS
+      shell: bash
+      env:
+        SNAP: ${{ inputs.snapshot }}
+      run: |
+        set -euo pipefail
+        [[ "$SNAP" =~ ^swift-6\.4\.x-DEVELOPMENT-SNAPSHOT-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z]$ ]] || { echo "Invalid snapshot name" >&2; exit 1; }
+        TC_DIR="/Library/Developer/Toolchains/${SNAP}.xctoolchain"
+        if [ ! -d "$TC_DIR" ]; then
+          echo "Downloading ${SNAP}-osx.pkg …"
+          curl -fsSL --retry 3 -o "${RUNNER_TEMP}/${SNAP}-osx.pkg" \
+            "https://download.swift.org/swift-6.4.x-branch/xcode/${SNAP}/${SNAP}-osx.pkg"
+          sudo installer -pkg "${RUNNER_TEMP}/${SNAP}-osx.pkg" -target /
+          rm -f "${RUNNER_TEMP}/${SNAP}-osx.pkg"
+        fi
+        TOOLCHAIN_ID="$(plutil -extract CFBundleIdentifier raw "${TC_DIR}/Info.plist")"
+        echo "TOOLCHAINS=${TOOLCHAIN_ID}" >> "$GITHUB_ENV"
+        echo "Installed toolchain: ${TOOLCHAIN_ID}"
+        TOOLCHAINS="${TOOLCHAIN_ID}" swift --version

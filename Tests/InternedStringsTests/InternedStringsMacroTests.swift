@@ -11,6 +11,7 @@ import Testing
 
 private let testMacros: [String: Macro.Type] = [
     "Interned": InternedMacro.self,
+    "InlinedInterned": InternedMacro.self
 ]
 
 // MARK: - Roundtrip Tests
@@ -118,11 +119,12 @@ struct ObfuscationQualityTests {
         let obfuscated = TestObfuscator.obfuscate(string: original, key: key)
 
         let originalBytes = Array(original.utf8)
-        for i in 0..<(originalBytes.count - 3) {
-            let substring = Array(originalBytes[i..<(i + 4)])
-            let found = obfuscated.indices.dropLast(3).contains { j in
-                Array(obfuscated[j..<(j + 4)]) == substring
-            }
+        for i in 0 ..< (originalBytes.count - 3) {
+            let substring = Array(originalBytes[i ..< (i + 4)])
+            let found = obfuscated.indices.dropLast(3)
+                .contains { j in
+                    Array(obfuscated[j ..< (j + 4)]) == substring
+                }
             #expect(!found, "Found plaintext substring at index \(i)")
         }
     }
@@ -188,7 +190,7 @@ struct MacroExpansionTests {
     ) throws {
         let open = try #require(getter.firstIndex(of: "["), sourceLocation: sourceLocation)
         let close = try #require(getter.firstIndex(of: "]"), sourceLocation: sourceLocation)
-        let bytes: [UInt8] = try getter[getter.index(after: open)..<close]
+        let bytes: [UInt8] = try getter[getter.index(after: open) ..< close]
             .split(separator: ",")
             .map { chunk in
                 let hex = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -196,10 +198,16 @@ struct MacroExpansionTests {
                 return try #require(UInt8(digits, radix: 16), sourceLocation: sourceLocation)
             }
         let afterBytes = getter[getter.index(after: close)...]
-        let keyText = afterBytes
+        let keyText =
+            afterBytes
             .drop(while: { $0 == "," || $0 == " " })
-            .prefix(while: \.isNumber)
-        let key = try #require(UInt64(keyText), sourceLocation: sourceLocation)
+            .prefix(while: { $0.isHexDigit || $0 == "x" || $0 == "_" })
+        let normalizedKey = keyText.replacingOccurrences(of: "_", with: "")
+        let key = try #require(
+            normalizedKey.hasPrefix("0x")
+                ? UInt64(normalizedKey.dropFirst(2), radix: 16)
+                : UInt64(normalizedKey),
+            sourceLocation: sourceLocation)
         #expect(SI.v(bytes, key) == expected, sourceLocation: sourceLocation)
     }
 }
@@ -215,10 +223,11 @@ struct DiagnosticTests {
             @Interned static var x: String
             """,
             expandedSource: """
-            static var x: String
-            """,
+                static var x: String
+                """,
             diagnostics: [
-                DiagnosticSpec(message: "@Interned requires a string literal (as argument or initializer)", line: 1, column: 1)
+                DiagnosticSpec(
+                    message: "@Interned requires a string literal (as argument or initializer)", line: 1, column: 1)
             ],
             macros: testMacros
         )
@@ -231,10 +240,131 @@ struct DiagnosticTests {
             @Interned("x") static var x: String { "y" }
             """,
             expandedSource: """
-            static var x: String { "y" }
-            """,
+                static var x: String { "y" }
+                """,
             diagnostics: [
-                DiagnosticSpec(message: "@Interned cannot be applied to a computed property", line: 1, column: 1)
+                DiagnosticSpec(
+                    message: "@Interned cannot be applied to properties with accessors or observers", line: 1, column: 1
+                )
+            ],
+            macros: testMacros
+        )
+    }
+
+    @Test
+    func `error on non-string property`() {
+        assertMacroExpansion(
+            """
+            @Interned("x") static var count: Int
+            """,
+            expandedSource: """
+                static var count: Int
+                """,
+            diagnostics: [
+                DiagnosticSpec(message: "@Interned can only be applied to String properties", line: 1, column: 1)
+            ],
+            macros: testMacros
+        )
+    }
+
+    @Test
+    func `error on multi-binding declaration`() {
+        assertMacroExpansion(
+            """
+            @Interned("x") static var first: String, second: String
+            """,
+            expandedSource: """
+                static var first: String, second: String
+                """,
+            diagnostics: [
+                DiagnosticSpec(message: "accessor macro can only be applied to a single variable", line: 1, column: 1)
+            ],
+            macros: testMacros
+        )
+    }
+
+    @Test
+    func `error on string interpolation`() {
+        assertMacroExpansion(
+            #"""
+            @Interned("hello \(name)") static var greeting: String
+            """#,
+            expandedSource: """
+                static var greeting: String
+                """,
+            diagnostics: [
+                DiagnosticSpec(message: "@Interned does not support string interpolation", line: 1, column: 1)
+            ],
+            macros: testMacros
+        )
+    }
+
+    @Test
+    func `error on non-literal freestanding input`() {
+        assertMacroExpansion(
+            """
+            let value = "hello"
+            let greeting = #Interned(value)
+            """,
+            expandedSource: """
+                let value = "hello"
+                let greeting = #Interned(value)
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "#Interned requires a string literal or array literal of strings", line: 2, column: 16)
+            ],
+            macros: testMacros
+        )
+    }
+
+    @Test
+    func `error on invalid strategy`() {
+        assertMacroExpansion(
+            """
+            let greeting = #Interned("hello", strategy: unknown)
+            """,
+            expandedSource: """
+                let greeting = #Interned("hello", strategy: unknown)
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "#Interned supports only .standard and .layered strategies", line: 1, column: 16)
+            ],
+            macros: testMacros
+        )
+    }
+
+    @Test
+    func `error on non-literal array element`() {
+        assertMacroExpansion(
+            """
+            let value = "hello"
+            let greetings = #Interned(["first", value])
+            """,
+            expandedSource: """
+                let value = "hello"
+                let greetings = #Interned(["first", value])
+                """,
+            diagnostics: [
+                DiagnosticSpec(message: "#Interned array elements must all be string literals", line: 2, column: 17)
+            ],
+            macros: testMacros
+        )
+    }
+
+    @Test
+    func `error on invalid strategy for inlined backend`() {
+        assertMacroExpansion(
+            """
+            let greeting = #InlinedInterned("hello", strategy: unknown)
+            """,
+            expandedSource: """
+                let greeting = #InlinedInterned("hello", strategy: unknown)
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "#InlinedInterned supports only .standard and .layered strategies", line: 1, column: 16)
             ],
             macros: testMacros
         )
@@ -273,7 +403,7 @@ enum TestObfuscator {
         guard n > 0 else { return [] }
 
         var shuffleGen = SplitMix64(seed: key ^ 0xA5A5_A5A5_A5A5_A5A5)
-        var permutation = Array(0..<n)
+        var permutation = Array(0 ..< n)
 
         for i in stride(from: n - 1, through: 1, by: -1) {
             let j = Int(shuffleGen.next() % UInt64(i + 1))
@@ -281,14 +411,14 @@ enum TestObfuscator {
         }
 
         var permuted = [UInt8](repeating: 0, count: n)
-        for i in 0..<n {
+        for i in 0 ..< n {
             permuted[i] = bytes[permutation[i]]
         }
 
         var streamGen = SplitMix64(seed: key ^ 0x5A5A_5A5A_5A5A_5A5A)
         var obfuscated = [UInt8](repeating: 0, count: n)
 
-        for i in 0..<n {
+        for i in 0 ..< n {
             obfuscated[i] = permuted[i] ^ UInt8(truncatingIfNeeded: streamGen.next())
         }
 

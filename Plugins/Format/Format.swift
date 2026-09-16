@@ -4,7 +4,7 @@ import PackagePlugin
 /// Formats the package in place with the toolchain's bundled `swift-format`.
 ///
 /// Driven through the `swift format` subcommand (`swift package format`); configuration is read from the
-/// consumer's `.swift-format`, kept in sync with the canonical ADBuildTools copy via `scripts/sync-config.sh`
+/// consumer's `.swift-format`, kept in sync with the canonical Aemi copy via `scripts/sync-config.sh`
 /// and the CI drift check.
 @main
 struct FormatPlugin: CommandPlugin {

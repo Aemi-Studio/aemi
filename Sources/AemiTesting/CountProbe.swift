@@ -149,20 +149,21 @@ public final class CountProbe<Event: Sendable>: Sendable {
         _ = state.withLock { $0.sleepers.removeValue(forKey: id) }
 
         switch outcome {
-        case .satisfied:
-            return
-        case .timedOut:
-            throw CountProbeTimeoutError(
-                label: label,
-                expected: count,
-                recordedCount: self.count,
-                recorded: events,
-                file: file,
-                function: function,
-                line: line
-            )
-        case .cancelled:
-            throw CancellationError()
+            case .satisfied:
+                return
+            case .timedOut:
+                throw timeoutError(expected: count)
+            case .cancelled:
+                throw CancellationError()
+        }
+    }
+
+    /// Captures diagnostic state consistently for a wait that has expired.
+    func timeoutError(expected count: Int) -> CountProbeTimeoutError<Event> {
+        state.withLock { state in
+            CountProbeTimeoutError(
+                label: label, expected: count, recordedCount: state.count, recorded: state.events,
+                file: file, function: function, line: line)
         }
     }
 
@@ -248,12 +249,12 @@ public final class CountProbe<Event: Sendable>: Sendable {
 }
 
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-public extension CountProbe where Event == Never {
+extension CountProbe where Event == Never {
     /// Creates a count-only probe. Constraining the payload to `Never` is what lets a bare
     /// `CountProbe()` — with no generic argument — resolve here: when the payload is not otherwise
     /// pinned, this is the only applicable initializer. Event probes still spell their payload, as
     /// in `CountProbe<Int>()`.
-    convenience init(
+    public convenience init(
         label: String = "",
         file: StaticString = #fileID,
         function: String = #function,
@@ -265,7 +266,7 @@ public extension CountProbe where Event == Never {
     /// Records one occurrence for a count-only probe. Wakes any sleeper whose target count has
     /// been reached. A count-only probe has no callable payload-taking `record(_:)` (you cannot
     /// construct a `Never`), so this is the only way to record and the backing array stays empty.
-    func record() {
+    public func record() {
         let resumers = state.withLock { state in resumersAfterRecording(&state) }
         for resume in resumers {
             resume()
@@ -288,7 +289,7 @@ public struct CountProbeTimeoutError<Event: Sendable>: Error, Sendable, CustomSt
     public var description: String {
         let prefix = label.isEmpty ? "CountProbe" : "CountProbe '\(label)'"
         let payload = recorded.isEmpty ? "" : ": \(recorded)"
-        return "\(prefix) timed out at \(file):\(line) (\(function)); " +
-            "expected at least \(expected), recorded \(recordedCount)\(payload)"
+        return "\(prefix) timed out at \(file):\(line) (\(function)); "
+            + "expected at least \(expected), recorded \(recordedCount)\(payload)"
     }
 }

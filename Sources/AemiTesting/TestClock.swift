@@ -23,21 +23,14 @@ import Synchronization
 ///
 /// `Task.yield()` before `advance` "fixes" this in practice but is
 /// non-deterministic under load. ``waitForSleepers(count:)``
-/// suspends on a `CheckedContinuation` resumed *only* when the
-/// requested number of additional sleepers have been appended to
-/// the queue — pure event-driven rendezvous through Swift
-/// Concurrency, no yielding, no polling, no timeouts.
+/// suspends until the requested number of sleepers is queued. Sleepers that registered
+/// before the wait count toward the threshold, so scheduling order cannot lose a wakeup.
 ///
-/// ## "N more" semantics
+/// ## Queue threshold
 ///
-/// `waitForSleepers(count:)` waits for `count` ADDITIONAL sleepers
-/// past whatever was queued at registration time. This matches the
-/// human intent of every realistic call site: "wait for my new
-/// spawned Task to register its sleeper", not "wait until the queue
-/// has at least N entries total". The distinction only matters when
-/// the test composes multiple awaits mid-flow — a queue-size
-/// threshold would trip immediately if a previous gated sleeper is
-/// still queued.
+/// `waitForSleepers(count:)` observes the current queue size. When composing multiple
+/// waits, include sleepers that are still queued in the requested count. For example,
+/// after waiting for one sleeper, use `count: 3` to await two more while the first remains.
 ///
 /// ## Cancellation
 ///
@@ -62,11 +55,9 @@ import Synchronization
 /// ```
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 public final class TestClock: Clock, Sendable {
-
     public typealias Duration = Swift.Duration
 
     public struct Instant: InstantProtocol, Sendable {
-
         public let offset: Duration
 
         public init(offset: Duration) {
@@ -104,7 +95,7 @@ public final class TestClock: Clock, Sendable {
 
     private struct RegistrationWaiter {
         let id: UInt64
-        var remaining: Int  // "N more" decrement counter
+        let target: Int
         let continuation: CheckedContinuation<Void, any Error>
     }
 
@@ -127,26 +118,20 @@ public final class TestClock: Clock, Sendable {
 
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
-                // Append the sleeper AND decrement matching
-                // registration waiters atomically under the lock.
+                // Append the sleeper and satisfy queue thresholds atomically under the lock.
                 // Resume them outside the lock to avoid re-entrancy
                 // into the clock from the resumed task.
-                let (outcome, registrationsToResume):
-                    (SleepOutcome, [CheckedContinuation<Void, any Error>])
-                    = state.withLock { current in
+                let (outcome, registrationsToResume): (SleepOutcome, [CheckedContinuation<Void, any Error>]) =
+                    state.withLock { current in
                         if Task.isCancelled { return (.cancelled, []) }
                         if current.now >= deadline { return (.deadlineAlreadyPast, []) }
                         current.sleepers.append(
                             Sleeper(id: sleeperID, deadline: deadline, continuation: cont))
 
-                        // Decrement every registration waiter by 1
-                        // ("one more sleeper just registered").
-                        // Resume any whose remaining reaches zero.
                         var resumed: [CheckedContinuation<Void, any Error>] = []
                         var stillWaiting: [RegistrationWaiter] = []
-                        for var waiter in current.registrationWaiters {
-                            waiter.remaining -= 1
-                            if waiter.remaining <= 0 {
+                        for waiter in current.registrationWaiters {
+                            if current.sleepers.count >= waiter.target {
                                 resumed.append(waiter.continuation)
                             } else {
                                 stillWaiting.append(waiter)
@@ -178,12 +163,10 @@ public final class TestClock: Clock, Sendable {
 
     // MARK: - Test API
 
-    /// Suspends until `count` ADDITIONAL sleepers register past
-    /// the current queue state. See the type-level "N more
-    /// semantics" doc for rationale.
-    ///
-    /// Throws `CancellationError` if the awaiting task is cancelled
-    /// before the count is satisfied.
+    /// Suspends until at least `count` sleepers are queued, including existing sleepers.
+    /// - Parameter count: The minimum queue size, including sleepers from earlier waits.
+    /// - Throws: `CancellationError` if cancelled before the threshold is satisfied.
+    /// - Precondition: `count` must be positive.
     public func waitForSleepers(count: Int = 1) async throws {
         precondition(count >= 1, "waitForSleepers count must be >= 1")
         try Task.checkCancellation()
@@ -197,16 +180,15 @@ public final class TestClock: Clock, Sendable {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
                 let outcome: WaitOutcome = state.withLock { current in
                     if Task.isCancelled { return .cancelled }
-                    // "N more" — never short-circuit on existing
-                    // queue size. Always wait for `count` additional
-                    // registrations from this point forward.
+                    if current.sleepers.count >= count { return .satisfied }
                     current.registrationWaiters.append(
                         RegistrationWaiter(
-                            id: waiterID, remaining: count, continuation: cont))
+                            id: waiterID, target: count, continuation: cont))
                     return .queued
                 }
                 switch outcome {
                     case .cancelled: cont.resume(throwing: CancellationError())
+                    case .satisfied: cont.resume()
                     case .queued: break
                 }
             }
@@ -256,5 +238,5 @@ public final class TestClock: Clock, Sendable {
     }
 
     private enum SleepOutcome { case deadlineAlreadyPast, suspended, cancelled }
-    private enum WaitOutcome { case queued, cancelled }
+    private enum WaitOutcome { case queued, satisfied, cancelled }
 }

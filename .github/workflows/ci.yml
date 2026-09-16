@@ -13,6 +13,10 @@ concurrency:
   group: aemi-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  # Match the shared workflow budget for compiler timing on hosted runners.
+  AEMI_TYPECHECK_BUDGET_MS: "250"
+
 jobs:
   test:
     name: Swift ${{ matrix.swift }} (${{ matrix.configuration }})

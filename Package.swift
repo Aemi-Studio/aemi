@@ -263,7 +263,11 @@ let package = Package(
             swiftSettings: testSettings),
         // Folded suites keep their origin settings (no aggressive type-check timing gate).
         .testTarget(
-            name: "AemiRuntimeTests", dependencies: ["AemiRuntime"], swiftSettings: strictSettings),
+            name: "AemiRuntimeTests", dependencies: ["AemiRuntime", "AemiTestKit"],
+            swiftSettings: strictSettings),
+        .testTarget(
+            name: "AemiFoundationTests", dependencies: ["AemiFoundation"],
+            swiftSettings: strictSettings),
         .testTarget(
             name: "AemiTestKitTests", dependencies: ["AemiTestKit", "AemiTestKitSeams"],
             swiftSettings: strictSettings)

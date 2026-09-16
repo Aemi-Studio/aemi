@@ -11,7 +11,6 @@ import Testing
 /// alone, including dedicated cancellation + multi-sleeper cases.
 @Suite("TestClock")
 struct TestClockTests {
-
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 
     @Test func sleepResumesWhenClockAdvancesPastDeadline() async throws {
@@ -69,9 +68,8 @@ struct TestClockTests {
 
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 
-    @Test func waitForSleepersResolvesWhenNAdditionalRegister() async throws {
-        // Tests "N more" semantics — pre-existing sleepers don't
-        // satisfy a fresh waitForSleepers call.
+    @Test func waitForSleepersWaitsForTheRequestedQueueSize() async throws {
+        // Existing sleepers contribute to the queue threshold.
         let clock = TestClock()
         let firstSleeperGate = TaskGate()
 
@@ -80,8 +78,7 @@ struct TestClockTests {
             firstSleeperGate.open()
         }
         try await clock.waitForSleepers()  // first registers
-        // First sleeper is queued. A new waitForSleepers(count: 2)
-        // must wait for 2 MORE, not return immediately on queue size.
+        // Wait for three total sleepers while the first remains queued.
 
         let resumeOne = TaskGate()
         let resumeTwo = TaskGate()
@@ -93,7 +90,7 @@ struct TestClockTests {
             try await clock.sleep(for: .milliseconds(300))
             resumeTwo.open()
         }
-        try await clock.waitForSleepers(count: 2)
+        try await clock.waitForSleepers(count: 3)
         // All three sleepers registered. Advance past the latest.
         clock.advance(by: .milliseconds(300))
         try await firstSleeperGate.wait()
@@ -133,12 +130,15 @@ struct TestClockTests {
         let clock = TestClock()
         let probe = AsyncProbe<Int>()
 
-        for i in 0..<5 {
-            Task {
-                try await clock.sleep(for: .milliseconds(100))
-                probe.send(i)
-            }
+        var sleepers: [Task<Void, any Error>] = []
+        for i in 0 ..< 5 {
+            sleepers.append(
+                Task {
+                    try await clock.sleep(for: .milliseconds(100))
+                    probe.send(i)
+                })
         }
+        defer { for sleeper in sleepers { sleeper.cancel() } }
         try await clock.waitForSleepers(count: 5)
         clock.advance(by: .milliseconds(100))
 
@@ -146,12 +146,13 @@ struct TestClockTests {
         // ordering — verify count, not strict order (the actor
         // scheduling determines who appends first).
         var received: Set<Int> = []
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             if let value = try await probe.next() {
                 received.insert(value)
             }
         }
-        #expect(received == Set(0..<5))
+        for sleeper in sleepers { try await sleeper.value }
+        #expect(received == Set(0 ..< 5))
         try probe.expectNoBufferedElements()
     }
 
@@ -162,4 +163,23 @@ struct TestClockTests {
         clock.advance(by: .milliseconds(100))
         #expect(clock.now.offset == .milliseconds(100))
     }
+}
+
+@Test func `waiting for sleepers includes sleepers already queued`() async throws {
+    let clock = TestClock()
+    let sleeper = Task { try await clock.sleep(for: .seconds(1)) }
+    let observed = CountProbe()
+    let waiter = Task {
+        try await clock.waitForSleepers()
+        try await clock.waitForSleepers()
+        observed.record()
+    }
+    defer {
+        waiter.cancel()
+        sleeper.cancel()
+    }
+    try await observed.wait(forAtLeast: 1)
+    clock.advance(by: .seconds(1))
+    try await sleeper.value
+    try await waiter.value
 }

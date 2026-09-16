@@ -71,7 +71,9 @@ let isFuzz = Context.environment["AEMI_FUZZ"] != nil
 //   • swift-collections — `HeapModule` backs the AemiTestKit `TestClock` sleeper queue.
 //   • swift-system      — `SystemPackage` backs AemiTestKit's typed temp-file paths.
 var packageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "603.0.0"),
+    // 603 builds with the Swift 6.3 toolchain the CI 6.3 lane uses; 604 is the Swift 6.4 release consumers on
+    // Xcode 27 pin. Both are accepted so a consumer's pin never conflicts with this range.
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.0" ..< "605.0.0"),
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.6.0"),
     .package(url: "https://github.com/apple/swift-system.git", from: "1.7.2")
 ]

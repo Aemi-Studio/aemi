@@ -71,10 +71,12 @@ struct AemiKernelsHammingTests {
         #expect(Self.distance(zeros, ones, .fastest) == count * 8)
     }
 
-    /// The batched scan over one vector wider than 64 KiB counts every bit, like the single-pair call:
-    /// each u16 lane gains 16 per 16 bytes, so without a per-block flush the lanes themselves wrap.
-    @Test func `the batched scan counts every bit of a vector wider than 64 KiB`() {
-        let width = 4097 * 16
+    /// The batched scan over one long all-different vector counts every bit, like the single-pair call.
+    /// At 32 KiB (one NEON flush block, the widest single-pass vector) the eight u16 lanes sum to 262144,
+    /// so the reduction must widen; past 64 KiB each lane gains 16 per 16 bytes and would itself wrap
+    /// without a per-block flush.
+    @Test(arguments: [2048 * 16, 4097 * 16])
+    func `the batched scan counts every bit of a long vector`(width: Int) {
         let query = [UInt8](repeating: 0x00, count: width)
         let corpus = [UInt8](repeating: 0xFF, count: width)
         var out: [UInt32] = [0]

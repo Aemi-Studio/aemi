@@ -74,10 +74,29 @@ void adf_hamming_scan(
     const uint8_t *query, const uint8_t *corpus, size_t width, size_t count, uint32_t *out) {
 #if defined(__aarch64__)
     if (width >= 16 && adf_kernels_isa() >= ADF_ISA_ARM_NEON) {
-        // The single-pair kernel per vector (inlined): it flushes its u16 lanes per 2048-block and reduces
-        // with a widening add, so a wide vector cannot wrap its count.
+        if (width > 2048 * 16) {
+            // Wider than one flush block: the single-pair kernel flushes its u16 lanes per block.
+            for (size_t v = 0; v < count; ++v) {
+                out[v] = (uint32_t)adf_hamming_neon(query, corpus + v * width, width);
+            }
+            return;
+        }
+        // At most one flush block per vector, so no u16 lane can pass 32768 and one widening reduction
+        // per vector is exact. The KNN widths (e.g. 64 bytes) stay on this single pass, which measures
+        // faster there than the blocked kernel's extra loop.
         for (size_t v = 0; v < count; ++v) {
-            out[v] = (uint32_t)adf_hamming_neon(query, corpus + v * width, width);
+            const uint8_t *vec = corpus + v * width;
+            uint16x8_t acc = vdupq_n_u16(0);
+            size_t i = 0;
+            for (; i + 16 <= width; i += 16) {
+                uint8x16_t x = veorq_u8(vld1q_u8(query + i), vld1q_u8(vec + i));
+                acc = vpadalq_u8(acc, vcntq_u8(x));
+            }
+            size_t total = (size_t)vaddlvq_u16(acc);
+            for (; i < width; ++i) {
+                total += (size_t)__builtin_popcount((unsigned)(uint8_t)(query[i] ^ vec[i]));
+            }
+            out[v] = (uint32_t)total;
         }
         return;
     }

@@ -3,7 +3,8 @@
 ///
 /// The transforms run as child tasks of one throwing task group: the first error thrown by any
 /// transform is rethrown, and the transforms still running are cancelled. Cancelling the caller
-/// cancels every transform in flight.
+/// cancels every transform in flight and starts no further one; the map then throws
+/// `CancellationError`, even when the transforms ignore cancellation or have all finished.
 ///
 /// - Parameters:
 ///   - items: The inputs, transformed in order of submission.
@@ -28,14 +29,18 @@ public func mapConcurrently<Item: Sendable, Result: Sendable>(
             next += 1
         }
         while next < min(limit, items.count) {
+            try Task.checkCancellation()
             enqueue()
         }
         while let (index, result) = try await group.next() {
             results[index] = result
             if next < items.count {
+                try Task.checkCancellation()
                 enqueue()
             }
         }
     }
+    // A cancel that lands after the last item was queued is seen by no check above.
+    try Task.checkCancellation()
     return results.compactMap { $0 }
 }

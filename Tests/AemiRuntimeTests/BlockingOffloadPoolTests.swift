@@ -1,3 +1,4 @@
+import AemiTestKit
 import Dispatch
 import Foundation  // Thread.sleep
 import Synchronization
@@ -167,6 +168,33 @@ private func withDeadline<T: Sendable>(
         #expect(refusal is CancellationError)
         try await pool.run {}
         #expect(ran.load(ordering: .relaxed) == false)
+    }
+
+    /// Queued jobs run in submission order, including across the points where the queue drops the
+    /// prefix of jobs already taken (from 32 takes on) and drains to empty. The only worker stays
+    /// parked while the jobs are queued, and the closing `run` is queued behind all of them.
+    @Test func `queued jobs run in submission order`() async throws {
+        let pool = BlockingOffloadPool(width: 1)
+        defer { pool.shutdown() }
+        let parked = AsyncLatch()
+        let release = DispatchSemaphore(value: 0)
+        let blocker = Task {
+            try await pool.run {
+                parked.open()
+                release.wait()
+            }
+        }
+        try await parked.wait()
+        let order = Mutex<[Int]>([])
+        for index in 0 ..< 200 {
+            let refusal = pool.submit(
+                .init(id: UInt64(1_000 + index), work: { order.withLock { $0.append(index) } }, cancel: nil))
+            #expect(refusal == nil)
+        }
+        release.signal()
+        try await blocker.value
+        try await pool.run {}
+        #expect(order.withLock { $0 } == Array(0 ..< 200))
     }
 
     /// After `shutdown()` the pool refuses work (`poolShuttingDown`), and a second `shutdown()` is a

@@ -54,8 +54,44 @@ public final class BlockingOffloadPool: Sendable {
         let work: () -> Void  // run the unit of work (body+resume, or an ExecutorJob)
         let cancel: (() -> Void)?  // resume the continuation with CancellationError (run<T> path only)
     }
+    /// The pending jobs, first in first out. Taking the first job must not shift the rest (an `Array`'s
+    /// `removeFirst()` is O(n) under the lock, and the executor path has no depth bound, so draining a
+    /// burst of n jobs cost O(n²)): jobs are taken at `head`, each taken slot is cleared at once so its
+    /// closures are released, and the taken prefix is dropped in one move once it is at least half the
+    /// storage. A take is amortized O(1).
+    private struct JobQueue {
+        private var slots: [Job?] = []
+        private var head = 0
+
+        /// The number of jobs waiting for a worker.
+        var count: Int { slots.count - head }
+
+        mutating func append(_ job: Job) {
+            slots.append(job)
+        }
+
+        mutating func popFirst() -> Job? {
+            guard head < slots.count else { return nil }
+            let job = slots[head].take()
+            head += 1
+            if head == slots.count {
+                slots.removeAll(keepingCapacity: true)
+                head = 0
+            } else if head >= 32, head * 2 >= slots.count {
+                slots.removeFirst(head)
+                head = 0
+            }
+            return job
+        }
+
+        /// Remove the job `id` if no worker has taken it yet (a linear search, on the cancel path only).
+        mutating func remove(id: UInt64) -> Job? {
+            guard let index = slots[head...].firstIndex(where: { $0?.id == id }) else { return nil }
+            return slots.remove(at: index)
+        }
+    }
     private struct State {
-        var queue: [Job] = []
+        var queue = JobQueue()
         var stopping = false
         var nextID: UInt64 = 0
     }
@@ -107,11 +143,8 @@ public final class BlockingOffloadPool: Sendable {
             }
         } onCancel: {
             // Whoever removes the job from the queue under the lock owns resuming it exactly once;
-            // if a worker already took it, `firstIndex` finds nothing and the running job resumes.
-            let job: Job? = state.withLock { state in
-                guard let index = state.queue.firstIndex(where: { $0.id == id }) else { return nil }
-                return state.queue.remove(at: index)
-            }
+            // if a worker already took it, `remove` finds nothing and the running job resumes.
+            let job = state.withLock { $0.queue.remove(id: id) }
             job?.cancel?()
         }
     }
@@ -148,7 +181,7 @@ public final class BlockingOffloadPool: Sendable {
     private func runLoop() {
         while true {
             wakeup.wait()
-            let job: Job? = state.withLock { $0.queue.isEmpty ? nil : $0.queue.removeFirst() }
+            let job = state.withLock { $0.queue.popFirst() }
             if let job {
                 job.work()
             } else if state.withLock({ $0.stopping }) {

@@ -97,6 +97,26 @@ public enum AemiKernels {
         }
     }
 
+    /// A copy of `bytes` with ASCII `A`–`Z` lowercased, read in place: a caller holding `Data` (its
+    /// `bytes` view) or a mapped region folds it without first copying it into an array.
+    public static func foldedASCII(_ bytes: RawSpan, backend: Backend = .fastest) -> [UInt8] {
+        let count = bytes.byteCount
+        guard count > 0 else { return [] }
+        @unsafe func fold(_ src: UnsafeRawBufferPointer) -> [UInt8] {
+            guard let base = src.baseAddress else { return [] }
+            let from = unsafe base.assumingMemoryBound(to: UInt8.self)
+            return unsafe [UInt8](unsafeUninitializedCapacity: count) { out, initialized in
+                guard let dst = out.baseAddress else {
+                    initialized = 0
+                    return
+                }
+                unsafe foldASCII(into: dst, from: from, count: count, backend: backend)
+                initialized = count
+            }
+        }
+        return unsafe bytes.withUnsafeBytes(fold)
+    }
+
     // MARK: - JSON-style string-stop scan
 
     /// The offset within `base[0..<count]` of the first byte a JSON/wire string reader must stop on —
@@ -140,6 +160,26 @@ public enum AemiKernels {
         return index == count ? nil : index
     }
 
+    /// The index in `bytes` of the first string-stop byte, or `nil` if the whole buffer is plain
+    /// content; the bytes are read in place, with no copy into an array.
+    public static func indexOfStringStop(
+        _ bytes: RawSpan,
+        quote: UInt8,
+        escape: UInt8,
+        backend: Backend = .fastest
+    ) -> Int? {
+        let count = bytes.byteCount
+        guard count > 0 else { return nil }
+        @unsafe func scan(_ src: UnsafeRawBufferPointer) -> Int {
+            guard let base = src.baseAddress else { return count }
+            return unsafe indexOfStringStop(
+                base: base.assumingMemoryBound(to: UInt8.self), count: count, quote: quote, escape: escape,
+                backend: backend)
+        }
+        let index = unsafe bytes.withUnsafeBytes(scan)
+        return index == count ? nil : index
+    }
+
     // MARK: - Single-byte search
 
     /// The offset within `base[0..<count]` of the first byte equal to `needle`, or `count` if absent.
@@ -170,6 +210,24 @@ public enum AemiKernels {
             return unsafe firstIndexOfByte(base: base, count: count, needle: needle, backend: backend)
         }
         let index = unsafe bytes.withUnsafeBufferPointer(scan)
+        return index == count ? nil : index
+    }
+
+    /// The index in `bytes` of the first byte equal to `needle`, or `nil` if absent. The bytes are read
+    /// in place: a caller holding `Data` (its `bytes` view) or a mapped region needs no array copy.
+    public static func firstIndexOfByte(
+        _ needle: UInt8,
+        in bytes: RawSpan,
+        backend: Backend = .fastest
+    ) -> Int? {
+        let count = bytes.byteCount
+        guard count > 0 else { return nil }
+        @unsafe func scan(_ src: UnsafeRawBufferPointer) -> Int {
+            guard let base = src.baseAddress else { return count }
+            return unsafe firstIndexOfByte(
+                base: base.assumingMemoryBound(to: UInt8.self), count: count, needle: needle, backend: backend)
+        }
+        let index = unsafe bytes.withUnsafeBytes(scan)
         return index == count ? nil : index
     }
 
@@ -266,6 +324,20 @@ public enum AemiKernels {
         return index == count ? nil : index
     }
 
+    /// The index of the first byte in `bytes` that breaks UTF-8 well-formedness, or `nil` if the whole
+    /// buffer is valid UTF-8; the bytes are read in place, with no copy into an array.
+    public static func firstInvalidUTF8(_ bytes: RawSpan, backend: Backend = .fastest) -> Int? {
+        let count = bytes.byteCount
+        guard count > 0 else { return nil }
+        @unsafe func scan(_ src: UnsafeRawBufferPointer) -> Int {
+            guard let base = src.baseAddress else { return count }
+            return unsafe firstInvalidUTF8(
+                base: base.assumingMemoryBound(to: UInt8.self), count: count, backend: backend)
+        }
+        let index = unsafe bytes.withUnsafeBytes(scan)
+        return index == count ? nil : index
+    }
+
     // MARK: - Hamming distance (bit-vector similarity)
 
     /// The number of differing bits between `a[0..<count]` and `b[0..<count]` — `Σ popcount(a[i] ^ b[i])`,
@@ -328,6 +400,19 @@ public enum AemiKernels {
             return unsafe firstNonASCII(base: base, count: count, backend: backend)
         }
         let index = unsafe bytes.withUnsafeBufferPointer(scan)
+        return index == count ? nil : index
+    }
+
+    /// The index in `bytes` of the first non-ASCII byte (`>= 0x80`), or `nil` if the whole buffer is
+    /// ASCII; the bytes are read in place, with no copy into an array.
+    public static func firstNonASCII(_ bytes: RawSpan, backend: Backend = .fastest) -> Int? {
+        let count = bytes.byteCount
+        guard count > 0 else { return nil }
+        @unsafe func scan(_ src: UnsafeRawBufferPointer) -> Int {
+            guard let base = src.baseAddress else { return count }
+            return unsafe firstNonASCII(base: base.assumingMemoryBound(to: UInt8.self), count: count, backend: backend)
+        }
+        let index = unsafe bytes.withUnsafeBytes(scan)
         return index == count ? nil : index
     }
 }

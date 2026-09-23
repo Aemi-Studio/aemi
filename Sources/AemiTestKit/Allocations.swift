@@ -1,4 +1,5 @@
 import CAemiTestKitMalloc
+import Synchronization
 // `public import`: the allocation assert exposes Swift Testing's `SourceLocation` publicly.
 public import Testing
 
@@ -32,18 +33,26 @@ public var allocationCountingAvailable: Bool {
     adtk_malloc_counting_available() != 0 && !sanitizerRuntimeLoaded
 }
 
+/// Serializes measurements. The counter and the hook are process-wide, so two measurements that
+/// overlapped (parallel tests) reset each other's count, and the second `begin` saved the counting hook
+/// itself as the hook to chain to: every later allocation then recursed until the stack overflowed.
+private let measurementLock = Mutex(())
+
 /// Counts the heap allocations made DURING `body`. Run a SYNCHRONOUS body with no concurrent work (the
 /// count is process-wide) and WARM UP first (call the body once before measuring) so one-time lazy
 /// initialization doesn't skew the delta. Returns `nil` where counting is unavailable (the body still
-/// runs, for its side effects).
+/// runs, for its side effects). Measurements are serialized: one started while another runs waits for
+/// it, so `body` must not itself measure (the nested call traps).
 public func mallocDelta(_ body: () -> Void) -> Int? {
     guard allocationCountingAvailable else {
         body()
         return nil
     }
-    adtk_malloc_count_begin()
-    body()
-    return Int(adtk_malloc_count_end())
+    return measurementLock.withLock { _ in
+        adtk_malloc_count_begin()
+        body()
+        return Int(adtk_malloc_count_end())
+    }
 }
 
 /// Asserts `body` makes at most `limit` heap allocations — a mutation-resistant performance guard for a

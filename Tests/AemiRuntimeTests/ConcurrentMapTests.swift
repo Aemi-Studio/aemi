@@ -78,6 +78,57 @@ struct ConcurrentMapTests {
     }
 
     @Test
+    func `an already cancelled caller starts no transform`() async throws {
+        let started = AsyncEventProbe<Int>()
+        let map = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await mapConcurrently(Array(0 ..< 10), limit: 4) { value in
+                started.record(value)
+                return value
+            }
+        }
+        await #expect(throws: CancellationError.self) { try await map.value }
+        #expect(started.events.isEmpty)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `a cancelled caller starts no further transforms`() async throws {
+        let release = AsyncLatch()
+        let started = AsyncEventProbe<Int>()
+        let map = Task {
+            try await mapConcurrently(Array(0 ..< 100), limit: 1) { value in
+                started.record(value)
+                // The first transform ignores cancellation: it waits on an unstructured task.
+                if value == 0 { try await Task { try await release.wait() }.value }
+                return value
+            }
+        }
+        _ = try await started.wait(forAtLeast: 1)
+        map.cancel()
+        release.open()
+        await #expect(throws: CancellationError.self) { try await map.value }
+        #expect(started.events == [0])
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `a caller cancelled while the last transform runs gets CancellationError`() async throws {
+        let release = AsyncLatch()
+        let started = AsyncEventProbe<Int>()
+        let map = Task {
+            try await mapConcurrently([0], limit: 1) { value in
+                started.record(value)
+                // Ignores cancellation, so it completes normally after the caller is cancelled.
+                try await Task { try await release.wait() }.value
+                return value
+            }
+        }
+        _ = try await started.wait(forAtLeast: 1)
+        map.cancel()
+        release.open()
+        await #expect(throws: CancellationError.self) { try await map.value }
+    }
+
+    @Test
     func `an empty input yields an empty result`() async throws {
         let results: [Int] = try await mapConcurrently([Int](), limit: 3) { $0 }
         #expect(results.isEmpty)

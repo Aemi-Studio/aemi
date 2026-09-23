@@ -44,15 +44,15 @@ public final class BlockingOffloadPool: Sendable {
         case queueFull(maxDepth: Int)
     }
 
-    /// One unit of work. `@unchecked Sendable`: `work`/`cancel` capture a `CheckedContinuation`
-    /// (itself `Sendable`) plus the caller's `@Sendable` body, and the job is handed to exactly one
-    /// worker (or, for the cancel path, removed under the lock before the worker can take it), so it
-    /// never runs concurrently with itself. Same discipline as `WriterThread.Job`. Internal (not
-    /// private) so tests can drive ``submit(_:)`` directly.
-    struct Job: @unchecked Sendable {
+    /// One unit of work. The job is handed to exactly one worker (or, for the cancel path, removed under
+    /// the lock before the worker can take it), so it never runs concurrently with itself — the same
+    /// discipline as `WriterThread.Job`. Its closures capture only `Sendable` values (a
+    /// `CheckedContinuation` and the caller's `@Sendable` body, or an `UnownedJob` and its executor),
+    /// so the conformance is compiler-checked. Internal (not private) so tests can drive ``submit(_:)``.
+    struct Job: Sendable {
         let id: UInt64
-        let work: () -> Void  // run the unit of work (body+resume, or an ExecutorJob)
-        let cancel: (() -> Void)?  // resume the continuation with CancellationError (run<T> path only)
+        let work: @Sendable () -> Void  // run the unit of work (body+resume, or an ExecutorJob)
+        let cancel: (@Sendable () -> Void)?  // resume the continuation with CancellationError (run<T> only)
     }
     /// The pending jobs, first in first out. Taking the first job must not shift the rest (an `Array`'s
     /// `removeFirst()` is O(n) under the lock, and the executor path has no depth bound, so draining a
@@ -102,7 +102,6 @@ public final class BlockingOffloadPool: Sendable {
     private let wakeup = DispatchSemaphore(value: 0)
     /// A worker signals this exactly once as it exits, so `shutdown` can join all `width` of them.
     private let exited = DispatchSemaphore(value: 0)
-    private let didShutdown = Atomic<Bool>(false)
     private let width: Int
     private let maxDepth: Int
 
@@ -194,8 +193,12 @@ public final class BlockingOffloadPool: Sendable {
     /// Stop accepting work, drain already-queued jobs, and JOIN every worker before returning.
     /// Idempotent — only the first call performs the shutdown; later calls return immediately.
     public func shutdown() {
-        guard didShutdown.exchange(true, ordering: .acquiringAndReleasing) == false else { return }
-        state.withLock { $0.stopping = true }
+        let isFirstCall = state.withLock { state -> Bool in
+            guard !state.stopping else { return false }
+            state.stopping = true
+            return true
+        }
+        guard isFirstCall else { return }
         for _ in 0 ..< width { wakeup.signal() }  // wake every worker so it observes `stopping`
         for _ in 0 ..< width { exited.wait() }  // join: await every worker's exit
     }

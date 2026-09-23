@@ -131,7 +131,7 @@ private func withDeadline<T: Sendable>(
     /// its body — the pre-cancelled edge. The task parks at a long sleep (a cancellation point) until
     /// cancelled, so by the time it reaches `pool.run` it is guaranteed cancelled; the body setting
     /// `ran` would fail the `#expect` if the pre-entry check were missing (which is exactly the bug
-    /// this guards: `onCancel` fires before the job is queued, so only the in-`run` check can catch it).
+    /// this guards: `onCancel` fires before the job is queued, so only the admission check can catch it).
     @Test func alreadyCancelledTaskThrowsWithoutRunningBody() async throws {
         let pool = BlockingOffloadPool(width: 2)
         defer { pool.shutdown() }
@@ -148,6 +148,25 @@ private func withDeadline<T: Sendable>(
             await #expect(throws: CancellationError.self) { _ = try await task.value }
         }
         #expect(ran.load(ordering: .acquiring) == false)
+    }
+
+    /// Admission itself refuses a cancelled task's job, under the lock `onCancel` takes. `cancel()` sets
+    /// the flag before it runs the handler, so a check made before taking that lock can pass just before
+    /// the flag is set while the append lands after the handler found nothing to remove — and the job
+    /// runs. Submitting from a task that is already cancelled pins where the check lives; the sentinel
+    /// job then runs on the only worker, behind anything that was queued.
+    @Test func `a cancelled task's job is refused at admission and never runs`() async throws {
+        let pool = BlockingOffloadPool(width: 1)
+        defer { pool.shutdown() }
+        let ran = Atomic<Bool>(false)
+        let submitter = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return pool.submit(.init(id: .max, work: { ran.store(true, ordering: .relaxed) }, cancel: nil))
+        }
+        let refusal = await submitter.value
+        #expect(refusal is CancellationError)
+        try await pool.run {}
+        #expect(ran.load(ordering: .relaxed) == false)
     }
 
     /// After `shutdown()` the pool refuses work (`poolShuttingDown`), and a second `shutdown()` is a

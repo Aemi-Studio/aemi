@@ -47,8 +47,9 @@ public final class BlockingOffloadPool: Sendable {
     /// One unit of work. `@unchecked Sendable`: `work`/`cancel` capture a `CheckedContinuation`
     /// (itself `Sendable`) plus the caller's `@Sendable` body, and the job is handed to exactly one
     /// worker (or, for the cancel path, removed under the lock before the worker can take it), so it
-    /// never runs concurrently with itself. Same discipline as `WriterThread.Job`.
-    private struct Job: @unchecked Sendable {
+    /// never runs concurrently with itself. Same discipline as `WriterThread.Job`. Internal (not
+    /// private) so tests can drive ``submit(_:)`` directly.
+    struct Job: @unchecked Sendable {
         let id: UInt64
         let work: () -> Void  // run the unit of work (body+resume, or an ExecutorJob)
         let cancel: (() -> Void)?  // resume the continuation with CancellationError (run<T> path only)
@@ -94,23 +95,14 @@ public final class BlockingOffloadPool: Sendable {
         let id = nextJobID()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
-                // Already-cancelled-on-entry: `withTaskCancellationHandler` fires `onCancel` before this
-                // closure runs, but the job is not in the queue yet, so `onCancel` removed nothing.
-                // Honor the cancellation here instead of running `body`. Because we return WITHOUT
-                // admitting, the job never enters the queue, so `onCancel` can never find it either —
-                // this branch owns the (single) resume with no race against the removal path.
-                if Task.isCancelled {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
                 let job = Job(
                     id: id,
                     work: { continuation.resume(with: Result { try body() }) },
                     cancel: { continuation.resume(throwing: CancellationError()) })
-                if let error = admit(job) {
-                    continuation.resume(throwing: error)
-                } else {
-                    wakeup.signal()
+                // A refused job never enters the queue, so `onCancel` can never find it: this branch
+                // owns the (single) resume with no race against the removal path.
+                if let refusal = submit(job) {
+                    continuation.resume(throwing: refusal)
                 }
             }
         } onCancel: {
@@ -132,14 +124,25 @@ public final class BlockingOffloadPool: Sendable {
         }
     }
 
-    /// Append `job` for a worker to run, or return the reason it was refused (`nil` == accepted).
-    private func admit(_ job: Job) -> SubmissionError? {
-        state.withLock { state in
-            guard !state.stopping else { return .poolShuttingDown }
-            guard state.queue.count < maxDepth else { return .queueFull(maxDepth: maxDepth) }
+    /// Append `job` and wake a worker for it, or return why it was refused (`nil` == accepted):
+    /// `CancellationError` when the submitting task is cancelled, else a ``SubmissionError``.
+    ///
+    /// Cancellation is checked HERE, under the lock `onCancel` takes, and not before it: `cancel()`
+    /// sets the task's flag before it runs the handler, so either the handler finds the queued job and
+    /// removes it, or this sees the flag and refuses. A check before taking the lock leaves a window in
+    /// which the cancel lands after the check but before the append — the handler finds nothing to
+    /// remove, and the job runs anyway. The same check covers a task already cancelled when `run` is
+    /// entered, whose handler fired before the job existed.
+    func submit(_ job: Job) -> (any Error)? {
+        let refusal: (any Error)? = state.withLock { state in
+            if Task.isCancelled { return CancellationError() }
+            guard !state.stopping else { return SubmissionError.poolShuttingDown }
+            guard state.queue.count < maxDepth else { return SubmissionError.queueFull(maxDepth: maxDepth) }
             state.queue.append(job)
             return nil
         }
+        if refusal == nil { wakeup.signal() }
+        return refusal
     }
 
     private func runLoop() {

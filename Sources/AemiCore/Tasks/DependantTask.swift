@@ -46,7 +46,9 @@ public actor DependantTask<Success, Failure>: Identifiable where Success: Sendab
         operation: @escaping Operation
     ) where Success == Void, Failure == Never {
         self.previous = previous
-        work = Task { [unowned previous] in
+        // Strong: once the caller drops `previous`, nothing else keeps it alive through the wait below
+        // (`Throttler` only keeps the tail). The capture is released when the work finishes.
+        work = Task { [previous] in
             if let previous, await !previous.isCancelled() {
                 _ = await previous.value()
             }
@@ -64,7 +66,8 @@ public actor DependantTask<Success, Failure>: Identifiable where Success: Sendab
         operation: @escaping AsyncOperation
     ) where Success == Void, Failure == Never {
         self.previous = previous
-        work = Task { [unowned previous] in
+        // Strong, as in the synchronous initializer above.
+        work = Task { [previous] in
             if let previous, await !previous.isCancelled() {
                 _ = await previous.value()
             }
@@ -77,7 +80,8 @@ public actor DependantTask<Success, Failure>: Identifiable where Success: Sendab
         }
     }
 
-    public func attach(_ operation: @escaping Operation) async -> DependantTask? where Success == Void, Failure == Never {
+    public func attach(_ operation: @escaping Operation) async -> DependantTask?
+    where Success == Void, Failure == Never {
         if next == nil {
             next = DependantTask(previous: self, operation: operation)
             return next
@@ -85,7 +89,8 @@ public actor DependantTask<Success, Failure>: Identifiable where Success: Sendab
         return await next?.attach(operation)
     }
 
-    public func attach(_ operation: @escaping AsyncOperation) async -> DependantTask? where Success == Void, Failure == Never {
+    public func attach(_ operation: @escaping AsyncOperation) async -> DependantTask?
+    where Success == Void, Failure == Never {
         if next == nil {
             next = DependantTask(previous: self, operation: operation)
             return next

@@ -237,6 +237,19 @@ private func makeTempPath() -> String {
         #expect(text.contains("(errno 2)"))  // ENOENT == 2 on Darwin and Linux
         #expect(text.contains("No such file"))  // strerror(ENOENT), proving the buffer was filled
     }
+
+    /// A captured error reads `errno` before it builds its label, so building the label (string
+    /// interpolation, which may allocate) cannot change the code the error reports.
+    @Test func `capturing errno reads the code before building the label`() {
+        func labelThatOverwritesErrno() -> String {
+            errno = 0
+            return "open(/missing)"
+        }
+        errno = ENOENT
+        let error = IOError.capturingErrno(labelThatOverwritesErrno())
+        #expect(error.errno == ENOENT)
+        #expect(error.op == "open(/missing)")
+    }
 }
 
 @Suite struct AtomicsTests {

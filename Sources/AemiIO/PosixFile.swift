@@ -9,9 +9,10 @@ import Synchronization
 /// POSIX-backed file handle exposing positioned reads/writes, a gather
 /// (vectored) write, durability syncs, and space management. All calls are
 /// stateless per-fd operations (`pread`/`pwrite`/`fcntl`), safe to issue from
-/// any thread, so the type is `@unchecked Sendable`: the only mutable state is
-/// the atomic double-close guard.
-public final class PosixFile: @unchecked Sendable {
+/// any thread, and every stored property is an immutable `Sendable` value —
+/// the only mutable state is the atomic double-close guard — so the
+/// `Sendable` conformance is compiler-checked.
+public final class PosixFile: Sendable {
     public let fileDescriptor: Int32
     private let closeOnDeinit: Bool
     /// Guards against double-close: a second close on a recycled descriptor
@@ -239,8 +240,9 @@ public final class PosixFile: @unchecked Sendable {
 
     public func close() {
         guard fileDescriptor >= 0 else { return }
-        let (exchanged, _) = closed.compareExchange(
-            expected: false, desired: true, ordering: .acquiringAndReleasing)
+        // Relaxed: the flag only elects the one caller that closes; nothing is published through it
+        // (the descriptor is an immutable `let`).
+        let (exchanged, _) = closed.compareExchange(expected: false, desired: true, ordering: .relaxed)
         // Module-qualified to call the libc syscall, not this type's `close`.
         #if canImport(Darwin)
             if exchanged { _ = Darwin.close(fileDescriptor) }

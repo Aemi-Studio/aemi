@@ -1,3 +1,4 @@
+import AemiTestKit
 import Dispatch
 import Foundation  // Thread.sleep
 import Synchronization
@@ -131,7 +132,7 @@ private func withDeadline<T: Sendable>(
     /// its body — the pre-cancelled edge. The task parks at a long sleep (a cancellation point) until
     /// cancelled, so by the time it reaches `pool.run` it is guaranteed cancelled; the body setting
     /// `ran` would fail the `#expect` if the pre-entry check were missing (which is exactly the bug
-    /// this guards: `onCancel` fires before the job is queued, so only the in-`run` check can catch it).
+    /// this guards: `onCancel` fires before the job is queued, so only the admission check can catch it).
     @Test func alreadyCancelledTaskThrowsWithoutRunningBody() async throws {
         let pool = BlockingOffloadPool(width: 2)
         defer { pool.shutdown() }
@@ -148,6 +149,52 @@ private func withDeadline<T: Sendable>(
             await #expect(throws: CancellationError.self) { _ = try await task.value }
         }
         #expect(ran.load(ordering: .acquiring) == false)
+    }
+
+    /// Admission itself refuses a cancelled task's job, under the lock `onCancel` takes. `cancel()` sets
+    /// the flag before it runs the handler, so a check made before taking that lock can pass just before
+    /// the flag is set while the append lands after the handler found nothing to remove — and the job
+    /// runs. Submitting from a task that is already cancelled pins where the check lives; the sentinel
+    /// job then runs on the only worker, behind anything that was queued.
+    @Test func `a cancelled task's job is refused at admission and never runs`() async throws {
+        let pool = BlockingOffloadPool(width: 1)
+        defer { pool.shutdown() }
+        let ran = Atomic<Bool>(false)
+        let submitter = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return pool.submit(.init(id: .max, work: { ran.store(true, ordering: .relaxed) }, cancel: nil))
+        }
+        let refusal = await submitter.value
+        #expect(refusal is CancellationError)
+        try await pool.run {}
+        #expect(ran.load(ordering: .relaxed) == false)
+    }
+
+    /// Queued jobs run in submission order, including across the points where the queue drops the
+    /// prefix of jobs already taken (from 32 takes on) and drains to empty. The only worker stays
+    /// parked while the jobs are queued, and the closing `run` is queued behind all of them.
+    @Test func `queued jobs run in submission order`() async throws {
+        let pool = BlockingOffloadPool(width: 1)
+        defer { pool.shutdown() }
+        let parked = AsyncLatch()
+        let release = DispatchSemaphore(value: 0)
+        let blocker = Task {
+            try await pool.run {
+                parked.open()
+                release.wait()
+            }
+        }
+        try await parked.wait()
+        let order = Mutex<[Int]>([])
+        for index in 0 ..< 200 {
+            let refusal = pool.submit(
+                .init(id: UInt64(1_000 + index), work: { order.withLock { $0.append(index) } }, cancel: nil))
+            #expect(refusal == nil)
+        }
+        release.signal()
+        try await blocker.value
+        try await pool.run {}
+        #expect(order.withLock { $0 } == Array(0 ..< 200))
     }
 
     /// After `shutdown()` the pool refuses work (`poolShuttingDown`), and a second `shutdown()` is a

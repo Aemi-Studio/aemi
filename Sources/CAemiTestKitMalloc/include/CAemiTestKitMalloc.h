@@ -11,7 +11,9 @@
 /// no-op and `adtk_malloc_counting_available()` returns 0, so the Swift oracle degrades gracefully.
 ///
 /// Measurement is process-wide: count a SYNCHRONOUS region with no concurrent allocation for an
-/// accurate delta. Not re-entrant across threads (toggle from one thread around the measured region).
+/// accurate delta. Measurements must not overlap — AemiTestKit's `mallocDelta` serializes them. A
+/// `begin` while the counting hook is already installed is ignored rather than chaining the hook to
+/// itself.
 
 /// 1 when allocation counting is available on this platform (Darwin), 0 otherwise.
 int adtk_malloc_counting_available(void);

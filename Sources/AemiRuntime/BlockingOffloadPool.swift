@@ -44,17 +44,54 @@ public final class BlockingOffloadPool: Sendable {
         case queueFull(maxDepth: Int)
     }
 
-    /// One unit of work. `@unchecked Sendable`: `work`/`cancel` capture a `CheckedContinuation`
-    /// (itself `Sendable`) plus the caller's `@Sendable` body, and the job is handed to exactly one
-    /// worker (or, for the cancel path, removed under the lock before the worker can take it), so it
-    /// never runs concurrently with itself. Same discipline as `WriterThread.Job`.
-    private struct Job: @unchecked Sendable {
+    /// One unit of work. The job is handed to exactly one worker (or, for the cancel path, removed under
+    /// the lock before the worker can take it), so it never runs concurrently with itself — the same
+    /// discipline as `WriterThread.Job`. Its closures capture only `Sendable` values (a
+    /// `CheckedContinuation` and the caller's `@Sendable` body, or an `UnownedJob` and its executor),
+    /// so the conformance is compiler-checked. Internal (not private) so tests can drive ``submit(_:)``.
+    struct Job: Sendable {
         let id: UInt64
-        let work: () -> Void  // run the unit of work (body+resume, or an ExecutorJob)
-        let cancel: (() -> Void)?  // resume the continuation with CancellationError (run<T> path only)
+        let work: @Sendable () -> Void  // run the unit of work (body+resume, or an ExecutorJob)
+        let cancel: (@Sendable () -> Void)?  // resume the continuation with CancellationError (run<T> only)
+    }
+    /// The pending jobs, first in first out. Taking the first job must not shift the rest (an `Array`'s
+    /// `removeFirst()` is O(n) under the lock, and the executor path has no depth bound, so draining a
+    /// burst of n jobs cost O(n²)): jobs are taken at `head`, each taken slot is cleared at once so its
+    /// closures are released, and the taken prefix is dropped in one move once it is at least half the
+    /// storage. A take is amortized O(1).
+    private struct JobQueue {
+        private var slots: [Job?] = []
+        private var head = 0
+
+        /// The number of jobs waiting for a worker.
+        var count: Int { slots.count - head }
+
+        mutating func append(_ job: Job) {
+            slots.append(job)
+        }
+
+        mutating func popFirst() -> Job? {
+            guard head < slots.count else { return nil }
+            let job = slots[head].take()
+            head += 1
+            if head == slots.count {
+                slots.removeAll(keepingCapacity: true)
+                head = 0
+            } else if head >= 32, head * 2 >= slots.count {
+                slots.removeFirst(head)
+                head = 0
+            }
+            return job
+        }
+
+        /// Remove the job `id` if no worker has taken it yet (a linear search, on the cancel path only).
+        mutating func remove(id: UInt64) -> Job? {
+            guard let index = slots[head...].firstIndex(where: { $0?.id == id }) else { return nil }
+            return slots.remove(at: index)
+        }
     }
     private struct State {
-        var queue: [Job] = []
+        var queue = JobQueue()
         var stopping = false
         var nextID: UInt64 = 0
     }
@@ -65,7 +102,6 @@ public final class BlockingOffloadPool: Sendable {
     private let wakeup = DispatchSemaphore(value: 0)
     /// A worker signals this exactly once as it exits, so `shutdown` can join all `width` of them.
     private let exited = DispatchSemaphore(value: 0)
-    private let didShutdown = Atomic<Bool>(false)
     private let width: Int
     private let maxDepth: Int
 
@@ -94,32 +130,20 @@ public final class BlockingOffloadPool: Sendable {
         let id = nextJobID()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
-                // Already-cancelled-on-entry: `withTaskCancellationHandler` fires `onCancel` before this
-                // closure runs, but the job is not in the queue yet, so `onCancel` removed nothing.
-                // Honor the cancellation here instead of running `body`. Because we return WITHOUT
-                // admitting, the job never enters the queue, so `onCancel` can never find it either —
-                // this branch owns the (single) resume with no race against the removal path.
-                if Task.isCancelled {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
                 let job = Job(
                     id: id,
                     work: { continuation.resume(with: Result { try body() }) },
                     cancel: { continuation.resume(throwing: CancellationError()) })
-                if let error = admit(job) {
-                    continuation.resume(throwing: error)
-                } else {
-                    wakeup.signal()
+                // A refused job never enters the queue, so `onCancel` can never find it: this branch
+                // owns the (single) resume with no race against the removal path.
+                if let refusal = submit(job) {
+                    continuation.resume(throwing: refusal)
                 }
             }
         } onCancel: {
             // Whoever removes the job from the queue under the lock owns resuming it exactly once;
-            // if a worker already took it, `firstIndex` finds nothing and the running job resumes.
-            let job: Job? = state.withLock { state in
-                guard let index = state.queue.firstIndex(where: { $0.id == id }) else { return nil }
-                return state.queue.remove(at: index)
-            }
+            // if a worker already took it, `remove` finds nothing and the running job resumes.
+            let job = state.withLock { $0.queue.remove(id: id) }
             job?.cancel?()
         }
     }
@@ -132,20 +156,31 @@ public final class BlockingOffloadPool: Sendable {
         }
     }
 
-    /// Append `job` for a worker to run, or return the reason it was refused (`nil` == accepted).
-    private func admit(_ job: Job) -> SubmissionError? {
-        state.withLock { state in
-            guard !state.stopping else { return .poolShuttingDown }
-            guard state.queue.count < maxDepth else { return .queueFull(maxDepth: maxDepth) }
+    /// Append `job` and wake a worker for it, or return why it was refused (`nil` == accepted):
+    /// `CancellationError` when the submitting task is cancelled, else a ``SubmissionError``.
+    ///
+    /// Cancellation is checked HERE, under the lock `onCancel` takes, and not before it: `cancel()`
+    /// sets the task's flag before it runs the handler, so either the handler finds the queued job and
+    /// removes it, or this sees the flag and refuses. A check before taking the lock leaves a window in
+    /// which the cancel lands after the check but before the append — the handler finds nothing to
+    /// remove, and the job runs anyway. The same check covers a task already cancelled when `run` is
+    /// entered, whose handler fired before the job existed.
+    func submit(_ job: Job) -> (any Error)? {
+        let refusal: (any Error)? = state.withLock { state in
+            if Task.isCancelled { return CancellationError() }
+            guard !state.stopping else { return SubmissionError.poolShuttingDown }
+            guard state.queue.count < maxDepth else { return SubmissionError.queueFull(maxDepth: maxDepth) }
             state.queue.append(job)
             return nil
         }
+        if refusal == nil { wakeup.signal() }
+        return refusal
     }
 
     private func runLoop() {
         while true {
             wakeup.wait()
-            let job: Job? = state.withLock { $0.queue.isEmpty ? nil : $0.queue.removeFirst() }
+            let job = state.withLock { $0.queue.popFirst() }
             if let job {
                 job.work()
             } else if state.withLock({ $0.stopping }) {
@@ -158,8 +193,12 @@ public final class BlockingOffloadPool: Sendable {
     /// Stop accepting work, drain already-queued jobs, and JOIN every worker before returning.
     /// Idempotent — only the first call performs the shutdown; later calls return immediately.
     public func shutdown() {
-        guard didShutdown.exchange(true, ordering: .acquiringAndReleasing) == false else { return }
-        state.withLock { $0.stopping = true }
+        let isFirstCall = state.withLock { state -> Bool in
+            guard !state.stopping else { return false }
+            state.stopping = true
+            return true
+        }
+        guard isFirstCall else { return }
         for _ in 0 ..< width { wakeup.signal() }  // wake every worker so it observes `stopping`
         for _ in 0 ..< width { exited.wait() }  // join: await every worker's exit
     }

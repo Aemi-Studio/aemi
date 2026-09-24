@@ -29,6 +29,16 @@ struct AemiKernelsTests {
         return nil
     }
 
+    static func referenceDisallowed(_ bytes: [UInt8], _ minAllowed: UInt8, _ allowTab: Bool) -> Int? {
+        for index in bytes.indices {
+            let byte = bytes[index]
+            if byte >= 0x80 { continue }
+            if byte == 0x7F { return index }
+            if byte < minAllowed, !(allowTab && byte == 0x09) { return index }
+        }
+        return nil
+    }
+
     // MARK: - ASCII fold
 
     /// Every byte value, at every offset within a > 32-byte buffer (so both the 16- and 32-byte SIMD
@@ -103,7 +113,8 @@ struct AemiKernelsTests {
         let expected = Self.referenceStop(input, UInt8(ascii: "="), UInt8(ascii: ";"))
         var mismatches = 0
         for backend in Self.backends
-        where AemiKernels.indexOfStringStop(input, quote: UInt8(ascii: "="), escape: UInt8(ascii: ";"), backend: backend)
+        where AemiKernels.indexOfStringStop(
+            input, quote: UInt8(ascii: "="), escape: UInt8(ascii: ";"), backend: backend)
             != expected
         {
             mismatches += 1
@@ -199,15 +210,6 @@ struct AemiKernelsTests {
     // MARK: - Printable-text validation
 
     @Test func disallowedTextMatchesReference() {
-        func reference(_ bytes: [UInt8], _ minAllowed: UInt8, _ allowTab: Bool) -> Int? {
-            for index in bytes.indices {
-                let byte = bytes[index]
-                if byte >= 0x80 { continue }
-                if byte == 0x7F { return index }
-                if byte < minAllowed, !(allowTab && byte == 0x09) { return index }
-            }
-            return nil
-        }
         var mismatches = 0
         let configs: [(UInt8, Bool)] = [(0x20, true), (0x21, false)]  // field-value, request-target
         for (minAllowed, allowTab) in configs {
@@ -215,7 +217,7 @@ struct AemiKernelsTests {
                 for value in 0 ... 255 {
                     var input = [UInt8](repeating: UInt8(ascii: "a"), count: 40)
                     input[offset] = UInt8(value)
-                    let expected = reference(input, minAllowed, allowTab)
+                    let expected = Self.referenceDisallowed(input, minAllowed, allowTab)
                     input.withUnsafeBufferPointer { buffer in
                         guard let base = buffer.baseAddress else { return }
                         for backend in [AemiKernels.Backend.fastest, .scalar] {
@@ -224,6 +226,37 @@ struct AemiKernelsTests {
                                 backend: backend)
                             if (index == 40 ? nil : index) != expected { mismatches += 1 }
                         }
+                    }
+                }
+            }
+        }
+        #expect(mismatches == 0)
+    }
+
+    /// Every `minAllowed`, with and without the tab exception: 0 leaves only DEL illegal, and a value
+    /// above 0x80 must still pass every obs-text byte (the x86 kernels once tested `b <= minAllowed - 1`,
+    /// which wraps at 0 and reaches into obs-text past 0x80). The filler is obs-text, legal for every
+    /// threshold, so the planted byte alone decides the result — found at its offset if the reference
+    /// rejects it, else the count. The offsets cover both vector bodies and the scalar tail.
+    @Test func `disallowed text matches the reference for every minAllowed`() {
+        var mismatches = 0
+        var input = [UInt8](repeating: 0xE9, count: 40)
+        for minAllowed in UInt8.min ... UInt8.max {
+            for allowTab in [false, true] {
+                for value in UInt8.min ... UInt8.max {
+                    let legal = Self.referenceDisallowed([value], minAllowed, allowTab) == nil
+                    for offset in [0, 15, 16, 31, 32, 39] {
+                        input[offset] = value
+                        for backend in [AemiKernels.Backend.fastest, .scalar] {
+                            let index = input.withUnsafeBufferPointer { buffer in
+                                guard let base = buffer.baseAddress else { return -1 }
+                                return AemiKernels.firstDisallowedText(
+                                    base: base, count: buffer.count, minAllowed: minAllowed,
+                                    allowTab: allowTab, backend: backend)
+                            }
+                            if index != (legal ? input.count : offset) { mismatches += 1 }
+                        }
+                        input[offset] = 0xE9
                     }
                 }
             }

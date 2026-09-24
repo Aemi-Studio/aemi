@@ -40,4 +40,29 @@ struct AllocationsTests {
         }
         _ = sink
     }
+
+    /// Parallel tests may each measure at once. Overlapping measurements used to corrupt the hook chain:
+    /// the second one saved the counting hook itself as the hook to chain to, so every later allocation
+    /// recursed until the stack overflowed. That kills the process, hence the child process here, which
+    /// also checks that counting still works once the measurements are done.
+    @Test
+    func `measurements from several threads at once leave allocation counting intact`() async {
+        await #expect(processExitsWith: .success) {
+            await withTaskGroup(of: Void.self) { group in
+                for _ in 0 ..< 8 {
+                    group.addTask {
+                        var sink: [UInt8] = []
+                        for round in 0 ..< 20_000 {
+                            _ = mallocDelta { sink = [UInt8](repeating: UInt8(truncatingIfNeeded: round), count: 64) }
+                        }
+                        _ = sink
+                    }
+                }
+            }
+            var sink: [UInt8] = []
+            let count = mallocDelta { sink = [UInt8](repeating: 1, count: 4096) }
+            _ = sink
+            precondition(count != 0, "allocation counting stopped observing allocations")
+        }
+    }
 }

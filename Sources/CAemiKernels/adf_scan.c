@@ -421,19 +421,29 @@ size_t adf_first_disallowed_text_scalar(
 }
 
 #if defined(__x86_64__)
+// The x86 kernels test `b >= min` (`max(b, min) == b`) and flag the lanes where it fails. Testing
+// `b <= min - 1` instead breaks at both ends of the `uint8_t` range: `min_allowed == 0` wraps `min - 1`
+// to 0xFF (every byte "low"), and `min_allowed > 0x80` flags the obs-text bytes in `[0x80, min)`. Every
+// byte >= 0x80 is legal and every ASCII byte is below any threshold past 0x80, so the threshold is
+// clamped to 0x80, which keeps `b >= min` true for all obs-text.
+static uint8_t disallowed_simd_threshold(uint8_t min_allowed) {
+    return min_allowed > 0x80 ? 0x80 : min_allowed;
+}
+
 static size_t disallowed_sse2_impl(
     const uint8_t *buf, size_t len, uint8_t min_allowed, int allow_tab) {
-    const __m128i vMinM1 = _mm_set1_epi8((char)(min_allowed - 1));  // b <= min-1 ⇔ b < min_allowed
+    const __m128i vMin = _mm_set1_epi8((char)disallowed_simd_threshold(min_allowed));
     const __m128i vDEL = _mm_set1_epi8(0x7F);
     const __m128i vTab = _mm_set1_epi8(0x09);
+    const __m128i vOnes = _mm_set1_epi8((char)0xFF);
     size_t i = 0;
     for (; i + 16 <= len; i += 16) {
         __m128i v = _mm_loadu_si128((const __m128i *)(buf + i));
-        __m128i isLow = _mm_cmpeq_epi8(_mm_max_epu8(v, vMinM1), vMinM1);  // false for b >= 0x80
-        __m128i isDEL = _mm_cmpeq_epi8(v, vDEL);
-        __m128i illegal = allow_tab
-            ? _mm_or_si128(_mm_andnot_si128(_mm_cmpeq_epi8(v, vTab), isLow), isDEL)
-            : _mm_or_si128(isLow, isDEL);
+        __m128i notLow = _mm_cmpeq_epi8(_mm_max_epu8(v, vMin), v);  // unsigned b >= min
+        if (allow_tab) {
+            notLow = _mm_or_si128(notLow, _mm_cmpeq_epi8(v, vTab));
+        }
+        __m128i illegal = _mm_or_si128(_mm_xor_si128(notLow, vOnes), _mm_cmpeq_epi8(v, vDEL));
         int mask = _mm_movemask_epi8(illegal);
         if (mask != 0) {
             return i + (size_t)__builtin_ctz((unsigned)mask);
@@ -449,17 +459,18 @@ static size_t disallowed_sse2_impl(
 __attribute__((target("avx2")))
 static size_t disallowed_avx2_impl(
     const uint8_t *buf, size_t len, uint8_t min_allowed, int allow_tab) {
-    const __m256i vMinM1 = _mm256_set1_epi8((char)(min_allowed - 1));
+    const __m256i vMin = _mm256_set1_epi8((char)disallowed_simd_threshold(min_allowed));
     const __m256i vDEL = _mm256_set1_epi8(0x7F);
     const __m256i vTab = _mm256_set1_epi8(0x09);
+    const __m256i vOnes = _mm256_set1_epi8((char)0xFF);
     size_t i = 0;
     for (; i + 32 <= len; i += 32) {
         __m256i v = _mm256_loadu_si256((const __m256i *)(buf + i));
-        __m256i isLow = _mm256_cmpeq_epi8(_mm256_max_epu8(v, vMinM1), vMinM1);
-        __m256i isDEL = _mm256_cmpeq_epi8(v, vDEL);
-        __m256i illegal = allow_tab
-            ? _mm256_or_si256(_mm256_andnot_si256(_mm256_cmpeq_epi8(v, vTab), isLow), isDEL)
-            : _mm256_or_si256(isLow, isDEL);
+        __m256i notLow = _mm256_cmpeq_epi8(_mm256_max_epu8(v, vMin), v);  // unsigned b >= min
+        if (allow_tab) {
+            notLow = _mm256_or_si256(notLow, _mm256_cmpeq_epi8(v, vTab));
+        }
+        __m256i illegal = _mm256_or_si256(_mm256_xor_si256(notLow, vOnes), _mm256_cmpeq_epi8(v, vDEL));
         unsigned mask = (unsigned)_mm256_movemask_epi8(illegal);
         if (mask != 0) {
             return i + (size_t)__builtin_ctz(mask);

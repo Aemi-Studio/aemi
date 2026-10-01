@@ -22,7 +22,7 @@ name: Swift Quality
 # per-package workflow that runs alongside this one.
 #
 # Canonical toolchain: the family's pinned 6.4 nightly Linux image; macOS installs the pinned
-# swift.org 6.4 dev-snapshot toolchain via the sibling setup-swift action (no hosted macOS image
+# swift.org 6.4 toolchain (the 6.4.0 release) via the sibling setup-swift action (no hosted macOS image
 # ships Swift 6.4 — macos-26 tops out at Xcode 26.6 / Swift 6.3.3; checked 2026-07-02).
 # File-based gates (format/metrics/drift/tags) always run; anything needing SwiftPM resolution
 # (`swift package lint`, build, test, sanitizers, docs) is gated on AD_SWIFT_SIBLINGS_PUBLISHED for
@@ -231,7 +231,7 @@ jobs:
         run: |
           brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
           swiftlint lint --strict --config .swiftlint.yml --reporter github-actions-logging
-      - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
+      - name: Install Swift 6.4 toolchain (no hosted macOS image ships the release)
         # Only the `swift package lint` step below needs SwiftPM (a 6.4 manifest), so the install is
         # gated exactly like it; the file-based gates above run on the image's stock tools.
         if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
@@ -358,7 +358,7 @@ jobs:
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
-      - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
+      - name: Install Swift 6.4 toolchain (no hosted macOS image ships the release)
         uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}
@@ -409,7 +409,7 @@ jobs:
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
-      - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
+      - name: Install Swift 6.4 toolchain (no hosted macOS image ships the release)
         uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}
@@ -498,7 +498,7 @@ jobs:
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
-      - name: Install Swift 6.4 dev toolchain (no hosted macOS image ships 6.4)
+      - name: Install Swift 6.4 toolchain (no hosted macOS image ships the release)
         uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}

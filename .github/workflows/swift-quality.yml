@@ -371,6 +371,16 @@ jobs:
         if: ${{ inputs.fixtures-command != '' }}
         shell: bash
         run: ${{ inputs.fixtures-command }}
+      - name: Pin overlay scrollers
+        # A hosted runner can report an attached mouse, which switches AppKit to legacy scrollers: they take
+        # 15 pt of every pane's width, so layout-sensitive suites would depend on the host. Overlay is what
+        # they are written against, as on a Mac with a trackpad. The runner is ephemeral, so this sticks to the job.
+        shell: bash
+        run: |
+          probe='import AppKit; print("preferred scroller style (0 legacy, 1 overlay):", NSScroller.preferredScrollerStyle.rawValue)'
+          swift -e "$probe" || true
+          defaults write -g AppleShowScrollBars -string WhenScrolling
+          swift -e "$probe" || true
       - name: Build and test with NO environment set
         shell: bash
         # Deliberately does not set the dev env var, and deliberately does not use `continue-on-error`.
@@ -423,6 +433,16 @@ jobs:
         if: ${{ inputs.fixtures-command != '' }}
         shell: bash
         run: ${{ inputs.fixtures-command }}
+      - name: Pin overlay scrollers
+        # A hosted runner can report an attached mouse, which switches AppKit to legacy scrollers: they take
+        # 15 pt of every pane's width, so layout-sensitive suites would depend on the host. Overlay is what
+        # they are written against, as on a Mac with a trackpad. The runner is ephemeral, so this sticks to the job.
+        shell: bash
+        run: |
+          probe='import AppKit; print("preferred scroller style (0 legacy, 1 overlay):", NSScroller.preferredScrollerStyle.rawValue)'
+          swift -e "$probe" || true
+          defaults write -g AppleShowScrollBars -string WhenScrolling
+          swift -e "$probe" || true
       - name: Build
         shell: bash
         run: |
@@ -507,6 +527,16 @@ jobs:
           for f in ${{ inputs.homebrew-packages }}; do
             brew list "$f" >/dev/null 2>&1 || brew install "$f"
           done
+      - name: Pin overlay scrollers
+        # A hosted runner can report an attached mouse, which switches AppKit to legacy scrollers: they take
+        # 15 pt of every pane's width, so layout-sensitive suites would depend on the host. Overlay is what
+        # they are written against, as on a Mac with a trackpad. The runner is ephemeral, so this sticks to the job.
+        shell: bash
+        run: |
+          probe='import AppKit; print("preferred scroller style (0 legacy, 1 overlay):", NSScroller.preferredScrollerStyle.rawValue)'
+          swift -e "$probe" || true
+          defaults write -g AppleShowScrollBars -string WhenScrolling
+          swift -e "$probe" || true
       - name: Test under each sanitizer
         shell: bash
         run: |

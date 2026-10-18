@@ -20,6 +20,35 @@ import PackageDescription
 // Strict, dependency-safe settings applied to every kernel-tier Swift target. `.v6` turns on
 // complete strict-concurrency checking; the upcoming features tighten existentials (`any`) and
 // import visibility.
+// ── C strictness ──────────────────────────────────────────────────────────────────────────────
+// The C tiers are hand-written SIMD over raw bytes, which is precisely where an implicit narrowing
+// or a signed/unsigned slip becomes a wrong answer on the fast path and nowhere else. These flags
+// are chosen so that class of defect cannot compile.
+//
+//   -std=c11                    a defined language, not whatever the compiler defaults to
+//   -Wall -Wextra               the usual pair, as errors below
+//   -Wpedantic                  reject anything the standard does not guarantee
+//   -Wconversion                the important one: every implicit narrowing must be written down
+//   -Wsign-conversion           a signed byte compared against 0xFF is a real bug in these kernels
+//   -Wcast-qual                 a cast that drops const is almost never intended
+//   -Wstrict-prototypes         `(int)` not `()` — an unprototyped declaration accepts anything
+//   -Wmissing-prototypes        a non-static function must have a declaration somewhere
+//   -Wshadow -Wundef            no hidden shadowing; no undefined macro treated as defined
+//   -Wvla                       no variable-length arrays on the stack
+//   -Wwrite-strings             string literals are const, so a write is diagnosed
+//   -Wformat=2 -Wswitch-enum    format strings checked hard; a switch must cover its enum
+//   -Wimplicit-fallthrough      fallthrough is always a mistake in a kernel
+//   -Wdouble-promotion          no silent float64 in a byte kernel
+//   -Werror                     all of the above are errors, not advice
+let strictCSettings: [CSetting] = [
+    .unsafeFlags([
+        "-std=c11", "-Wall", "-Wextra", "-Wpedantic", "-Wconversion", "-Wsign-conversion",
+        "-Wcast-qual", "-Wstrict-prototypes", "-Wmissing-prototypes", "-Wshadow", "-Wundef",
+        "-Wvla", "-Wwrite-strings", "-Wformat=2", "-Wswitch-enum", "-Wimplicit-fallthrough",
+        "-Wdouble-promotion", "-Werror"
+    ])
+]
+
 let strictSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v6),
     .treatAllWarnings(as: .error),
@@ -175,7 +204,7 @@ let package = Package(
             plugins: libraryBuildPlugins),
         // CAemiKernels — runtime-dispatched SIMD byte kernels in C (per-function
         // `__attribute__((target))` + `pthread_once` feature probe).
-        .target(name: "CAemiKernels"),
+        .target(name: "CAemiKernels", cSettings: strictCSettings),
         // AemiKernels — the pure-Swift facade over CAemiKernels; strict-memory-safe like AemiKernel.
         .target(
             name: "AemiKernels", dependencies: ["CAemiKernels"], swiftSettings: kernelSettings,
@@ -219,7 +248,7 @@ let package = Package(
 
         // ── Kernel test tooling ──
         // CAemiTestKitMalloc — C shim exposing process-wide heap-allocation counting.
-        .target(name: "CAemiTestKitMalloc"),
+        .target(name: "CAemiTestKitMalloc", cSettings: strictCSettings),
         // AemiTestKitSeams — stable re-export of the AemiRuntime seams.
         .target(
             name: "AemiTestKitSeams", dependencies: ["AemiRuntime"],

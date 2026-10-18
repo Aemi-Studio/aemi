@@ -1,9 +1,10 @@
+import Foundation
 import Testing
 
 @testable import AemiTestKit
 
-// Serialize this suite's measurements. Other suites may still run concurrently; serialization here
-// is not a guarantee of process-wide allocation isolation.
+// Serialized so this suite's measurements run one at a time. Counts cover only the measuring thread,
+// so suites running alongside cannot inflate them.
 @Suite(.serialized)
 struct AllocationsTests {
     @Test
@@ -31,13 +32,40 @@ struct AllocationsTests {
         guard allocationCountingAvailable else { return }
         var sink: [UInt8] = []
         _ = mallocDelta { sink = [UInt8](repeating: 0, count: 1024) }  // warm up
-        // A generous ceiling never trips on a single small allocation (robust to process-wide noise).
+        // A generous ceiling never trips on a single small allocation (robust to noise on the measuring thread).
         expectAllocations(noMoreThan: 100_000) { sink = [UInt8](repeating: 0, count: 1024) }
         // A zero budget MUST trip on a real allocation — `withKnownIssue` absorbs the recorded failure.
         withKnownIssue {
             expectAllocations(noMoreThan: 0) { sink = [UInt8](repeating: 0, count: 1024) }
         }
         _ = sink
+    }
+
+    /// A ceiling must fail only when its own body allocates, never because another thread allocated while it
+    /// measured. Both runs start, and wait for, one thread; only the second thread allocates, 10,000 times.
+    @Test
+    func `allocations another thread makes during a measurement are not counted`() throws {
+        guard allocationCountingAvailable else { return }
+        _ = countWhileAnotherThreadAllocates(0)  // warm up thread creation
+        let quiet = try #require(countWhileAnotherThreadAllocates(0))
+        let busy = try #require(countWhileAnotherThreadAllocates(10_000))
+        #expect(busy - quiet < 100, "another thread's allocations leaked in: quiet \(quiet), busy \(busy)")
+    }
+
+    private func countWhileAnotherThreadAllocates(_ allocations: Int) -> Int? {
+        let finished = DispatchSemaphore(value: 0)
+        return mallocDelta {
+            let worker = Thread {
+                var sink: [[UInt8]] = []
+                for index in 0 ..< allocations {
+                    sink.append([UInt8](repeating: UInt8(truncatingIfNeeded: index), count: 32))
+                }
+                precondition(sink.count == allocations)
+                finished.signal()
+            }
+            worker.start()
+            finished.wait()
+        }
     }
 
     /// Parallel tests may each measure at once. Overlapping measurements used to corrupt the hook chain:

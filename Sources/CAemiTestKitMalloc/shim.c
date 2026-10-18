@@ -2,6 +2,7 @@
 
 #if defined(__APPLE__)
 
+#include <pthread.h>
 #include <stdatomic.h>
 
 /// libsystem_malloc's global logging hook. When non-NULL, libmalloc invokes it on every
@@ -15,15 +16,21 @@ extern adtk_malloc_logger_t *malloc_logger;
 #define ADTK_MALLOC_LOG_TYPE_ALLOCATE 2
 
 /* Shared between `begin`/`end` and the hook, which runs on whichever thread allocates: every access
-   is atomic, so none of them races. Relaxed is enough — the only value published is the hook to chain
-   to, and any value the hook can read (NULL, or a hook found installed at some `begin`) is valid. */
+   is atomic, so none of them races. Relaxed is enough — the only values published are the hook to
+   chain to and the owning thread, and any value the hook can read for either is valid: a stale owner
+   only means a thread outside the window is not counted, which is the intent. */
 static _Atomic(uint64_t) adtk_alloc_count = 0;
 static _Atomic(adtk_malloc_logger_t *) adtk_prev_logger = 0;
 static _Atomic(int) adtk_active = 0;
+/* The thread that opened the window. Only its allocations count: another thread's work in the same
+   window is not the measured body's, and counting it let parallel test suites fail a ceiling. */
+static _Atomic(pthread_t) adtk_owner = 0;
 
 static void adtk_counting_logger(uint32_t type, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3,
                                  uintptr_t result, uint32_t num_hot_frames_to_skip) {
-    if (type & ADTK_MALLOC_LOG_TYPE_ALLOCATE) {
+    /* `pthread_self` neither allocates nor locks, so it is safe inside the allocator's hook. */
+    if ((type & ADTK_MALLOC_LOG_TYPE_ALLOCATE) &&
+        pthread_equal(atomic_load_explicit(&adtk_owner, memory_order_relaxed), pthread_self())) {
         atomic_fetch_add_explicit(&adtk_alloc_count, 1, memory_order_relaxed);
     }
     /* Chain to whatever hook was already installed (e.g. Instruments) so we don't disrupt it. The
@@ -44,6 +51,7 @@ void adtk_malloc_count_begin(void) {
         return;
     }
     atomic_store_explicit(&adtk_alloc_count, 0, memory_order_relaxed);
+    atomic_store_explicit(&adtk_owner, pthread_self(), memory_order_relaxed);
     atomic_store_explicit(&adtk_prev_logger, current, memory_order_relaxed);
     atomic_store_explicit(&adtk_active, 1, memory_order_relaxed);
     __atomic_store_n(&malloc_logger, adtk_counting_logger, __ATOMIC_RELAXED);
@@ -55,6 +63,7 @@ uint64_t adtk_malloc_count_end(void) {
     }
     __atomic_store_n(
         &malloc_logger, atomic_load_explicit(&adtk_prev_logger, memory_order_relaxed), __ATOMIC_RELAXED);
+    atomic_store_explicit(&adtk_owner, (pthread_t)0, memory_order_relaxed);
     return atomic_load_explicit(&adtk_alloc_count, memory_order_relaxed);
 }
 

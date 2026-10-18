@@ -4,7 +4,7 @@ import Testing
 
 @Suite("Allocation measurement helpers")
 struct MinimumAllocationsTests {
-    @Test func `the minimum across repeats is the least polluted sample`() throws {
+    @Test func `the minimum across repeats still counts every allocation the body makes`() throws {
         var sink: [String] = []
         for _ in 0 ..< 100 { sink.append(String(repeating: "x", count: 64)) }
         sink.removeAll()

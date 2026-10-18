@@ -116,6 +116,13 @@ let package = Package(
         .library(name: "AemiFoundation", targets: ["AemiFoundation"]),
         // Test umbrella product: the deterministic-testing kit (+ seams).
         .library(name: "AemiTestKit", targets: ["AemiTestKit", "AemiTestKitSeams"]),
+        // The C tiers are products so a CONSUMER can reach them. Without this, a dependent package
+        // that uses AemiKernel and wants the test kit fails with "unable to resolve module
+        // dependency: 'CAemiKernels'" — the C target's modulemap is not exported through any product,
+        // so the instrumentation Aemi already ships is unreachable from inside a consumer. Measured
+        // in TerminalKit; see its ADR-0007.
+        .library(name: "CAemiKernels", targets: ["CAemiKernels"]),
+        .library(name: "CAemiTestKitMalloc", targets: ["CAemiTestKitMalloc"]),
         // Individual runtime tiers — link exactly what you need.
         .library(name: "AemiKernel", targets: ["AemiKernel"]),
         // Runtime-dispatched SIMD byte kernels (JSON string scan, ASCII fold, byte search).

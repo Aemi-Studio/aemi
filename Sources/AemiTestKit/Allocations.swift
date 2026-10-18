@@ -55,6 +55,30 @@ public func mallocDelta(_ body: () -> Void) -> Int? {
     }
 }
 
+/// The smallest allocation count observed across `repeats` measurements of the same body.
+///
+/// The counter observes the thread that opened the window, but a thread that starts during it can
+/// still contribute, so a single measurement can be inflated by unrelated work. Taking the minimum
+/// across repeats keeps the least-polluted sample, which is what a ceiling should be judged against:
+/// contamination can only push a count UP, never down, so the minimum is the conservative choice for
+/// a budget and a stable one for a test.
+///
+/// A regression that adds allocations raises every sample, so a minimum does not hide one.
+///
+/// - Parameters:
+///   - repeats: How many times to measure. Must be at least 1.
+///   - body: The work to measure. It must be synchronous and single-threaded.
+/// - Returns: The smallest measured count, or `nil` where counting is unavailable.
+public func minimumAllocations(repeats: Int = 3, _ body: () -> Void) -> Int? {
+    precondition(repeats >= 1, "at least one measurement is required")
+    var smallest: Int?
+    for _ in 0 ..< repeats {
+        guard let count = mallocDelta(body) else { return nil }
+        if let current = smallest { smallest = min(current, count) } else { smallest = count }
+    }
+    return smallest
+}
+
 /// Asserts `body` makes at most `limit` heap allocations — a mutation-resistant performance guard for a
 /// UNIT test: a re-introduced copy / box / un-reserved growth on a hot path trips it, complementing the
 /// ordo-one `.mallocCountTotal` benchmark. Warm up + measure synchronously (see `mallocDelta`). Where

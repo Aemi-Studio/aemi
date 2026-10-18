@@ -272,7 +272,8 @@ let package = Package(
             name: "AemiRuntimeTests", dependencies: ["AemiRuntime", "AemiTestKit"],
             swiftSettings: strictSettings),
         .testTarget(
-            name: "AemiTerminalCoreTests", dependencies: ["AemiTerminalCore"],
+            name: "AemiTerminalCoreTests",
+            dependencies: ["AemiTerminalCore", "AemiTestKit"],
             swiftSettings: strictSettings),
         .testTarget(
             name: "AemiFoundationTests", dependencies: ["AemiFoundation"],

@@ -190,10 +190,6 @@ let package = Package(
         // AemiRuntime — zero-dep production seams (TaskProvider/Clock) + ResourcePool /
         // BlockingOffloadPool. Separate from AemiCore's app-level TaskProvider/TaskRole.
         .target(name: "AemiRuntime", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
-        // AemiTerminalCore — terminal escape-sequence encoding and the tiered reset ladder.
-        // Terminal-only: no connection, no raw mode, no I/O. Everything here is a value that can be
-        // proven byte-exact without a PTY; the I/O tier comes later.
-        .target(name: "AemiTerminalCore", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         // Runtime umbrella — re-exports every kernel runtime tier (NOT AemiMacroSupport:
         // swift-syntax stays opt-in; NOT AemiCore: app tier stays separate).
         .target(
@@ -270,10 +266,6 @@ let package = Package(
         // Folded suites keep their origin settings (no aggressive type-check timing gate).
         .testTarget(
             name: "AemiRuntimeTests", dependencies: ["AemiRuntime", "AemiTestKit"],
-            swiftSettings: strictSettings),
-        .testTarget(
-            name: "AemiTerminalCoreTests",
-            dependencies: ["AemiTerminalCore", "AemiTestKit"],
             swiftSettings: strictSettings),
         .testTarget(
             name: "AemiFoundationTests", dependencies: ["AemiFoundation"],

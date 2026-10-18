@@ -247,7 +247,7 @@ let package = Package(
             plugins: libraryBuildPlugins),
 
         // ── Kernel test tooling ──
-        // CAemiTestKitMalloc — C shim exposing process-wide heap-allocation counting.
+        // CAemiTestKitMalloc — C shim counting the heap allocations of the thread that measures.
         .target(name: "CAemiTestKitMalloc", cSettings: strictCSettings),
         // AemiTestKitSeams — stable re-export of the AemiRuntime seams.
         .target(

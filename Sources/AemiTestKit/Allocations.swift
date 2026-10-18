@@ -24,7 +24,7 @@ public let sanitizerRuntimeLoaded: Bool = {
     return dlsym(handle, "__asan_init") != nil || dlsym(handle, "__tsan_init") != nil
 }()
 
-/// Whether process-wide allocation counting is available here. Darwin: `true` (libmalloc hook),
+/// Whether allocation counting is available here. Darwin: `true` (libmalloc hook),
 /// EXCEPT under a sanitizer, whose interposed allocator the hook cannot observe (see
 /// ``sanitizerRuntimeLoaded``). Other platforms: `false` — the oracle then runs the body but
 /// cannot measure, so `expectAllocations` becomes a no-op there (the ordo-one `.mallocCountTotal`
@@ -33,13 +33,14 @@ public var allocationCountingAvailable: Bool {
     adtk_malloc_counting_available() != 0 && !sanitizerRuntimeLoaded
 }
 
-/// Serializes measurements. The counter and the hook are process-wide, so two measurements that
+/// Serializes measurements. The counter and the hook are shared by the process, so two measurements that
 /// overlapped (parallel tests) reset each other's count, and the second `begin` saved the counting hook
 /// itself as the hook to chain to: every later allocation then recursed until the stack overflowed.
 private let measurementLock = Mutex(())
 
-/// Counts the heap allocations made DURING `body`. Run a SYNCHRONOUS body with no concurrent work (the
-/// count is process-wide) and WARM UP first (call the body once before measuring) so one-time lazy
+/// Counts the heap allocations the calling thread makes DURING `body`. Other threads' allocations are
+/// not counted, so concurrent tests cannot inflate it, and neither is work `body` hands to another
+/// thread: measure a SYNCHRONOUS, single-threaded body. WARM UP first (call the body once before measuring) so one-time lazy
 /// initialization doesn't skew the delta. Returns `nil` where counting is unavailable (the body still
 /// runs, for its side effects). Measurements are serialized: one started while another runs waits for
 /// it, so `body` must not itself measure (the nested call traps).
@@ -57,11 +58,9 @@ public func mallocDelta(_ body: () -> Void) -> Int? {
 
 /// The smallest allocation count observed across `repeats` measurements of the same body.
 ///
-/// The counter observes the thread that opened the window, but a thread that starts during it can
-/// still contribute, so a single measurement can be inflated by unrelated work. Taking the minimum
-/// across repeats keeps the least-polluted sample, which is what a ceiling should be judged against:
-/// contamination can only push a count UP, never down, so the minimum is the conservative choice for
-/// a budget and a stable one for a test.
+/// Only the measuring thread is counted, so other threads cannot inflate a sample. Repeats still
+/// absorb one-off work on that thread, such as lazy initialization or allocator growth, that a
+/// single warm-up did not reach; the minimum is the steady-state cost.
 ///
 /// A regression that adds allocations raises every sample, so a minimum does not hide one.
 ///

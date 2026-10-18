@@ -1,5 +1,6 @@
 ---
 status: accepted
+superseded-in-part-by: 0010 (allocation counter), 0011 (kernel performance)
 date: 2026-10-18
 ---
 

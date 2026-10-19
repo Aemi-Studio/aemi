@@ -1,0 +1,326 @@
+name: Swift Tool
+
+# Reusable workflow for a g-cqd command-line analyzer (arcleak, dolly, deadwood, analyzerkit): ONE graph, so a
+# fix to the toolchain, the cache or the gate lands in every tool at once.
+#
+#   jobs:
+#     ci:
+#       uses: Aemi-Studio/aemi/.github/workflows/swift-tool.yml@<sha>
+#       with: { tool: dolly }
+#
+# The graph:
+#
+#   lint ─────────────┐                      (format + GCD ban: needs the toolchain, not a build)
+#   linux ───────────┼─▶ package ─▶ gate     (build -> test -> self-analysis -> extras, one warm .build)
+#   macos ───────────┘     main + tags only
+#
+# `linux` and `macos` run in parallel and each builds ONCE: the test build is the only build, and the release
+# binary is built after it on the same warm tree and only where it is shipped. The SwiftPM tree (`.build`) is
+# cached per OS, toolchain and manifest, so an unchanged dependency graph (swift-syntax is most of a cold build)
+# is not recompiled; the cache is written from `main` only, and pull requests restore it.
+#
+# `gate` is the one job a branch rule needs to require: it fails if any job it depends on failed or was
+# cancelled, and passes when `package` was legitimately skipped.
+#
+# Actions are pinned to commit SHAs with the tag in a comment; move them deliberately, like a dependency.
+
+on:
+  workflow_call:
+    inputs:
+      tool:
+        description: "Executable name; the release archives are named after it."
+        required: true
+        type: string
+      swift-version:
+        description: "Toolchain for macOS (swiftly) and the tag of the Linux image."
+        required: false
+        type: string
+        default: "6.4.1"
+      linux-image:
+        description: "Linux container; the stable image of the same toolchain."
+        required: false
+        type: string
+        default: "swift:6.4.1-noble"
+      macos-runner:
+        required: false
+        type: string
+        default: "macos-26"
+      self-analysis:
+        description: "Arguments to run the tool on its own Sources; empty skips it."
+        required: false
+        type: string
+        default: "analyze Sources --strict --no-cache"
+      lint-scripts:
+        description: "Repository scripts run by the lint job, one per line."
+        required: false
+        type: string
+        default: |
+          Scripts/lint-format.sh
+          Scripts/no-gcd.sh
+      linux-extra:
+        description: "Extra shell run on Linux after the tests (for example a removal oracle)."
+        required: false
+        type: string
+        default: ""
+      macos-extra:
+        description: "Extra shell run on macOS after the tests (for example the leak oracle)."
+        required: false
+        type: string
+        default: ""
+      macos-package-extra:
+        description: >-
+          Extra shell run on macOS for a TAG after the plain archive is made, to add further archives (dolly's
+          `-full` bundle). Best effort: a failure here never drops the plain archive.
+        required: false
+        type: string
+        default: ""
+      macos-timeout:
+        required: false
+        type: number
+        default: 45
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    container: ${{ inputs.linux-image }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r script; do
+            [ -n "$script" ] || continue
+            echo "::group::$script"
+            "$script"
+            echo "::endgroup::"
+          done <<'SCRIPTS'
+          ${{ inputs.lint-scripts }}
+          SCRIPTS
+
+  linux:
+    runs-on: ubuntu-latest
+    container: ${{ inputs.linux-image }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Restore the SwiftPM tree
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: spm-linux-${{ inputs.swift-version }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: spm-linux-${{ inputs.swift-version }}-
+      - name: Build (warnings are errors via package settings)
+        run: swift build --build-tests
+      - name: Test
+        # --no-parallel: swift-testing's parallel executor has crashed the Linux runtime; serial is stable.
+        run: swift test --no-parallel
+      - name: Self-analysis
+        if: ${{ inputs.self-analysis != '' }}
+        run: swift run ${{ inputs.tool }} ${{ inputs.self-analysis }}
+      - name: Extra checks
+        if: ${{ inputs.linux-extra != '' }}
+        run: ${{ inputs.linux-extra }}
+      - name: Save the SwiftPM tree
+        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: spm-linux-${{ inputs.swift-version }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+      - name: Release binary
+        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+        # Dynamic link, with the Swift runtime .so files bundled beside the binary at release time.
+        run: |
+          swift build -c release
+          BIN="$(swift build -c release --show-bin-path)/${{ inputs.tool }}"
+          VERSION="$("$BIN" --version)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "$VERSION" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match the tool's --version $VERSION" >&2
+            exit 1
+          fi
+          NAME="${{ inputs.tool }}-$VERSION-linux-x86_64"
+          mkdir "$NAME"
+          cp "$BIN" LICENSE README.md "$NAME/"
+          strip "$NAME/${{ inputs.tool }}"
+          ldd "$BIN" | awk '$3 ~ /\/usr\/lib\/swift/ {print $3}' | sort -u | xargs -r -I{} cp {} "$NAME/"
+          tar -czf "$NAME.tar.gz" "$NAME"
+          sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
+      - name: Upload the archive
+        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-linux
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ inputs.tool }}-*.tar.gz
+            ${{ inputs.tool }}-*.sha256
+
+  macos:
+    runs-on: ${{ inputs.macos-runner }}
+    timeout-minutes: ${{ inputs.macos-timeout }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Install Swift ${{ inputs.swift-version }}
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        with:
+          swift-version: ${{ inputs.swift-version }}
+      - name: Restore the SwiftPM tree
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: spm-macos-${{ inputs.swift-version }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: spm-macos-${{ inputs.swift-version }}-
+      - name: Build and test
+        # Child-spawning steps write to a file: an orphaned child then holds a file descriptor, not the
+        # runner's log pipe, so it cannot wedge the step that follows (seen on four hung runs).
+        run: |
+          set +e
+          { swift build --build-tests && swift test --no-parallel; } > build-test.log 2>&1 < /dev/null
+          status=$?
+          cat build-test.log
+          exit $status
+      - name: Extra checks
+        if: ${{ inputs.macos-extra != '' }}
+        run: |
+          set +e
+          { ${{ inputs.macos-extra }}
+          } > extra.log 2>&1 < /dev/null
+          status=$?
+          cat extra.log
+          exit $status
+      - name: Save the SwiftPM tree
+        if: ${{ github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: spm-macos-${{ inputs.swift-version }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+      - name: Release binary
+        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          swift build -c release > release-build.log 2>&1 < /dev/null || { cat release-build.log; exit 1; }
+          BIN="$(swift build -c release --show-bin-path)/${{ inputs.tool }}"
+          VERSION="$("$BIN" --version)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "$VERSION" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match the tool's --version $VERSION" >&2
+            exit 1
+          fi
+          NAME="${{ inputs.tool }}-$VERSION-macos-arm64"
+          mkdir "$NAME"
+          cp "$BIN" LICENSE README.md "$NAME/"
+          strip -S -x "$NAME/${{ inputs.tool }}"
+          tar -czf "$NAME.tar.gz" "$NAME"
+          shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
+      - name: Extra release archives
+        if: ${{ startsWith(github.ref, 'refs/tags/') && inputs.macos-package-extra != '' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ${{ inputs.macos-package-extra }}
+      - name: Upload the archive
+        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-macos
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ inputs.tool }}-*.tar.gz
+            ${{ inputs.tool }}-*.sha256
+      - name: Reap toolchain stragglers
+        if: always()
+        run: |
+          pgrep -fl 'swift-frontend|swift-driver|swift-build|leaks|leak-oracle' || true
+          for pattern in swift-frontend swift-driver swift-build swift-package swift-test swift-testing swiftpm-testing-helper xctest SourceKitService sourcekit-lsp leak-oracle leaks; do
+            pkill -9 -f "$pattern" 2>/dev/null || true
+          done
+          exit 0
+
+  # Publishing a release is the one job that differs: it exists only for a tag, and only after both platforms
+  # built, tested and archived. The archives it uploads are the ones `linux` and `macos` already made.
+  publish:
+    needs: [lint, linux, macos]
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          merge-multiple: true
+      - name: Assemble the SwiftPM artifact bundle
+        # A .artifactbundle.zip is what `.binaryTarget(url:checksum:)` consumes, so a package can depend on a
+        # pinned build of the tool the way it depends on SwiftLint, with no source build.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          TOOL="${{ inputs.tool }}"
+          BUNDLE="$TOOL.artifactbundle"
+          mkdir -p "$BUNDLE"
+          # `[0-9]*` keeps `$TOOL-full-*` (a bundle, not the plain binary) out of the primary-archive check.
+          macos_archives=($TOOL-[0-9]*-macos-arm64.tar.gz)
+          if [ ${#macos_archives[@]} -eq 0 ]; then
+            echo "::error::no macOS arm64 archive; refusing to publish without the primary artifact"
+            exit 1
+          fi
+          for archive in $TOOL-*.tar.gz; do sha256sum -c "$archive.sha256"; done
+          variants=""
+          VERSION=""
+          for archive in $TOOL-[0-9]*-macos-arm64.tar.gz $TOOL-[0-9]*-linux-x86_64.tar.gz; do
+            tar -xzf "$archive"
+            name="${archive%.tar.gz}"
+            case "$name" in
+              *-macos-arm64) triple="arm64-apple-macosx" ;;
+              *-linux-x86_64) triple="x86_64-unknown-linux-gnu" ;;
+              *) continue ;;
+            esac
+            VERSION="${name#$TOOL-}"; VERSION="${VERSION%-macos-arm64}"; VERSION="${VERSION%-linux-x86_64}"
+            mkdir -p "$BUNDLE/$name/bin"
+            cp "$name/$TOOL" "$BUNDLE/$name/bin/"
+            for so in "$name"/*.so*; do cp "$so" "$BUNDLE/$name/bin/"; done
+            variants="$variants{\"path\":\"$name/bin/$TOOL\",\"supportedTriples\":[\"$triple\"]},"
+          done
+          printf '{"schemaVersion":"1.0","artifacts":{"%s":{"type":"executable","version":"%s","variants":[%s]}}}\n' \
+            "$TOOL" "$VERSION" "${variants%,}" > "$BUNDLE/info.json"
+          zip -qr "$TOOL-$VERSION.artifactbundle.zip" "$BUNDLE"
+          sha256sum "$TOOL-$VERSION.artifactbundle.zip" > "$TOOL-$VERSION.artifactbundle.zip.sha256"
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=(${{ inputs.tool }}-*.tar.gz ${{ inputs.tool }}-*.artifactbundle.zip ${{ inputs.tool }}-*.sha256)
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber "${assets[@]}"
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes "${assets[@]}"
+          fi
+
+  gate:
+    # The one required check. `publish` is skipped outside a tag and that is fine; a failed or cancelled
+    # dependency is not.
+    needs: [lint, linux, macos, publish]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every job passed
+        run: |
+          echo '${{ toJSON(needs) }}' > needs.json
+          if grep -E '"result": "(failure|cancelled)"' needs.json; then exit 1; fi

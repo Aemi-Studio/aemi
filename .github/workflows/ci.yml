@@ -24,19 +24,45 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        swift: ['6.3', '6.4']
+        swift: ['6.3', '6.4.1']
         configuration: [debug, release]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select the stable SDK
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - name: Install Swift 6.4 toolchain
-        if: matrix.swift == '6.4'
-        uses: ./.github/actions/setup-swift
+      - name: Install Swift ${{ matrix.swift }}
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        with:
+          swift-version: ${{ matrix.swift }}
       - run: swift --version
+      - name: Restore the SwiftPM tree
+        id: spm
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ matrix.swift }}-${{ matrix.configuration }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-${{ matrix.swift }}-${{ matrix.configuration }}-
       - name: Resolve remote dependencies
         run: swift package resolve
       - name: Build
         run: swift build -c '${{ matrix.configuration }}'
       - name: Test
         run: swift test -c '${{ matrix.configuration }}'
+      - name: Save the SwiftPM tree
+        if: ${{ always() && github.ref == 'refs/heads/main' && steps.spm.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ matrix.swift }}-${{ matrix.configuration }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+
+  result:
+    name: ci result
+    needs: test
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every job passed
+        run: |
+          echo '${{ toJSON(needs) }}' > needs.json
+          if grep -E '"result": "(failure|cancelled)"' needs.json; then exit 1; fi

@@ -170,15 +170,15 @@ on:
       arcleak-version:
         required: false
         type: string
-        default: "0.7.1"
+        default: "0.10.2"
       dolly-version:
         required: false
         type: string
-        default: "0.6.1"
+        default: "0.10.2"
       deadwood-version:
         required: false
         type: string
-        default: "0.7.1"
+        default: "0.10.1"
 
 permissions:
   contents: read
@@ -326,7 +326,7 @@ jobs:
         run: |
           base=()
           [ -f .dolly-baseline.json ] && base=(--baseline .dolly-baseline.json)
-          dolly analyze ${{ inputs.analysis-paths }} --no-cache "${base[@]}" || true
+          dolly analyze ${{ inputs.analysis-paths }} --no-cache --relative-to . "${base[@]}" || true
       - name: deadwood — dead code (REPORT ONLY)
         # Never gates. Without an index store its reachability is a name-based graph over the files
         # passed, and its dataflow misses writes made through closures and mutating methods.

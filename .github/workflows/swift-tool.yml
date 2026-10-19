@@ -28,9 +28,10 @@ on:
   workflow_call:
     inputs:
       tool:
-        description: "Executable name; the release archives are named after it."
-        required: true
+        description: "Executable name; the release archives are named after it. Empty for a library."
+        required: false
         type: string
+        default: ""
       swift-version:
         description: "Toolchain for macOS (swiftly) and the tag of the Linux image."
         required: false
@@ -88,6 +89,7 @@ concurrency:
 
 jobs:
   lint:
+    if: ${{ inputs.lint-scripts != '' }}
     runs-on: ubuntu-latest
     container: ${{ inputs.linux-image }}
     timeout-minutes: 15
@@ -127,7 +129,7 @@ jobs:
         # --no-parallel: swift-testing's parallel executor has crashed the Linux runtime; serial is stable.
         run: swift test --no-parallel
       - name: Self-analysis
-        if: ${{ inputs.self-analysis != '' }}
+        if: ${{ inputs.tool != '' && inputs.self-analysis != '' }}
         run: swift run ${{ inputs.tool }} ${{ inputs.self-analysis }}
       - name: Extra checks
         if: ${{ inputs.linux-extra != '' }}
@@ -139,7 +141,7 @@ jobs:
           path: .build
           key: spm-linux-${{ inputs.swift-version }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
       - name: Release binary
-        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ inputs.tool != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
         # Dynamic link, with the Swift runtime .so files bundled beside the binary at release time.
         run: |
           swift build -c release
@@ -157,7 +159,7 @@ jobs:
           tar -czf "$NAME.tar.gz" "$NAME"
           sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
       - name: Upload the archive
-        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ inputs.tool != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-linux
@@ -197,7 +199,11 @@ jobs:
         if: ${{ inputs.macos-extra != '' }}
         run: |
           set +e
-          { ${{ inputs.macos-extra }}
+          {
+            (
+              set -e
+              ${{ inputs.macos-extra }}
+            )
           } > extra.log 2>&1 < /dev/null
           status=$?
           cat extra.log
@@ -209,7 +215,7 @@ jobs:
           path: .build
           key: spm-macos-${{ inputs.swift-version }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
       - name: Release binary
-        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ inputs.tool != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
         run: |
           swift build -c release > release-build.log 2>&1 < /dev/null || { cat release-build.log; exit 1; }
           BIN="$(swift build -c release --show-bin-path)/${{ inputs.tool }}"
@@ -225,14 +231,14 @@ jobs:
           tar -czf "$NAME.tar.gz" "$NAME"
           shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
       - name: Extra release archives
-        if: ${{ startsWith(github.ref, 'refs/tags/') && inputs.macos-package-extra != '' }}
+        if: ${{ inputs.tool != '' && startsWith(github.ref, 'refs/tags/') && inputs.macos-package-extra != '' }}
         continue-on-error: true
         timeout-minutes: 10
         env:
           GH_TOKEN: ${{ github.token }}
         run: ${{ inputs.macos-package-extra }}
       - name: Upload the archive
-        if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ inputs.tool != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-macos
@@ -254,7 +260,7 @@ jobs:
   # built, tested and archived. The archives it uploads are the ones `linux` and `macos` already made.
   publish:
     needs: [lint, linux, macos]
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ inputs.tool != '' && startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

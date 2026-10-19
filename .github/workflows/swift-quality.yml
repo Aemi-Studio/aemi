@@ -63,6 +63,11 @@ on:
         required: false
         type: boolean
         default: true
+      swift-version:
+        description: "Swift toolchain: the swift.org release installed on macOS and the tag of the Linux image."
+        required: false
+        type: string
+        default: "6.4.1"
       container-image:
         description: "Canonical Linux toolchain image."
         required: false
@@ -70,7 +75,7 @@ on:
         # Dated nightly pins the toolchain for reproducible CI: the moving `nightly-6.4.x-noble` tag
         # drifts daily (the root of the #14 stale-incremental build flakes). Bump this deliberately,
         # like any other dependency, after verifying the new snapshot is green.
-        default: "swiftlang/swift:nightly-6.4.x-noble@sha256:54970846d48a8255eee5986aa5bbd259b7f73bbf38429cc2428ce6a62a390b47"
+        default: "swift:6.4.1-noble"
       macos-runner:
         required: false
         type: string
@@ -196,7 +201,7 @@ jobs:
       run:
         working-directory: ${{ inputs.package-path }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
         uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
@@ -204,7 +209,7 @@ jobs:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
       - name: Checkout Aemi (canonical config + scripts)
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Aemi-Studio/aemi
           ref: main
@@ -231,11 +236,13 @@ jobs:
         run: |
           brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
           swiftlint lint --strict --config .swiftlint.yml --reporter github-actions-logging
-      - name: Install Swift 6.4 toolchain (no hosted macOS image ships the release)
+      - name: Install Swift ${{ inputs.swift-version }}
         # Only the `swift package lint` step below needs SwiftPM (a 6.4 manifest), so the install is
         # gated exactly like it; the file-based gates above run on the image's stock tools.
         if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
-        uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        with:
+          swift-version: ${{ inputs.swift-version }}
       - name: Lint (format gate + shipped-library discipline)
         # `swift package lint` runs the Aemi plugin, which resolves the package graph — so it is
         # gated on published siblings. The file-based gates above always run.
@@ -265,7 +272,7 @@ jobs:
     # for a code-scanning upload made the whole run fail at startup. deadwood's SARIF is published as a
     # build artifact instead, which needs no extra grant — it is report-only anyway.
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
         uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
@@ -333,7 +340,7 @@ jobs:
           deadwood analyze ${{ inputs.analysis-paths }} "${tests[@]}" \
             --no-cache --production || true
       - name: Upload deadwood report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deadwood-sarif-${{ github.run_id }}
           path: deadwood.sarif
@@ -341,6 +348,7 @@ jobs:
         continue-on-error: true
 
   consumer-path:
+    needs: gate
     # Everything else in this workflow prefixes `<DEV>=1` onto every SwiftPM invocation, so the
     # path an actual consumer takes — a bare clone, no env — was never exercised. That gap hid
     # real breakage: ADDB ran ZERO tests and exited 0; ADJSON and URLBuilder failed to compile
@@ -351,15 +359,17 @@ jobs:
       run:
         working-directory: ${{ inputs.package-path }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
         uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
-      - name: Install Swift 6.4 toolchain (no hosted macOS image ships the release)
-        uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
+      - name: Install Swift ${{ inputs.swift-version }}
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        with:
+          swift-version: ${{ inputs.swift-version }}
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}
         shell: bash
@@ -381,6 +391,13 @@ jobs:
           swift -e "$probe" || true
           defaults write -g AppleShowScrollBars -string WhenScrolling
           swift -e "$probe" || true
+      - name: Restore the SwiftPM tree
+        id: spm-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.package-path }}/.build
+          key: spm-${{ runner.os }}-consumer-${{ inputs.swift-version }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path)) }}
+          restore-keys: spm-${{ runner.os }}-consumer-${{ inputs.swift-version }}-
       - name: Build and test with NO environment set
         shell: bash
         # Deliberately does not set the dev env var, and deliberately does not use `continue-on-error`.
@@ -399,9 +416,16 @@ jobs:
             exit 1
           fi
           grep -oE 'Test run with [0-9]+ tests? in [0-9]+ suites?' consumer-test.log
+      - name: Save the SwiftPM tree
+        if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.spm-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.package-path }}/.build
+          key: spm-${{ runner.os }}-consumer-${{ inputs.swift-version }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path)) }}
 
   test-macos:
     name: macOS (${{ matrix.config }})
+    needs: gate
     if: ${{ !inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true') }}
     runs-on: ${{ inputs.macos-runner }}
     defaults:
@@ -412,15 +436,17 @@ jobs:
       matrix:
         config: [debug, release]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
         uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
-      - name: Install Swift 6.4 toolchain (no hosted macOS image ships the release)
-        uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
+      - name: Install Swift ${{ inputs.swift-version }}
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        with:
+          swift-version: ${{ inputs.swift-version }}
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}
         shell: bash
@@ -429,6 +455,13 @@ jobs:
             brew list "$f" >/dev/null 2>&1 || brew install "$f"
           done
       - run: swift --version
+      - name: Restore the SwiftPM tree
+        id: spm-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.package-path }}/.build
+          key: spm-${{ runner.os }}-test-${{ matrix.config }}-${{ inputs.swift-version }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path)) }}
+          restore-keys: spm-${{ runner.os }}-test-${{ matrix.config }}-${{ inputs.swift-version }}-
       - name: Fetch fixtures
         if: ${{ inputs.fixtures-command != '' }}
         shell: bash
@@ -457,6 +490,12 @@ jobs:
           else
             ${{ inputs.dev-env-var }}=1 swift test "${BS[@]}" -c ${{ matrix.config }}
           fi
+      - name: Save the SwiftPM tree
+        if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.spm-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.package-path }}/.build
+          key: spm-${{ runner.os }}-test-${{ matrix.config }}-${{ inputs.swift-version }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path)) }}
 
   test-linux:
     name: Linux (${{ matrix.config }})
@@ -474,7 +513,7 @@ jobs:
       matrix:
         config: [debug, release]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
         uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
@@ -482,6 +521,13 @@ jobs:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
       - run: swift --version
+      - name: Restore the SwiftPM tree
+        id: spm-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.package-path }}/.build
+          key: spm-${{ runner.os }}-test-${{ matrix.config }}-${{ inputs.swift-version }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path)) }}
+          restore-keys: spm-${{ runner.os }}-test-${{ matrix.config }}-${{ inputs.swift-version }}-
       - name: Install system packages
         if: ${{ inputs.system-packages != '' }}
         shell: bash
@@ -502,24 +548,35 @@ jobs:
         run: |
           BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
           ${{ inputs.dev-env-var }}=1 swift test "${BS[@]}" -c ${{ matrix.config }}
+      - name: Save the SwiftPM tree
+        if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.spm-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.package-path }}/.build
+          key: spm-${{ runner.os }}-test-${{ matrix.config }}-${{ inputs.swift-version }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path)) }}
 
   sanitizers:
     name: sanitizers
-    if: ${{ inputs.enable-sanitizers && (!inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true')) }}
+    needs: test-macos
+    # After the macOS tests: a sanitizer rebuild is the most expensive job, so it runs only for a tree that
+    # already passes. `skipped` counts as passed (the macOS leg is gated off for unpublished siblings).
+    if: ${{ !cancelled() && (needs.test-macos.result == 'success' || needs.test-macos.result == 'skipped') && inputs.enable-sanitizers && (!inputs.requires-published-siblings || (vars.AEMI_SWIFT_SIBLINGS_PUBLISHED == 'true' || vars.AD_SWIFT_SIBLINGS_PUBLISHED == 'true')) }}
     runs-on: ${{ inputs.macos-runner }}
     defaults:
       run:
         working-directory: ${{ inputs.package-path }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
         uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
-      - name: Install Swift 6.4 toolchain (no hosted macOS image ships the release)
-        uses: Aemi-Studio/aemi/.github/actions/setup-swift@main
+      - name: Install Swift ${{ inputs.swift-version }}
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        with:
+          swift-version: ${{ inputs.swift-version }}
       - name: Install Homebrew packages
         if: ${{ inputs.homebrew-packages != '' }}
         shell: bash
@@ -537,6 +594,13 @@ jobs:
           swift -e "$probe" || true
           defaults write -g AppleShowScrollBars -string WhenScrolling
           swift -e "$probe" || true
+      - name: Restore the SwiftPM tree
+        id: spm-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.package-path }}/.build
+          key: spm-${{ runner.os }}-sanitizers-${{ inputs.swift-version }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path)) }}
+          restore-keys: spm-${{ runner.os }}-sanitizers-${{ inputs.swift-version }}-
       - name: Test under each sanitizer
         shell: bash
         run: |
@@ -546,6 +610,12 @@ jobs:
             ${{ inputs.dev-env-var }}=1 swift test "${BS[@]}" --sanitize="$s"
             echo "::endgroup::"
           done
+      - name: Save the SwiftPM tree
+        if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.spm-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.package-path }}/.build
+          key: spm-${{ runner.os }}-sanitizers-${{ inputs.swift-version }}-${{ hashFiles(format('{0}/Package.swift', inputs.package-path), format('{0}/Package.resolved', inputs.package-path)) }}
 
   docs:
     name: Documentation (DocC)
@@ -556,7 +626,7 @@ jobs:
         working-directory: ${{ inputs.package-path }}
     container: ${{ inputs.container-image }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
         uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
@@ -575,3 +645,17 @@ jobs:
           BS=(); [ -n "${{ inputs.build-system }}" ] && BS=(--build-system "${{ inputs.build-system }}")
           ${{ inputs.dev-env-var }}=1 swift package "${BS[@]}" --allow-writing-to-directory ./docs \
             generate-documentation --target ${{ inputs.docs-target }} --output-path ./docs
+
+  result:
+    # The one check a branch rule needs to require. A job skipped by its own condition passes; a failed or
+    # cancelled one does not.
+    name: quality result
+    needs: [gate, static-analysis, consumer-path, test-macos, test-linux, sanitizers, docs]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every job passed or was skipped
+        run: |
+          echo '${{ toJSON(needs) }}' > needs.json
+          if grep -E '"result": "(failure|cancelled)"' needs.json; then exit 1; fi

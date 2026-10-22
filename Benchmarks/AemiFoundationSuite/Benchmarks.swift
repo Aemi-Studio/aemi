@@ -174,12 +174,16 @@ nonisolated(unsafe) let benchmarks = {
         }
         Benchmark("kernels/string-stop scalar \(n)") { bm in
             for _ in bm.scaledIterations {
-                blackHole(AemiKernels.indexOfStringStop(content, quote: stopQuote, escape: stopEscape, backend: .scalar) ?? -1)
+                blackHole(
+                    AemiKernels.indexOfStringStop(content, quote: stopQuote, escape: stopEscape, backend: .scalar) ?? -1
+                )
             }
         }
         Benchmark("kernels/string-stop fastest \(n)") { bm in
             for _ in bm.scaledIterations {
-                blackHole(AemiKernels.indexOfStringStop(content, quote: stopQuote, escape: stopEscape, backend: .fastest) ?? -1)
+                blackHole(
+                    AemiKernels.indexOfStringStop(content, quote: stopQuote, escape: stopEscape, backend: .fastest)
+                        ?? -1)
             }
         }
     }

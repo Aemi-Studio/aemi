@@ -69,53 +69,14 @@ public enum Base64 {
 
     /// Decodes base64 `bytes`. Accepts input with or without `=` padding; returns `nil` (never traps)
     /// on any character outside `alphabet`, on data after a `=`, or on an impossible length (a lone
-    /// trailing sextet). Non-canonical trailing bits are tolerated. No whitespace is skipped — strip it
-    /// at the call site if the source allows it.
+    /// trailing sextet). Non-canonical trailing bits are tolerated, as is a `=` run of any length. No
+    /// whitespace is skipped.
+    ///
+    /// This is the ``Options/lenient`` decode and is kept for source compatibility. It cannot say why
+    /// a decode failed and it accepts several texts for one byte string, so for security-relevant
+    /// input call ``decode(_:options:)`` with ``Options/strict``.
     public static func decode(_ bytes: some Collection<UInt8>, alphabet: Alphabet = .standard) -> [UInt8]? {
-        let reverse = alphabet == .standard ? standardDecode : urlSafeDecode
-        // Each 4 input chars yield at most 3 bytes; `(count / 4 + 1) * 3` is a safe upper bound for the
-        // exclusively-owned output buffer. Invalid input flips the flag and the partial buffer is dropped.
-        var invalid = false
-        let result = [UInt8](capacity: (bytes.count / 4 + 1) * 3) { span in
-            var group: UInt32 = 0
-            var count = 0
-            var sawPadding = false
-            var iterator = bytes.makeIterator()
-            while let c = iterator.next() {
-                if c == padByte {
-                    sawPadding = true
-                    continue
-                }
-                // A data byte after a `=` is malformed (`=` may only trail).
-                guard !sawPadding else {
-                    invalid = true
-                    return
-                }
-                let value = reverse[Int(c)]
-                guard value >= 0 else {
-                    invalid = true
-                    return
-                }
-                group = (group << 6) | UInt32(value)
-                count += 1
-                if count == 4 {
-                    span.append(UInt8((group >> 16) & 0xFF))
-                    span.append(UInt8((group >> 8) & 0xFF))
-                    span.append(UInt8(group & 0xFF))
-                    group = 0
-                    count = 0
-                }
-            }
-            switch count {
-                case 0: break
-                case 2: span.append(UInt8((group >> 4) & 0xFF))  // 12 bits → 1 byte (low 4 are pad)
-                case 3:  // 18 bits → 2 bytes (low 2 are pad)
-                    span.append(UInt8((group >> 10) & 0xFF))
-                    span.append(UInt8((group >> 2) & 0xFF))
-                default: invalid = true  // a lone trailing sextet (8 bits) cannot form a byte
-            }
-        }
-        return invalid ? nil : result
+        try? decode(bytes, options: Options(alphabet: AlphabetTable(alphabet)))
     }
 
     // MARK: - Tables

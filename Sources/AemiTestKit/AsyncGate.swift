@@ -38,8 +38,8 @@ public final class AsyncGate: Sendable {
         let id = state.withLock { $0.waiters.makeID() }
         enum Action { case proceed, cancelled, suspended }
         try await withTaskCancellationHandler {
-            try await withUnsafeThrowingContinuation {
-                (continuation: UnsafeContinuation<Void, any Error>) in
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Void, any Error>) in
                 let action = state.withLock { s -> Action in
                     if Task.isCancelled { return .cancelled }
                     if s.permits > 0 {
@@ -63,7 +63,7 @@ public final class AsyncGate: Sendable {
     /// Open the gate for one holder: resume the longest-waiting suspended Task, or bank a
     /// permit if none is waiting. The continuation resumes outside the lock.
     public func open() {
-        let woken = state.withLock { s -> UnsafeContinuation<Void, any Error>? in
+        let woken = state.withLock { s -> CheckedContinuation<Void, any Error>? in
             if let continuation = s.waiters.wakeOne() { return continuation }
             s.permits += 1
             return nil

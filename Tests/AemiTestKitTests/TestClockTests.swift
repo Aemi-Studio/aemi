@@ -230,4 +230,69 @@ struct TestClockTests {
 
         await #expect(throws: CancellationError.self) { try await waiter.value }
     }
+
+    // MARK: drain
+
+    @Test
+    func `drain makes every parked sleeper throw CancellationError and leaves time alone`() async throws {
+        let clock = TestClock()
+        let sleepers = [10, 20, 30]
+            .map { seconds in
+                Task { try await clock.sleep(until: clock.now.advanced(by: .seconds(seconds))) }
+            }
+        try await clock.waitForSleepers(atLeast: 3)
+
+        #expect(clock.drain() == 3)
+
+        for sleeper in sleepers {
+            await #expect(throws: CancellationError.self) { try await sleeper.value }
+        }
+        #expect(clock.sleeperCount == 0)
+        #expect(clock.now.offset == .zero, "drain does not advance time")
+    }
+
+    @Test
+    func `drain releases rendezvous waiters and untracked sleeps too`() async throws {
+        let clock = TestClock()
+        let mark = clock.registrationMark()
+        let byCount = Task { try await clock.waitForSleepers(atLeast: 5) }
+        let byMark = Task { try await clock.waitForSleepers(5, after: mark) }
+        let byUntracked = Task { try await clock.waitForUntrackedSleepers(atLeast: 5) }
+        let timer = TestClock.withUntrackedSleeps {
+            Task { try await clock.sleep(until: clock.now.advanced(by: .seconds(60))) }
+        }
+        try await clock.waitForUntrackedSleepers(atLeast: 1)
+        while clock.rendezvousWaiterCount < 3 { await Task.yield() }
+
+        #expect(clock.drain() == 4)
+
+        for task in [byCount, byMark, byUntracked, timer] {
+            await #expect(throws: CancellationError.self) { try await task.value }
+        }
+        #expect(clock.rendezvousWaiterCount == 0)
+    }
+
+    @Test
+    func `drain on an idle clock releases nothing and later sleeps park normally`() async throws {
+        let clock = TestClock()
+        #expect(clock.drain() == 0)
+
+        let sleeper = Task { try await clock.sleep(until: clock.now.advanced(by: .seconds(1))) }
+        try await clock.waitForSleepers(atLeast: 1)
+        clock.advance(by: .seconds(1))
+        try await sleeper.value
+    }
+
+    @Test
+    func `the description lists what is parked`() async throws {
+        let clock = TestClock()
+        let sleeper = Task { try await clock.sleep(until: clock.now.advanced(by: .seconds(7))) }
+        try await clock.waitForSleepers(atLeast: 1)
+
+        #expect(clock.description.contains("7.0 seconds"))
+        #expect(clock.description.contains("sleepers: ["))
+        clock.drain()
+        _ = await sleeper.result
+        #expect(clock.description.contains("sleepers: []"))
+    }
 }

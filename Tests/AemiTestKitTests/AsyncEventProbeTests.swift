@@ -62,7 +62,7 @@ struct AsyncEventProbeTests {
     func `wait returns the events as they were when the target was reached`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiter = Task { try await probe.wait(forAtLeast: 2) }
-        await Self.letWaitersPark()
+        await Self.waitUntilParked(1, on: probe)
 
         probe.record(10)
         probe.record(20)
@@ -77,7 +77,7 @@ struct AsyncEventProbeTests {
     func `one record wakes every waiter whose threshold it crosses`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiters = (1 ... 3).map { target in Task { try await probe.wait(forAtLeast: target) } }
-        await Self.letWaitersPark()
+        await Self.waitUntilParked(3, on: probe)
 
         probe.record(1)
         probe.record(2)
@@ -122,17 +122,53 @@ struct AsyncEventProbeTests {
     func `cancelling the awaiting task throws CancellationError`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiter = Task { try await probe.wait(forAtLeast: 1, timeout: .seconds(30)) }
-        await Self.letWaitersPark()
+        await Self.waitUntilParked(1, on: probe)
 
         waiter.cancel()
 
         await #expect(throws: CancellationError.self) { try await waiter.value }
     }
 
-    /// Lets waiter tasks reach their first suspension. The probe exposes no waiter count, so the test yields
-    /// until they have had time to park; a wait that has not parked yet still completes correctly because
-    /// the probe checks the count under its lock.
-    private static func letWaitersPark() async {
-        for _ in 0 ..< 100 { await Task.yield() }
+    /// Every record wakes a waiter. If the wake handed the waiter a snapshot of the events, the producer's next
+    /// append would find the buffer shared and copy it, once per record: 3000 reallocations for 3000 records.
+    /// Appending to an unshared buffer reallocates only when it grows, a handful of times.
+    @Test
+    func `waking a waiter does not make the next record copy the events`() async throws {
+        let count = 3000
+        let probe = AsyncEventProbe<Int>()
+        let waiters = (1 ... count).map { target in Task { try await probe.wait(forAtLeast: target) } }
+        await Self.waitUntilParked(count, on: probe)
+
+        var reallocations = 0
+        var previous: UInt = 0
+        for event in 0 ..< count {
+            probe.record(event)
+            let address = probe.events.withUnsafeBufferPointer { UInt(bitPattern: $0.baseAddress) }
+            if address != previous { reallocations += 1 }
+            previous = address
+        }
+
+        for (index, waiter) in waiters.enumerated() {
+            #expect(try await waiter.value.count >= index + 1)
+        }
+        #expect(reallocations < count / 4, "the event buffer was reallocated \(reallocations) times")
+    }
+
+    @Test
+    func `a wait that parked returns exactly the events up to its threshold`() async throws {
+        let probe = AsyncEventProbe<Int>()
+        let waiter = Task { try await probe.wait(forAtLeast: 2) }
+        await Self.waitUntilParked(1, on: probe)
+
+        probe.record(1)
+        probe.record(2)
+        probe.record(3)
+
+        #expect(try await waiter.value == [1, 2])
+    }
+
+    /// Yields until `count` waits are parked on the probe, so a record that follows cannot race a wait's registration.
+    private static func waitUntilParked(_ count: Int, on probe: AsyncEventProbe<some Sendable>) async {
+        while probe.waiterCount < count { await Task.yield() }
     }
 }

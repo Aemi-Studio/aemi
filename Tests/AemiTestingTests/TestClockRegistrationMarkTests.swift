@@ -65,10 +65,12 @@ struct TestClockRegistrationMarkTests {
         try await withThrowingTaskGroup(of: Void.self) { group in
             park(1, on: clock, in: &group)
             try await clock.waitForSleepers(count: 1)
-            // Taken from the current task, so the baseline is the one sleeper already queued.
-            async let waited: Void = clock.waitForAdditionalSleepers(2)
+            // The delta form's baseline is taken when the wait first runs, so park nothing until the wait
+            // has registered: a sleeper that won the race would be absorbed into the baseline.
+            let waited = Task { try await clock.waitForAdditionalSleepers(2) }
+            while !clock.description.contains("rendezvous waiters: 1") { await Task.yield() }
             park(2, on: clock, in: &group)
-            try await waited
+            try await waited.value
             try await clock.waitForSleepers(count: 3)
             clock.advance(by: .seconds(60))
         }

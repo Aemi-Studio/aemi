@@ -265,7 +265,7 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
         work: @escaping @Sendable () async throws -> [Event]
     ) async throws -> [Event] {
         try await withThrowingTaskGroup(of: [Event].self) { group in
-            group.addTask(operation: work)
+            group.addTask { try await work() }
             // The timeout is the harness's own timer: a `TestClock` must not count it as a sleeper.
             TestClock.withUntrackedSleeps {
                 group.addTask {

@@ -35,7 +35,7 @@ public typealias AsyncProbe<Event: Sendable> = AsyncEventProbe<Event>
 public final class AsyncEventProbe<Event: Sendable>: Sendable {
     private struct State {
         var events: [Event] = []
-        var waiters = ContinuationRegistry<Int, [Event]>()
+        var waiters = ContinuationRegistry<Int, [Event]?>()
     }
 
     private enum ThresholdAction {
@@ -55,15 +55,22 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
     public var events: [Event] { state.withLock { $0.events } }
     public var count: Int { state.withLock { $0.events.count } }
 
-    /// Record an event, waking every waiter whose threshold is now met (with a
-    /// snapshot of the events at that moment). Safe to call from any isolation.
+    /// How many waits are parked on a threshold. Lets a test know a wait has registered before it records.
+    var waiterCount: Int { state.withLock { $0.waiters.count } }
+
+    /// Record an event, waking every waiter whose threshold is now met. Safe to call from any
+    /// isolation.
+    ///
+    /// A woken waiter is not handed a snapshot of the events: it takes its own copy of the first
+    /// `threshold` events once it runs. A snapshot built here would keep the event buffer shared
+    /// until the waiter let go of it, so the next `record` would copy the whole array, once per
+    /// wake (quadratic over a long stream).
     public func record(_ event: Event) {
-        let resumals = state.withLock { s -> [(UnsafeContinuation<[Event], any Error>, [Event])] in
+        let resumals = state.withLock { s -> [(UnsafeContinuation<[Event]?, any Error>, [Event]?)] in
             s.events.append(event)
-            let snapshot = s.events
-            return s.waiters.wake(upTo: snapshot.count, with: snapshot)
+            return s.waiters.wake(upTo: s.events.count, with: nil)
         }
-        for (continuation, snapshot) in resumals { continuation.resume(returning: snapshot) }
+        for (continuation, _) in resumals { continuation.resume(returning: nil) }
     }
 
     /// Suspend until at least `count` events are recorded, racing a `clock`-driven
@@ -100,11 +107,14 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
 
     /// The boundary half: parks until `count` events exist, honoring cancellation
     /// (the timeout cancels it after winning the race).
+    ///
+    /// A wait that is already satisfied returns every event recorded at that moment; one that had to
+    /// park returns exactly the first `count`, the events at the moment the boundary was reached.
     private func waitForThreshold(_ count: Int) async throws -> [Event] {
         let id = state.withLock { $0.waiters.makeID() }
-        return try await withTaskCancellationHandler {
+        let ready = try await withTaskCancellationHandler {
             try await withUnsafeThrowingContinuation {
-                (continuation: UnsafeContinuation<[Event], any Error>) in
+                (continuation: UnsafeContinuation<[Event]?, any Error>) in
                 let action = state.withLock { s -> ThresholdAction in
                     if Task.isCancelled { return .cancelled }
                     if s.events.count >= count { return .ready(s.events) }
@@ -119,6 +129,15 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
             }
         } onCancel: {
             state.withLock { $0.waiters.remove(id: id) }?.resume(throwing: CancellationError())
+        }
+        if let ready { return ready }
+        // A real copy: `Array(events.prefix(count))` may share the buffer when the prefix is all of it, which
+        // would make the producer's next append copy the whole array again.
+        return state.withLock { s in
+            var snapshot: [Event] = []
+            snapshot.reserveCapacity(count)
+            snapshot.append(contentsOf: s.events[..<count])
+            return snapshot
         }
     }
 }

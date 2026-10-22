@@ -42,6 +42,9 @@ The probe comes in the forms a test needs:
 - **Conditions.** ``AsyncEventProbe/wait(until:timeout:)`` waits for a condition on the recorded events
   ("the events contain an error") instead of a polling loop. The condition is checked against the events so
   far and then against each further prefix in order, so the result does not depend on scheduling.
+- **A generous default.** The overloads without a clock wait up to 30 seconds. The default is a hang
+  guard, not a latency assertion: a wait returns as soon as its boundary is reached, so a long default costs
+  time only when a test is genuinely stuck, while a short one fails tests on a busy machine or under a sanitizer.
 - **Diagnostics.** A probe has a label and remembers where it was created. A timeout throws
   ``AsyncEventProbeTimeoutError``, whose message names both and lists the ten most recent recorded events
   (each cut at 120 characters), so a stalled test shows what *did* happen.

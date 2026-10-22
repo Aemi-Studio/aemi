@@ -9,10 +9,14 @@ import Synchronization
 /// on ``events`` / ``count`` / ``isEmpty``.
 ///
 /// It is the app-tier sibling of `AemiTestKit`'s `AsyncEventProbe`, and the two follow the same rules:
-/// the wait forms, the timeout error, the ordering and the cancellation behaviour are identical. Two
-/// differences remain on purpose: the default timeout is 1 second here, and a wait returns nothing — read
-/// ``events`` after it — so that `try await task.value` on a `Task { try await probe.wait(…) }` stays free of
-/// an unused-result warning.
+/// the wait forms, the timeout error, the default timeout (30 seconds), the ordering and the cancellation
+/// behaviour are identical. One difference remains on purpose: a wait returns nothing — read ``events`` after it —
+/// so that `try await task.value` on a `Task { try await probe.wait(…) }` stays free of an unused-result warning.
+///
+/// The default timeout is a hang guard, not a latency assertion: a wait returns as soon as its boundary is
+/// reached, so a long default costs time only when a test is genuinely stuck and cannot break a test that
+/// passes, while a short one fails tests on a busy machine or under a sanitizer. Pass a shorter `timeout` to
+/// test a timeout itself, or inject a ``TestClock`` to make it free.
 ///
 /// ## Canonical usage
 ///
@@ -220,12 +224,15 @@ public final class CountProbe<Event: Sendable>: Sendable {
     ///
     /// - Parameters:
     ///   - count: The number of recorded events to wait for.
-    ///   - timeout: How long to wait before giving up. Defaults to 1 second.
+    ///   - timeout: How long to wait before giving up. Defaults to 30 seconds: a hang guard, not a latency
+    ///     assertion. A wait returns as soon as its boundary is reached, so a long default costs time only when
+    ///     a test is genuinely stuck and cannot break a test that passes, while a short one fails tests on a
+    ///     busy machine or under a sanitizer.
     /// - Throws: ``CountProbeTimeoutError`` — reporting the probe's creation site — if `timeout`
     ///   elapses first, or `CancellationError` if the awaiting task is cancelled.
     public func wait(
         forAtLeast count: Int,
-        timeout: Duration = .seconds(1)
+        timeout: Duration = .seconds(30)
     ) async throws {
         try await wait(forAtLeast: count, within: timeout, clock: ContinuousClock())
     }
@@ -254,7 +261,7 @@ public final class CountProbe<Event: Sendable>: Sendable {
     /// Suspends until the recorded events satisfy `condition`, or `timeout` elapses on a `ContinuousClock`.
     public func wait(
         until condition: @escaping @Sendable ([Event]) -> Bool,
-        timeout: Duration = .seconds(1)
+        timeout: Duration = .seconds(30)
     ) async throws {
         try await wait(until: condition, within: timeout, clock: ContinuousClock())
     }

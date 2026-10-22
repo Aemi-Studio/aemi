@@ -13,7 +13,7 @@ import Synchronization
 /// `ContinuationRegistry` (a deadline-ordered heap), so waking the due ones is a few
 /// pops rather than a full scan-and-sort, and the park / wake / cancel logic is shared
 /// with `AsyncEventProbe` rather than re-rolled here.
-public final class TestClock: Clock, Sendable {
+public final class TestClock: Clock, Sendable, CustomStringConvertible {
     public struct Instant: InstantProtocol, Sendable {
         /// Elapsed `Duration` since the clock's origin.
         public var offset: Duration
@@ -31,7 +31,7 @@ public final class TestClock: Clock, Sendable {
         }
     }
 
-    private typealias Wakes = [(UnsafeContinuation<Void, any Error>, Void)]
+    private typealias Wakes = [(CheckedContinuation<Void, any Error>, Void)]
 
     private struct State {
         var now: Instant
@@ -46,6 +46,11 @@ public final class TestClock: Clock, Sendable {
         var registrationWaiters = ContinuationRegistry<UInt64, Void>()
         /// Rendezvous waiters keyed by a target **live untracked** sleeper count.
         var untrackedWaiters = ContinuationRegistry<Int, Void>()
+
+        /// Every parked rendezvous wait, whatever it waits for.
+        var rendezvousWaiterCount: Int {
+            countWaiters.count + registrationWaiters.count + untrackedWaiters.count
+        }
 
         /// Rendezvous waiters share one id sequence; each registry only needs its ids unique.
         private var nextWaiterID: UInt64 = 0
@@ -87,6 +92,15 @@ public final class TestClock: Clock, Sendable {
     /// given this clock. A test that drives such a timeout rendezvouses with it here, then advances.
     public var untrackedSleeperCount: Int { state.withLock { $0.sleepers.uncountedCount } }
 
+    /// The clock's time and what is parked on it, for a failure message: a test that hangs on a
+    /// rendezvous can print this to see which deadlines are pending and how many waits are open.
+    public var description: String {
+        let (now, sleeps, waiters) = state.withLock { ($0.now, $0.sleepers.parkedKeys, $0.rendezvousWaiterCount) }
+        let deadlines = sleeps.map { "\($0.key.offset)\($0.counted ? "" : " (untracked)")" }
+        return "TestClock(now: \(now.offset), sleepers: [\(deadlines.joined(separator: ", "))], "
+            + "rendezvous waiters: \(waiters))"
+    }
+
     /// Heap slots the sleeper queue holds, live or stale. For tests that pin the compaction bound.
     var storedSleeperSlotCount: Int { state.withLock { $0.sleepers.storedSlotCount } }
 
@@ -96,8 +110,8 @@ public final class TestClock: Clock, Sendable {
         let counted = !HarnessSleep.isActive
         enum Action { case resumeNow, cancelled, suspended }
         try await withTaskCancellationHandler {
-            try await withUnsafeThrowingContinuation {
-                (continuation: UnsafeContinuation<Void, any Error>) in
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Void, any Error>) in
                 let (action, rendezvous) = state.withLock { s -> (Action, Wakes) in
                     if Task.isCancelled { return (.cancelled, []) }
                     if deadline <= s.now { return (.resumeNow, []) }
@@ -222,6 +236,9 @@ public final class TestClock: Clock, Sendable {
     /// before it parks the next sleeper.
     var additionalWaiterCount: Int { state.withLock { $0.registrationWaiters.count } }
 
+    /// How many rendezvous waits of any kind are parked.
+    var rendezvousWaiterCount: Int { state.withLock { $0.rendezvousWaiterCount } }
+
     /// Suspend until **at least** `count` untracked sleeps are parked: the timeout of a probe or spy
     /// wait given this clock. Use it to know a timeout is armed before advancing past it.
     ///
@@ -254,7 +271,7 @@ public final class TestClock: Clock, Sendable {
         try HarnessSleep.$isActive.withValue(true, operation: body)
     }
 
-    private typealias Continuation = UnsafeContinuation<Void, any Error>
+    private typealias Continuation = CheckedContinuation<Void, any Error>
 
     /// What a rendezvous found when it tried to park.
     private enum Rendezvous { case satisfied, parked }
@@ -270,7 +287,7 @@ public final class TestClock: Clock, Sendable {
         try Task.checkCancellation()
         let id = state.withLock { $0.makeWaiterID() }
         try await withTaskCancellationHandler {
-            try await withUnsafeThrowingContinuation { (continuation: Continuation) in
+            try await withCheckedThrowingContinuation { (continuation: Continuation) in
                 let action = state.withLock { s -> Rendezvous? in
                     Task.isCancelled ? nil : park(&s, id, continuation)
                 }
@@ -283,6 +300,24 @@ public final class TestClock: Clock, Sendable {
         } onCancel: {
             state.withLock { unpark(&$0, id) }?.resume(throwing: CancellationError())
         }
+    }
+
+    /// Release everything that is parked — sleepers (tracked or not) and rendezvous waiters — by making
+    /// each throw `CancellationError`, and return how many were released. Time does not move.
+    ///
+    /// Call it at the end of a test whose code under test leaves a sleeper parked on purpose (a loop that
+    /// sleeps forever, a timer nobody advances): the parked task then finishes instead of outliving the
+    /// test, and no continuation is dropped unresumed. Unlike ``runToLastSleeper()``, which makes the
+    /// sleeps *succeed*, this makes them fail, so the code under test sees a cancellation rather than the
+    /// time it was waiting for.
+    @discardableResult
+    public func drain() -> Int {
+        let released = state.withLock { s in
+            s.sleepers.drain() + s.countWaiters.drain() + s.registrationWaiters.drain()
+                + s.untrackedWaiters.drain()
+        }
+        for continuation in released { continuation.resume(throwing: CancellationError()) }
+        return released.count
     }
 
     /// Wake every parked sleeper by advancing to the furthest pending deadline — the

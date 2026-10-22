@@ -14,9 +14,10 @@ import HeapModule
 /// so the heap is rebuilt from the live entries once stale slots outnumber live ones: the
 /// rebuild is O(n) after at least n cancellations, O(1) amortized.
 ///
-/// The type is iterative throughout — no recursion. It is *not* `Sendable` (it holds raw
-/// continuations) and is meant to live inside a `Mutex`-guarded state, exactly as the
-/// originals did. Resume continuations **outside** the lock.
+/// The type is iterative throughout — no recursion. It is *not* `Sendable` (it is mutable state)
+/// and is meant to live inside a `Mutex`-guarded state, exactly as the originals did. Resume
+/// continuations **outside** the lock. The continuations are *checked*: resuming one twice traps with a
+/// message, and dropping one without resuming it logs a leak instead of hanging in silence.
 struct ContinuationRegistry<Key: Comparable, Value> {
     /// A parked key plus the id that ties it back to the liveness table. Ordered by key,
     /// then id, so equal keys wake in a stable, deterministic order.
@@ -36,7 +37,7 @@ struct ContinuationRegistry<Key: Comparable, Value> {
 
     private struct Parked {
         let key: Key
-        let continuation: UnsafeContinuation<Value, any Error>
+        let continuation: CheckedContinuation<Value, any Error>
         let counted: Bool
     }
 
@@ -70,7 +71,7 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     /// A continuation parked with `counted: false` is woken like any other but is left out of ``count``
     /// and ``maxKey``: it belongs to the test harness, not to the code under test.
     mutating func park(
-        id: UInt64, key: Key, _ continuation: UnsafeContinuation<Value, any Error>, counted: Bool = true
+        id: UInt64, key: Key, _ continuation: CheckedContinuation<Value, any Error>, counted: Bool = true
     ) {
         live[id] = Parked(key: key, continuation: continuation, counted: counted)
         if !counted { uncounted += 1 }
@@ -78,7 +79,7 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     }
 
     /// Remove the live entry parked under `id`, keeping the uncounted tally in step.
-    private mutating func take(_ id: UInt64) -> UnsafeContinuation<Value, any Error>? {
+    private mutating func take(_ id: UInt64) -> CheckedContinuation<Value, any Error>? {
         guard let parked = live.removeValue(forKey: id) else { return nil }
         if !parked.counted { uncounted -= 1 }
         return parked.continuation
@@ -87,9 +88,9 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     /// Remove and return every live continuation whose key is `<= bound`, in ascending
     /// key order, each paired with `value`. Stale (cancelled) slots are dropped silently.
     mutating func wake(upTo bound: Key, with value: Value) -> [(
-        UnsafeContinuation<Value, any Error>, Value
+        CheckedContinuation<Value, any Error>, Value
     )] {
-        var woken: [(UnsafeContinuation<Value, any Error>, Value)] = []
+        var woken: [(CheckedContinuation<Value, any Error>, Value)] = []
         while let next = ordered.min, next.key <= bound {
             _ = ordered.popMin()
             if let continuation = take(next.id) {
@@ -101,7 +102,7 @@ struct ContinuationRegistry<Key: Comparable, Value> {
 
     /// Remove and return the single longest-waiting live continuation (lowest key, then
     /// lowest id), skipping stale slots — a one-permit release for gate / semaphore use.
-    mutating func wakeOne() -> UnsafeContinuation<Value, any Error>? {
+    mutating func wakeOne() -> CheckedContinuation<Value, any Error>? {
         while let next = ordered.min {
             _ = ordered.popMin()
             if let continuation = take(next.id) {
@@ -111,9 +112,26 @@ struct ContinuationRegistry<Key: Comparable, Value> {
         return nil
     }
 
+    /// Remove and return every live continuation, in ascending key order (then park order), emptying the
+    /// registry. For releasing everything at the end of a test.
+    mutating func drain() -> [CheckedContinuation<Value, any Error>] {
+        let ids = live.map { Entry(key: $0.value.key, id: $0.key) }.sorted()
+        let continuations = ids.compactMap { take($0.id) }
+        ordered = Heap()
+        return continuations
+    }
+
+    /// The keys of the live entries, ascending (then park order), each marked with whether it counts.
+    /// For diagnostics.
+    var parkedKeys: [(key: Key, counted: Bool)] {
+        live.map { (Entry(key: $0.value.key, id: $0.key), $0.value.counted) }
+            .sorted { $0.0 < $1.0 }
+            .map { ($0.0.key, $0.1) }
+    }
+
     /// Remove and return the continuation parked under `id` (for cancellation), if still
     /// live. Its heap slot is left for `wake` to skip, or for the next compaction to drop.
-    mutating func remove(id: UInt64) -> UnsafeContinuation<Value, any Error>? {
+    mutating func remove(id: UInt64) -> CheckedContinuation<Value, any Error>? {
         let removed = take(id)
         if removed != nil { compactIfStale() }
         return removed

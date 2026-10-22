@@ -45,6 +45,14 @@ public final class TestClock: Clock, Sendable {
         /// Rendezvous waiters keyed by a target **cumulative registration** count.
         var registrationWaiters = ContinuationRegistry<UInt64, Void>()
 
+        /// Rendezvous waiters share one id sequence; each registry only needs its ids unique.
+        private var nextWaiterID: UInt64 = 0
+
+        mutating func makeWaiterID() -> UInt64 {
+            defer { nextWaiterID &+= 1 }
+            return nextWaiterID
+        }
+
         /// Record that a sleeper just parked and return every rendezvous waiter it satisfies.
         /// Callers must resume the result *outside* the lock.
         mutating func noteRegistration() -> Wakes {
@@ -130,27 +138,13 @@ public final class TestClock: Clock, Sendable {
     ///
     /// Cancellation unregisters and throws `CancellationError`.
     public func waitForSleepers(atLeast count: Int) async throws {
-        try Task.checkCancellation()
-        let id = state.withLock { $0.countWaiters.makeID() }
-        enum Action { case satisfied, cancelled, suspended }
-        try await withTaskCancellationHandler {
-            try await withUnsafeThrowingContinuation {
-                (continuation: UnsafeContinuation<Void, any Error>) in
-                let action = state.withLock { s -> Action in
-                    if Task.isCancelled { return .cancelled }
-                    if s.sleepers.count >= count { return .satisfied }
-                    s.countWaiters.park(id: id, key: count, continuation)
-                    return .suspended
-                }
-                switch action {
-                    case .satisfied: continuation.resume()
-                    case .cancelled: continuation.resume(throwing: CancellationError())
-                    case .suspended: break
-                }
-            }
-        } onCancel: {
-            state.withLock { $0.countWaiters.remove(id: id) }?.resume(throwing: CancellationError())
-        }
+        try await rendezvous(
+            park: { s, id, continuation in
+                if s.sleepers.count >= count { return .satisfied }
+                s.countWaiters.park(id: id, key: count, continuation)
+                return .parked
+            },
+            unpark: { $0.countWaiters.remove(id: $1) })
     }
 
     /// A point in the clock's registration history, taken synchronously with ``registrationMark()``
@@ -185,27 +179,13 @@ public final class TestClock: Clock, Sendable {
         try Task.checkCancellation()
         guard count > 0 else { return }
         let target = mark.registrations &+ UInt64(count)
-        let id = state.withLock { $0.registrationWaiters.makeID() }
-        enum Action { case satisfied, cancelled, suspended }
-        try await withTaskCancellationHandler {
-            try await withUnsafeThrowingContinuation {
-                (continuation: UnsafeContinuation<Void, any Error>) in
-                let action = state.withLock { s -> Action in
-                    if Task.isCancelled { return .cancelled }
-                    if s.registrations >= target { return .satisfied }
-                    s.registrationWaiters.park(id: id, key: target, continuation)
-                    return .suspended
-                }
-                switch action {
-                    case .satisfied: continuation.resume()
-                    case .cancelled: continuation.resume(throwing: CancellationError())
-                    case .suspended: break
-                }
-            }
-        } onCancel: {
-            state.withLock { $0.registrationWaiters.remove(id: id) }?
-                .resume(throwing: CancellationError())
-        }
+        try await rendezvous(
+            park: { s, id, continuation in
+                if s.registrations >= target { return .satisfied }
+                s.registrationWaiters.park(id: id, key: target, continuation)
+                return .parked
+            },
+            unpark: { $0.registrationWaiters.remove(id: $1) })
     }
 
     /// Suspend until `count` **further** sleepers park, counting only registrations that happen
@@ -229,6 +209,37 @@ public final class TestClock: Clock, Sendable {
     /// ``waitForAdditionalSleepers(_:)`` in a separate task uses it to know the baseline was taken
     /// before it parks the next sleeper.
     var additionalWaiterCount: Int { state.withLock { $0.registrationWaiters.count } }
+
+    private typealias Continuation = UnsafeContinuation<Void, any Error>
+
+    /// What a rendezvous found when it tried to park.
+    private enum Rendezvous { case satisfied, parked }
+
+    /// The shared choreography of every rendezvous wait: reserve an id, then — atomically with the
+    /// cancellation check — either find the condition already met or park the continuation, and make
+    /// cancellation unregister it and throw. `park` runs under the lock; `unpark` is the cancellation
+    /// handler's removal. Continuations resume outside the lock.
+    private func rendezvous(
+        park: @Sendable (inout State, UInt64, Continuation) -> Rendezvous,
+        unpark: @escaping @Sendable (inout State, UInt64) -> Continuation?
+    ) async throws {
+        try Task.checkCancellation()
+        let id = state.withLock { $0.makeWaiterID() }
+        try await withTaskCancellationHandler {
+            try await withUnsafeThrowingContinuation { (continuation: Continuation) in
+                let action = state.withLock { s -> Rendezvous? in
+                    Task.isCancelled ? nil : park(&s, id, continuation)
+                }
+                switch action {
+                    case .satisfied: continuation.resume()
+                    case nil: continuation.resume(throwing: CancellationError())
+                    case .parked: break
+                }
+            }
+        } onCancel: {
+            state.withLock { unpark(&$0, id) }?.resume(throwing: CancellationError())
+        }
+    }
 
     /// Wake every parked sleeper by advancing to the furthest pending deadline — the
     /// "drain everything" step at the end of a deterministic time test.

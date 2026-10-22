@@ -149,6 +149,43 @@ struct AllocationsTests {
         #expect(busy == quiet, "the opening thread's own 500 allocations are not counted")
     }
 
+    /// Two threads name themselves before either window opens. With the thread passed through the token each
+    /// window counts the thread it was given; the process-wide slot alone would hand the first window the
+    /// second thread (it counted 0 instead of 25).
+    @Test(.timeLimit(.minutes(1)))
+    func `a window counts the thread its token names even if another thread names itself first`() throws {
+        guard allocationCountingAvailable else { return }
+        _ = windowOverThisThread(allocating: 1, otherThread: 1)  // warm up (lazy init)
+        let otherNamed = Flag()
+        let opened = Flag()
+        let finished = Flag()
+        let done = Flag()
+        let result = Reading()
+        let watch = AllocationWindow.watchCurrentThread()
+        Thread {
+            AllocationWindow.watchCurrentThread()
+            otherNamed.raise()
+        }
+        .start()
+        otherNamed.wait()
+        Thread {
+            AllocationWindow.begin(watching: watch)
+            opened.raise()
+            finished.wait()
+            result.value.withLock { $0 = AllocationWindow.end() }
+            done.raise()
+        }
+        .start()
+        opened.wait()
+        var sink: [UInt8] = []
+        for round in 0 ..< 25 { sink = [UInt8](repeating: UInt8(truncatingIfNeeded: round), count: 64) }
+        _ = sink
+        finished.raise()
+        done.wait()
+        let counted = try #require(result.value.withLock { $0 })
+        #expect(counted >= 25, "each 64-byte array on the watched thread is a heap allocation")
+    }
+
     @Test
     func `a window leaves measurements working and ends only once`() throws {
         guard allocationCountingAvailable else { return }

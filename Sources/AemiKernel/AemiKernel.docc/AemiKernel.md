@@ -6,7 +6,7 @@ The zero-dependency byte, number, ASCII, UTF-8, and hashing kernel shared by eve
 
 `AemiKernel` is the foundation tier: pointer-level byte buffers and readers, variable-length and
 little/big-endian integer codecs, overflow-checked arithmetic, ASCII classification, RFC 3629 UTF-8
-validation, percent-coding, and non-cryptographic hashing. It is **Foundation-free**,
+validation, percent-coding, configurable Base64, and non-cryptographic hashing. It is **Foundation-free**,
 **swift-syntax-free**, and carries **no transitive package dependency** beyond the Swift standard
 library and `Synchronization` — so the portable `ADJSONCore` engine and the apple-docs
 zero-external-dependency dylib can link it without changing their resolution graphs.
@@ -55,6 +55,25 @@ rather than aborting the process.
 ### Percent-coding
 
 - ``PercentCoding``
+
+### Base64
+
+``Base64`` chooses its strictness per use case through ``Base64/Options``. Use ``Base64/Options/strict``
+(or the URL-safe presets) for any text that is signed, hashed, or compared, such as OpenPGP armor: it
+accepts exactly one text per byte string. ``Base64/Options/mime`` and ``Base64/Options/pem`` handle
+wrapped lines, and ``Base64/Options/lenient`` keeps the historical behavior.
+
+- ``Base64``
+- ``Base64/Options``
+- ``Base64/AlphabetTable``
+- ``Base64/PaddingPolicy``
+- ``Base64/TrailingBitsPolicy``
+- ``Base64/WhitespacePolicy``
+- ``Base64/LineEnding``
+- ``Base64/ErrorReporting``
+- ``Base64/DecodeError``
+- ``Base64/EncodeError``
+- ``Base64/AlphabetError``
 
 ### Hashing
 

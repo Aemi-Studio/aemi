@@ -94,8 +94,8 @@ public final class TaskProviderSpy: TaskProvider, Sendable {
     private let work: Tracker
     private let observations: Tracker
 
-    /// The deadline used by the waits that are not given one. Raise it for a suite that runs heavier work
-    /// under load.
+    /// The deadline used by the waits that are not given one: 30 seconds unless the spy was created with another.
+    /// It is a hang guard, not a latency assertion: a wait returns as soon as the tasks have settled, so a long default costs time only when a task is genuinely stuck, while a short one fails tests on a busy machine or under a sanitizer. Pass a shorter one to test a timeout itself, or use the clock-injectable forms.
     public let defaultTimeout: Duration
 
     /// - Parameters:
@@ -105,7 +105,7 @@ public final class TaskProviderSpy: TaskProvider, Sendable {
     ///   - sourceLocation: Where the spy is created, reported by a timeout message.
     public init(
         label: String = "TaskProviderSpy",
-        defaultTimeout: Duration = .seconds(2),
+        defaultTimeout: Duration = .seconds(30),
         sourceLocation: SourceLocation = #_sourceLocation
     ) {
         func probe(_ name: String) -> AsyncEventProbe<Never> {

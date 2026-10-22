@@ -175,6 +175,19 @@ struct TestClockTests {
     }
 
     @Test
+    func `cancelled sleepers with far deadlines do not pile up in the clock`() async throws {
+        let clock = TestClock()
+        for _ in 0 ..< 200 {
+            let sleeper = Task { try await clock.sleep(until: clock.now.advanced(by: .seconds(3600))) }
+            try await clock.waitForSleepers(atLeast: 1)
+            sleeper.cancel()
+            await #expect(throws: CancellationError.self) { try await sleeper.value }
+        }
+        #expect(clock.sleeperCount == 0)
+        #expect(clock.storedSleeperSlotCount <= 64)
+    }
+
+    @Test
     func `runToLastSleeper wakes every parked sleeper`() async throws {
         let clock = TestClock()
         let sleepers = [10, 20, 30]

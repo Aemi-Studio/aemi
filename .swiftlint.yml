@@ -31,6 +31,7 @@ only_rules:
 excluded:
   - .build
   - .git
+  - .aemi-tools
   - Tests        # test suites are out of the metrics gate for the initial roll-out (revisit in WS3)
   - Benchmarks   # ordo-one statistical benchmark suites, not shipped source
   - Plugins      # build/command plugins (BenchCompare, Lint, …) are tooling, not shipped library

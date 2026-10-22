@@ -153,18 +153,38 @@ public final class TestClock: Clock, Sendable {
         }
     }
 
-    /// Suspend until `count` **further** sleepers park, counting only registrations that happen
-    /// after this call.
+    /// A point in the clock's registration history, taken synchronously with ``registrationMark()``
+    /// so a later ``waitForSleepers(_:after:)`` counts exactly the sleepers that parked after it,
+    /// whichever task runs first.
+    public struct RegistrationMark: Sendable, Hashable {
+        fileprivate let registrations: UInt64
+    }
+
+    /// The current point in the registration history, for ``waitForSleepers(_:after:)``.
     ///
-    /// Use it to stage a fan-out — "let the first wave park, advance, now wait for the second wave"
-    /// — where ``waitForSleepers(atLeast:)`` would be satisfied instantly by the sleepers already
-    /// present. The trade-off is the mirror image: if the sleepers you are waiting for register
-    /// *before* you call this, it waits for that many again and hangs. Prefer the `atLeast` form
-    /// unless you specifically need the delta.
+    /// Synchronous, so a test takes it *before* spawning the work whose sleeper it wants to wait for;
+    /// the wait itself may then start on any task, in any order, without losing the sleeper.
+    public func registrationMark() -> RegistrationMark {
+        RegistrationMark(registrations: state.withLock { $0.registrations })
+    }
+
+    /// Suspend until `count` sleepers have parked after `mark`, counting one that was cancelled or
+    /// woken in the meantime.
     ///
-    /// Cancellation unregisters and throws `CancellationError`.
-    public func waitForAdditionalSleepers(_ count: Int) async throws {
+    /// Unlike ``waitForSleepers(atLeast:)``, which observes the live count, this counts registrations,
+    /// so it stages a second wave of sleepers while the first is still parked and is never satisfied by
+    /// a sleeper that parked before the mark. Unlike ``waitForAdditionalSleepers(_:)``, the baseline is
+    /// fixed by the caller, so it cannot be moved by when the awaiting task happens to start.
+    ///
+    /// - Parameters:
+    ///   - count: The number of further registrations to wait for; a non-positive count returns
+    ///     immediately.
+    ///   - mark: The baseline, from ``registrationMark()``.
+    /// - Throws: `CancellationError` if cancelled before the registrations happened.
+    public func waitForSleepers(_ count: Int, after mark: RegistrationMark) async throws {
         try Task.checkCancellation()
+        guard count > 0 else { return }
+        let target = mark.registrations &+ UInt64(count)
         let id = state.withLock { $0.registrationWaiters.makeID() }
         enum Action { case satisfied, cancelled, suspended }
         try await withTaskCancellationHandler {
@@ -172,10 +192,7 @@ public final class TestClock: Clock, Sendable {
                 (continuation: UnsafeContinuation<Void, any Error>) in
                 let action = state.withLock { s -> Action in
                     if Task.isCancelled { return .cancelled }
-                    guard count > 0 else { return .satisfied }
-                    // The baseline is read under the same lock as the park, so a registration
-                    // cannot slip in between and shift the target.
-                    let target = s.registrations &+ UInt64(count)
+                    if s.registrations >= target { return .satisfied }
                     s.registrationWaiters.park(id: id, key: target, continuation)
                     return .suspended
                 }
@@ -190,6 +207,28 @@ public final class TestClock: Clock, Sendable {
                 .resume(throwing: CancellationError())
         }
     }
+
+    /// Suspend until `count` **further** sleepers park, counting only registrations that happen
+    /// after this call starts; the same as ``waitForSleepers(_:after:)`` with a mark taken now.
+    ///
+    /// "Now" is when this call *runs*, not when the task that makes it was created. A wait spawned
+    /// alongside the work (`Task { try await clock.waitForAdditionalSleepers(1) }`) can start after
+    /// the sleeper it wants has already parked, and then waits for one more that never comes. Take a
+    /// ``registrationMark()`` synchronously before spawning the work and use
+    /// ``waitForSleepers(_:after:)`` in that case, or rendezvous with the waiter's registration (see
+    /// `additionalWaiterCount`) before parking the next sleeper.
+    ///
+    /// - Parameter count: The number of further registrations; a non-positive count returns
+    ///   immediately.
+    /// - Throws: `CancellationError` if cancelled before the registrations happened.
+    public func waitForAdditionalSleepers(_ count: Int) async throws {
+        try await waitForSleepers(count, after: registrationMark())
+    }
+
+    /// How many ``waitForSleepers(_:after:)`` calls are parked. A test that starts a
+    /// ``waitForAdditionalSleepers(_:)`` in a separate task uses it to know the baseline was taken
+    /// before it parks the next sleeper.
+    var additionalWaiterCount: Int { state.withLock { $0.registrationWaiters.count } }
 
     /// Wake every parked sleeper by advancing to the furthest pending deadline — the
     /// "drain everything" step at the end of a deterministic time test.

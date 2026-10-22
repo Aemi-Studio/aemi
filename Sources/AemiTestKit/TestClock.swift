@@ -68,6 +68,9 @@ public final class TestClock: Clock, Sendable {
     /// deterministically: spin until `sleeperCount == N`, then `advance`.
     public var sleeperCount: Int { state.withLock { $0.sleepers.count } }
 
+    /// Heap slots the sleeper queue holds, live or stale. For tests that pin the compaction bound.
+    var storedSleeperSlotCount: Int { state.withLock { $0.sleepers.storedSlotCount } }
+
     public func sleep(until deadline: Instant, tolerance: Duration? = nil) async throws {
         try Task.checkCancellation()
         let id = state.withLock { $0.sleepers.makeID() }

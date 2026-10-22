@@ -21,6 +21,7 @@ struct ContinuationRegistryTests {
 
         var count: Int { state.withLock { $0.registry.count } }
         var maxKey: Int? { state.withLock { $0.registry.maxKey } }
+        var storedSlotCount: Int { state.withLock { $0.registry.storedSlotCount } }
 
         func makeID() -> UInt64 { state.withLock { $0.registry.makeID() } }
 
@@ -177,5 +178,45 @@ struct ContinuationRegistryTests {
         #expect(parking.maxKey == nil)
         #expect(!parking.wakeOne(with: 0))
         #expect(parking.wake(upTo: .max, with: 0) == 0)
+    }
+
+    @Test
+    func `cancelled slots with keys that are never reached do not accumulate`() async throws {
+        let parking = Parking()
+        // A far-off key that nothing ever wakes: the shape of a timeout that was cancelled once its event
+        // arrived. Without compaction every one of these would stay in the heap for the registry's lifetime.
+        for _ in 0 ..< 500 {
+            let id = parking.makeID()
+            let task = Task { try await parking.park(id: id, key: 1_000_000) }
+            await parking.waitUntilParked(1)
+            task.cancel()
+            await #expect(throws: CancellationError.self) { try await task.value }
+        }
+        #expect(parking.count == 0)
+        #expect(parking.storedSlotCount <= 64)
+    }
+
+    @Test
+    func `compaction keeps the live waiters in key order`() async throws {
+        let parking = Parking()
+        var survivors: [Task<Int, any Error>] = []
+        var doomed: [Task<Int, any Error>] = []
+        for key in 1 ... 100 {
+            let id = parking.makeID()
+            let task = Task { try await parking.park(id: id, key: key) }
+            if key.isMultiple(of: 10) { survivors.append(task) } else { doomed.append(task) }
+            await parking.waitUntilParked(key)
+        }
+        for task in doomed { task.cancel() }
+        for task in doomed { _ = await task.result }
+        #expect(parking.count == survivors.count)
+        #expect(parking.storedSlotCount < 100, "the cancelled slots were dropped from the heap")
+
+        // Waking up to key 55 releases exactly the survivors at 10...50, and leaves the rest parked.
+        #expect(parking.wake(upTo: 55, with: 7) == 5)
+        for task in survivors.prefix(5) { #expect(try await task.value == 7) }
+        #expect(parking.count == 5)
+        #expect(parking.maxKey == 100)
+        #expect(parking.wake(upTo: 100, with: 9) == 5)
     }
 }

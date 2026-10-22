@@ -9,7 +9,10 @@ import HeapModule
 /// (O(log n) per pop) instead of scanning and sorting every parked continuation. A side
 /// table maps id → (key, continuation) as the source of truth for liveness, giving O(1)
 /// cancellation; a cancelled entry's heap slot is left in place and skipped when later
-/// reached (lazy deletion), so cancellation never scans the heap.
+/// reached (lazy deletion), so cancellation never scans the heap. A slot whose key is never
+/// reached (a far-off timeout that was cancelled once its event arrived) would stay forever,
+/// so the heap is rebuilt from the live entries once stale slots outnumber live ones: the
+/// rebuild is O(n) after at least n cancellations, O(1) amortized.
 ///
 /// The type is iterative throughout — no recursion. It is *not* `Sendable` (it holds raw
 /// continuations) and is meant to live inside a `Mutex`-guarded state, exactly as the
@@ -31,6 +34,13 @@ struct ContinuationRegistry<Key: Comparable, Value> {
 
     /// The number of *live* parked continuations (cancelled / woken ones excluded).
     var count: Int { live.count }
+
+    /// Heap slots held, live or stale. Exposed for tests that pin the compaction bound.
+    var storedSlotCount: Int { ordered.count }
+
+    /// Stale slots are rebuilt away once they outnumber the live entries, but never below this floor,
+    /// so a registry that churns a handful of entries does not rebuild on every cancel.
+    private static var compactionFloor: Int { 32 }
 
     /// The furthest parked key still live, or `nil` if none — the "drain to the end"
     /// boundary `TestClock.runToLastSleeper()` advances to.
@@ -77,8 +87,17 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     }
 
     /// Remove and return the continuation parked under `id` (for cancellation), if still
-    /// live. Its heap slot is left for `wake` to skip.
+    /// live. Its heap slot is left for `wake` to skip, or for the next compaction to drop.
     mutating func remove(id: UInt64) -> UnsafeContinuation<Value, any Error>? {
-        live.removeValue(forKey: id)?.continuation
+        let removed = live.removeValue(forKey: id)?.continuation
+        if removed != nil { compactIfStale() }
+        return removed
+    }
+
+    /// Rebuild the heap from the live entries when stale slots dominate.
+    private mutating func compactIfStale() {
+        let stale = ordered.count - live.count
+        guard stale > Self.compactionFloor, stale > live.count else { return }
+        ordered = Heap(live.map { Entry(key: $0.value.key, id: $0.key) })
     }
 }

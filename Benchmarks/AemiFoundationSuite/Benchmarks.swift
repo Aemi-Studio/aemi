@@ -347,4 +347,49 @@ nonisolated(unsafe) let benchmarks = {
     Benchmark("base64/decode 32B", configuration: cowMetrics) { bm in
         for _ in bm.scaledIterations { blackHole(Base64.decode(digestBase64)) }
     }
+
+    // MARK: base64 options — a 4 KiB payload through the configurable paths. decode/encode `into:` are
+    // the zero-allocation forms (`.mallocCountTotal` must stay 0); the others allocate only the result.
+    // The `lenient` arm is the nil-returning legacy API on the same shared decode engine.
+    let base64Payload = (0 ..< 4096).map { UInt8(truncatingIfNeeded: $0 &* 131 &+ ($0 >> 5)) }
+    let base64Strict = Base64.encode(base64Payload, options: .strict)
+    let base64Pem = Base64.encode(base64Payload, options: .pem)
+    let base64UrlNoPadding = Base64.encode(base64Payload, options: .urlSafeNoPadding)
+    Benchmark("base64/encode strict 4KiB", configuration: cowMetrics) { bm in
+        for _ in bm.scaledIterations { blackHole(Base64.encode(base64Payload, options: .strict)) }
+    }
+    Benchmark("base64/encode pem 4KiB", configuration: cowMetrics) { bm in
+        for _ in bm.scaledIterations { blackHole(Base64.encode(base64Payload, options: .pem)) }
+    }
+    Benchmark("base64/decode strict 4KiB", configuration: cowMetrics) { bm in
+        for _ in bm.scaledIterations { blackHole(try? Base64.decode(base64Strict, options: .strict)) }
+    }
+    Benchmark("base64/decode lenient 4KiB", configuration: cowMetrics) { bm in
+        for _ in bm.scaledIterations { blackHole(Base64.decode(base64Strict)) }
+    }
+    Benchmark("base64/decode pem 4KiB", configuration: cowMetrics) { bm in
+        for _ in bm.scaledIterations { blackHole(try? Base64.decode(base64Pem, options: .pem)) }
+    }
+    Benchmark("base64/decode urlSafeNoPadding 4KiB", configuration: cowMetrics) { bm in
+        for _ in bm.scaledIterations {
+            blackHole(try? Base64.decode(base64UrlNoPadding, options: .urlSafeNoPadding))
+        }
+    }
+    var base64Scratch = [UInt8](repeating: 0, count: 8192)
+    Benchmark("base64/decode(into:) strict 4KiB", configuration: cowMetrics) { bm in
+        for _ in bm.scaledIterations {
+            base64Scratch.withUnsafeMutableBufferPointer { buffer in
+                var span = MutableSpan(_unsafeElements: buffer)
+                blackHole(try? Base64.decode(base64Strict, into: &span, options: .strict))
+            }
+        }
+    }
+    Benchmark("base64/encode(into:) strict 4KiB", configuration: cowMetrics) { bm in
+        for _ in bm.scaledIterations {
+            base64Scratch.withUnsafeMutableBufferPointer { buffer in
+                var span = MutableSpan(_unsafeElements: buffer)
+                blackHole(try? Base64.encode(base64Payload, into: &span, options: .strict))
+            }
+        }
+    }
 }

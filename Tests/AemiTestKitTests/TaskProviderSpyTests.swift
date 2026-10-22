@@ -120,6 +120,11 @@ struct TaskProviderSpyTests {
     }
 
     @Test
+    func `the default timeout is 30 seconds, a hang guard`() {
+        #expect(TaskProviderSpy().defaultTimeout == .seconds(30))
+    }
+
+    @Test
     func `the default timeout applies when a wait is given none`() async throws {
         let spy = TaskProviderSpy(defaultTimeout: .milliseconds(30))
         let gate = AsyncGate()

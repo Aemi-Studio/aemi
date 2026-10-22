@@ -34,7 +34,8 @@ public final class TaskProviderSpy: TaskProvider {
     private let observationCancels = Mutex<[UInt64: @Sendable () -> Void]>([:])
     private let nextTaskID = Mutex<UInt64>(0)
 
-    /// The deadline used by the waits that are not given one.
+    /// The deadline used by the waits that are not given one: 30 seconds unless the spy was created with another.
+    /// It is a hang guard, not a latency assertion: a wait returns as soon as the tasks have settled, so a long default costs time only when a task is genuinely stuck, while a short one fails tests on a busy machine or under a sanitizer. Pass a shorter one to test a timeout itself, or use the clock-injectable forms.
     public let defaultTimeout: Duration
 
     /// Creates a spy. The creation site is reported by timeout errors.
@@ -42,14 +43,14 @@ public final class TaskProviderSpy: TaskProvider {
     /// - Parameters:
     ///   - label: Names the spy's probes in a timeout message.
     ///   - defaultTimeout: The deadline used by ``waitForAllTasks(timeout:)`` and
-    ///     ``waitForSpawnedTasks(atLeast:timeout:)`` when a call site does not pass one. Raise it for
-    ///     a suite that runs heavier work under load.
+    ///     ``waitForSpawnedTasks(atLeast:timeout:)`` when a call site does not pass one. Defaults to
+    ///     30 seconds, a hang guard that costs time only when a task is genuinely stuck.
     ///   - file: Creation-site file, reported by a timeout error.
     ///   - function: Creation-site function, reported by a timeout error.
     ///   - line: Creation-site line, reported by a timeout error.
     public init(
         label: String = "TaskProviderSpy",
-        defaultTimeout: Duration = .seconds(1),
+        defaultTimeout: Duration = .seconds(30),
         file: StaticString = #fileID,
         function: String = #function,
         line: UInt = #line

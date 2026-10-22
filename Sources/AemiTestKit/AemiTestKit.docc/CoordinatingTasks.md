@@ -31,10 +31,16 @@ watcher) that never finishes on its own.
 
 In tests you inject ``TaskProviderSpy``. It spawns *real* tasks (so the work actually runs)
 while tracking them, and ``TaskProviderSpy/waitForAllTasks(timeout:)`` settles them
-**transitively**: two internal ``AsyncEventProbe``s count every `.work` spawn and every
+**transitively**: count-only ``AsyncEventProbe``s record every `.work` spawn and every
 completion, and the settle loop waits for all-spawned-so-far to complete, then re-checks
 whether that wait itself spawned more — until the spawn count stabilizes with everything
-done. `.observation` tasks are excluded, so awaiting them can never hang the suite.
+done. `.observation` tasks are tracked apart, so awaiting the work can never hang on them;
+``TaskProviderSpy/waitForObservationsToFinish(timeout:)`` waits for them separately, once their
+input has ended.
+
+The spy also keeps a handle to every task that is still running: ``TaskProviderSpy/cancelPendingWork()``
+and ``TaskProviderSpy/cancelObservations()`` cancel them, and `deinit` does both, so a forgotten
+teardown cannot leave a task suspended on the shared test executor after the test.
 
 ### Why it matters
 
@@ -64,12 +70,15 @@ func rebuildIndex(using tasks: any TaskProvider = LiveTaskProvider()) {
 }
 ```
 
-Tag the genuinely-unbounded loops so the spy doesn't wait on them:
+Tag the genuinely-unbounded loops so the spy doesn't wait on them, and end them in teardown:
 
 ```swift
 tasks.task(role: .observation) {
     for await event in stream { handle(event) }   // never completes — excluded from settling
 }
+// … at the end of the test:
+spy.cancelObservations()
+try await spy.waitForObservationsToFinish()
 ```
 
 ### When to use it

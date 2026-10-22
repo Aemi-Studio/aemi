@@ -17,9 +17,12 @@ The kit is organized as **two pillars**:
 
 - **Async & deterministic time** — a `Clock`-conforming ``TestClock`` whose hands move
   only when a test advances them, an ``AsyncEventProbe`` that suspends until *N* events
-  are recorded, the `TaskProvider` seam and its settling ``TaskProviderSpy``, and two
-  interleaving gates: ``ThreadGate`` (blocks a real thread) and ``AsyncGate`` (suspends
-  a task).
+  are recorded (or until a condition on them holds), the `TaskProvider` seam and its settling
+  ``TaskProviderSpy``, two interleaving gates: ``ThreadGate`` (blocks a real thread) and
+  ``AsyncGate`` (suspends a task), and doubles for requests completed by hand
+  (``ManualCompletion``).
+- **Measurement** — per-thread allocation counting (``mallocDelta(_:)``, ``AllocationWindow``) and a
+  benchmark results recorder (``recordBenchmark(_:environmentVariable:)``).
 - **Property, fuzz & oracle tooling** — a seedable ``SeededRNG`` and named ``Seed``
   registry, the ``ByteMutator`` corruption engine with the ``fuzzNeverTraps(seed:iterations:edits:mutator:traceEnv:corpus:exercise:)``
   driver, `runOnConstrainedStack` plus ``DepthSweep`` for recursion limits, the
@@ -67,12 +70,27 @@ test framework:
 - <doc:DeterministicTime>
 - <doc:CoordinatingTasks>
 - <doc:Gates>
+- <doc:TestDoubles>
 - ``TestClock``
 - ``AsyncEventProbe``
 - ``AsyncEventProbeTimeoutError``
 - ``TaskProviderSpy``
+- ``ManualCompletion``
 - ``ThreadGate``
 - ``AsyncGate``
+- ``AsyncLatch``
+
+### Allocations & benchmarks
+
+- <doc:AllocationsAndBenchmarks>
+- ``mallocDelta(_:)``
+- ``expectAllocations(noMoreThan:sourceLocation:_:)``
+- ``AllocationWindow``
+- ``allocationCountingAvailable``
+- ``sanitizerRuntimeLoaded``
+- ``BenchmarkResult``
+- ``BenchmarkOutput``
+- ``recordBenchmark(_:environmentVariable:)``
 
 ### Property, fuzz & oracle tooling
 

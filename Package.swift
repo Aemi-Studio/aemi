@@ -60,8 +60,16 @@ let strictSettings: [SwiftSetting] = [
 
 // The byte/IO kernel additionally adopts SE-0458 strict memory safety + the compile-time-only
 // `Lifetimes` feature. Applied to the pointer/POSIX targets (AemiKernel, AemiKernels, AemiIO).
-let kernelSettings: [SwiftSetting] =
-    strictSettings + [.strictMemorySafety(), .enableExperimentalFeature("Lifetimes")]
+// Swift 6.3 reports `Span.withUnsafeBufferPointer`-style calls as unsafe where 6.4 treats them as
+// safe, and 6.4 rejects the `unsafe` marker 6.3 would need. No source spelling satisfies both, so
+// strict memory safety is enforced from 6.4 on and the 6.3 floor still builds and runs the tests.
+#if compiler(>=6.4)
+    let kernelSettings: [SwiftSetting] =
+        strictSettings + [.strictMemorySafety(), .enableExperimentalFeature("Lifetimes")]
+#else
+    let kernelSettings: [SwiftSetting] =
+        strictSettings + [.enableExperimentalFeature("Lifetimes")]
+#endif
 
 // Compile-time type-check timing warnings — unsafe flags, so they live only on test targets.
 // The budget is env-tunable (AEMI_TYPECHECK_BUDGET_MS) because `treatAllWarnings(as: .error)`

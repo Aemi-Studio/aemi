@@ -1,5 +1,4 @@
 import AemiCore
-import Foundation
 import Synchronization
 
 /// Tracking ``TaskProvider`` test double that lets a test await the real completion of spawned
@@ -31,15 +30,23 @@ public final class TaskProviderSpy: TaskProvider {
     private let completed: CountProbe<Never>
     private let observationsSpawned: CountProbe<Never>
     private let observationsFinished: CountProbe<Never>
-    private let workCancels = Mutex<[UUID: @Sendable () -> Void]>([:])
-    private let observationCancels = Mutex<[UUID: @Sendable () -> Void]>([:])
-    private let defaultTimeout: Duration
+    private let workCancels = Mutex<[UInt64: @Sendable () -> Void]>([:])
+    private let observationCancels = Mutex<[UInt64: @Sendable () -> Void]>([:])
+    private let nextTaskID = Mutex<UInt64>(0)
+
+    /// The deadline used by the waits that are not given one.
+    public let defaultTimeout: Duration
 
     /// Creates a spy. The creation site is reported by timeout errors.
     ///
-    /// - Parameter defaultTimeout: The deadline used by ``waitForAllTasks(timeout:)`` and
-    ///   ``waitForSpawnedTasks(atLeast:timeout:)`` when a call site does not pass one. Raise it for
-    ///   a suite that runs heavier work under load.
+    /// - Parameters:
+    ///   - label: Names the spy's probes in a timeout message.
+    ///   - defaultTimeout: The deadline used by ``waitForAllTasks(timeout:)`` and
+    ///     ``waitForSpawnedTasks(atLeast:timeout:)`` when a call site does not pass one. Raise it for
+    ///     a suite that runs heavier work under load.
+    ///   - file: Creation-site file, reported by a timeout error.
+    ///   - function: Creation-site function, reported by a timeout error.
+    ///   - line: Creation-site line, reported by a timeout error.
     public init(
         label: String = "TaskProviderSpy",
         defaultTimeout: Duration = .seconds(1),
@@ -87,7 +94,10 @@ public final class TaskProviderSpy: TaskProvider {
     /// task itself is not altered — a monitor awaits its result on the side — but its cancel handle
     /// is retained until it finishes so ``cancelPendingWork()`` and `deinit` can tear it down.
     func register(work task: Task<some Sendable, some Error>) {
-        let id = UUID()
+        let id = nextTaskID.withLock { id in
+            id += 1
+            return id
+        }
         spawned.record()
         workCancels.withLock { $0[id] = { task.cancel() } }
         Task { [weak self, completed] in
@@ -102,7 +112,10 @@ public final class TaskProviderSpy: TaskProvider {
     /// or ``cancelObservations()`` runs. ``waitForObservationsToFinish(timeout:)`` awaits that
     /// moment; a monitor counts the completion on the side, like the work counters.
     func register(observation task: Task<some Sendable, some Error>) {
-        let id = UUID()
+        let id = nextTaskID.withLock { id in
+            id += 1
+            return id
+        }
         observationsSpawned.record()
         observationCancels.withLock { $0[id] = { task.cancel() } }
         Task { [weak self, observationsFinished] in
@@ -137,33 +150,51 @@ public final class TaskProviderSpy: TaskProvider {
         }
     }
 
-    /// Suspends until at least `count` tasks have been registered, or the timeout elapses.
-    public func waitForSpawnedTasks(atLeast count: Int, timeout: Duration? = nil) async throws {
-        try await spawned.wait(forAtLeast: count, timeout: timeout ?? defaultTimeout)
+    /// Suspends until at least `count` tasks have been registered, racing a `clock`-driven deadline.
+    public func waitForSpawnedTasks<C: Clock>(atLeast count: Int, within duration: C.Duration, clock: C) async throws {
+        try await spawned.wait(forAtLeast: count, within: duration, clock: clock)
     }
 
-    /// Suspends until every registered task has finished, or the timeout elapses.
+    /// Suspends until at least `count` tasks have been registered, or the timeout elapses.
+    public func waitForSpawnedTasks(atLeast count: Int, timeout: Duration? = nil) async throws {
+        try await waitForSpawnedTasks(atLeast: count, within: timeout ?? defaultTimeout, clock: ContinuousClock())
+    }
+
+    /// Suspends until every registered task has finished, racing a `clock`-driven deadline.
     ///
     /// Tasks registered while waiting are awaited too, so chains of fire-and-forget work (a task
     /// spawning another task) complete in one call. The deadline covers the whole wait: a chain
     /// that keeps respawning past it throws a `CountProbeTimeoutError` instead of extending the
-    /// wait indefinitely.
+    /// wait indefinitely. Under a ``TestClock`` the deadline costs no real time.
     ///
     /// - Important: This observes only work registered through the spy, and only when the spawn is
     ///   registered before the spawning task returns (the normal case: production code calls
     ///   `taskProvider.task { … }` synchronously inside the parent's body). Work spawned through a
     ///   raw `Task { }`, or registered after its parent has already completed, is invisible here and
     ///   may still be pending when this returns.
+    public func waitForAllTasks<C: Clock>(within duration: C.Duration, clock: C) async throws {
+        try await TaskCompletionWait.wait(spawned: spawned, completed: completed, within: duration, clock: clock)
+    }
+
+    /// Suspends until every registered task has finished, or the timeout elapses on a `ContinuousClock`.
+    ///
+    /// See ``waitForAllTasks(within:clock:)`` for what is awaited.
     public func waitForAllTasks(timeout: Duration? = nil) async throws {
         try await TaskCompletionWait.wait(
             spawned: spawned, completed: completed, timeout: timeout ?? defaultTimeout)
     }
 
-    /// Suspends until every tracked observer has finished, or the timeout elapses.
+    /// Suspends until every tracked observer has finished, racing a `clock`-driven deadline.
     ///
     /// Observers only finish when their input ends or they are cancelled, so call this after
     /// tearing the system under test down (or after finishing its input streams). Observers
     /// registered while waiting are awaited too; the deadline covers the whole wait.
+    public func waitForObservationsToFinish<C: Clock>(within duration: C.Duration, clock: C) async throws {
+        try await TaskCompletionWait.wait(
+            spawned: observationsSpawned, completed: observationsFinished, within: duration, clock: clock)
+    }
+
+    /// Suspends until every tracked observer has finished, or the timeout elapses on a `ContinuousClock`.
     public func waitForObservationsToFinish(timeout: Duration? = nil) async throws {
         try await TaskCompletionWait.wait(
             spawned: observationsSpawned, completed: observationsFinished, timeout: timeout ?? defaultTimeout)

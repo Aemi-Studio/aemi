@@ -66,7 +66,7 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
     /// until the waiter let go of it, so the next `record` would copy the whole array, once per
     /// wake (quadratic over a long stream).
     public func record(_ event: Event) {
-        let resumals = state.withLock { s -> [(UnsafeContinuation<[Event]?, any Error>, [Event]?)] in
+        let resumals = state.withLock { s -> [(CheckedContinuation<[Event]?, any Error>, [Event]?)] in
             s.events.append(event)
             return s.waiters.wake(upTo: s.events.count, with: nil)
         }
@@ -113,8 +113,8 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
     private func waitForThreshold(_ count: Int) async throws -> [Event] {
         let id = state.withLock { $0.waiters.makeID() }
         let ready = try await withTaskCancellationHandler {
-            try await withUnsafeThrowingContinuation {
-                (continuation: UnsafeContinuation<[Event]?, any Error>) in
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<[Event]?, any Error>) in
                 let action = state.withLock { s -> ThresholdAction in
                     if Task.isCancelled { return .cancelled }
                     if s.events.count >= count { return .ready(s.events) }

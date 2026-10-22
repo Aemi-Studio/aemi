@@ -51,8 +51,8 @@ public final class AsyncLatch: Sendable {
         let id = state.withLock { $0.waiters.makeID() }
         enum Action { case proceed, cancelled, suspended }
         try await withTaskCancellationHandler {
-            try await withUnsafeThrowingContinuation {
-                (continuation: UnsafeContinuation<Void, any Error>) in
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Void, any Error>) in
                 let action = state.withLock { s -> Action in
                     if Task.isCancelled { return .cancelled }
                     if s.isOpen { return .proceed }
@@ -74,7 +74,7 @@ public final class AsyncLatch: Sendable {
     /// rather than a trap, so production code can fire the signal without coordinating who resumes
     /// whom. Continuations resume outside the lock.
     public func open() {
-        let woken = state.withLock { s -> [(UnsafeContinuation<Void, any Error>, Void)] in
+        let woken = state.withLock { s -> [(CheckedContinuation<Void, any Error>, Void)] in
             guard !s.isOpen else { return [] }
             s.isOpen = true
             return s.waiters.wake(upTo: 0, with: ())

@@ -29,8 +29,8 @@ struct ContinuationRegistryTests {
         /// throws, exactly as `AsyncGate.waitUntilOpen()` does.
         func park(id: UInt64, key: Int) async throws -> Int {
             try await withTaskCancellationHandler {
-                try await withUnsafeThrowingContinuation {
-                    (continuation: UnsafeContinuation<Int, any Error>) in
+                try await withCheckedThrowingContinuation {
+                    (continuation: CheckedContinuation<Int, any Error>) in
                     state.withLock { $0.registry.park(id: id, key: key, continuation) }
                 }
             } onCancel: {

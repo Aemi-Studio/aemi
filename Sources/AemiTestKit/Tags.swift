@@ -16,4 +16,7 @@ extension Tag {
     @Tag public static var soak: Self
     /// Concurrency / async-coordination suites.
     @Tag public static var concurrency: Self
+    /// Benchmarks: they measure and record instead of asserting, and run only when a results file is named
+    /// (``benchmarkResultsPath``), so the default test run skips them. Put it next to `.benchmarksRequested`.
+    @Tag public static var bench: Self
 }

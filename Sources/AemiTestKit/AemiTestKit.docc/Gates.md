@@ -58,6 +58,9 @@ await withThreadGatedBatch(hold: { gate in
 }
 ```
 
+If `body` throws, both helpers open the gate and join the holder before the error propagates, so a
+failing test never leaves a thread blocked or a task suspended on a gate nobody will open.
+
 The async equivalent, via `withAsyncGatedBatch(hold:_:)`, is identical in shape but suspends
 the holder instead of blocking a thread. To sequence a test deterministically, wait for the
 holder to park before opening:

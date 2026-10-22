@@ -22,6 +22,8 @@ AemiTestKit defines the canonical tags once, as extensions on Swift Testing's `T
 - `.property` — property-based suites asserting an invariant over seeded random inputs.
 - `.soak` — long-running soak / endurance suites.
 - `.concurrency` — concurrency / async-coordination suites.
+- `.bench` — benchmarks: they measure and record instead of asserting, and run only when a results
+  file is named (see <doc:AllocationsAndBenchmarks>). Pair it with `.benchmarksRequested`.
 
 Every package applies the *same* names, so a CI lane's `--filter`/`--skip` rules are written
 once and mean the same thing everywhere.

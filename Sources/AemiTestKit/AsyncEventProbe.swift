@@ -79,10 +79,13 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
         let creation = self.creation
         return try await withThrowingTaskGroup(of: [Event].self) { group in
             group.addTask { try await self.waitForThreshold(count) }
-            group.addTask {
-                try await clock.sleep(for: duration)
-                throw AsyncEventProbeTimeoutError(
-                    requested: count, recorded: self.count, creation: creation)
+            // The timeout is the harness's own timer: a `TestClock` must not count it as a sleeper.
+            TestClock.withUntrackedSleeps {
+                group.addTask {
+                    try await clock.sleep(for: duration)
+                    throw AsyncEventProbeTimeoutError(
+                        requested: count, recorded: self.count, creation: creation)
+                }
             }
             defer { group.cancelAll() }
             return try await group.next()!

@@ -97,17 +97,24 @@ public final class TestClock: Clock, Sendable {
     /// Advance time by `duration`, waking every sleeper whose deadline is now due (in
     /// deadline order). Continuations resume *outside* the lock.
     public func advance(by duration: Duration) {
-        let woken = state.withLock { s -> [(UnsafeContinuation<Void, any Error>, Void)] in
-            s.now = s.now.advanced(by: duration)
+        release { $0.now = $0.now.advanced(by: duration) }
+    }
+
+    /// Advance to a specific instant (no-op if already at or past it).
+    ///
+    /// The comparison and the move happen under one lock acquisition, so concurrent calls land on the
+    /// latest instant instead of each adding its own distance.
+    public func advance(to instant: Instant) {
+        release { if instant > $0.now { $0.now = instant } }
+    }
+
+    /// Applies `move` to the state, then wakes (outside the lock) every sleeper the new time makes due.
+    private func release(_ move: (inout State) -> Void) {
+        let woken = state.withLock { s -> Wakes in
+            move(&s)
             return s.sleepers.wake(upTo: s.now, with: ())
         }
         for (continuation, _) in woken { continuation.resume() }
-    }
-
-    /// Advance to a specific instant (no-op if already past it).
-    public func advance(to instant: Instant) {
-        let delta = state.withLock { $0.now.duration(to: instant) }
-        if delta > .zero { advance(by: delta) }
     }
 
     /// Suspend until **at least** `count` sleepers are parked, returning immediately if that many

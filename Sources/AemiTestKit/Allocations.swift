@@ -33,10 +33,55 @@ public var allocationCountingAvailable: Bool {
     adtk_malloc_counting_available() != 0 && !sanitizerRuntimeLoaded
 }
 
-/// Serializes measurements. The counter and the hook are shared by the process, so two measurements that
-/// overlapped (parallel tests) reset each other's count, and the second `begin` saved the counting hook
-/// itself as the hook to chain to: every later allocation then recursed until the stack overflowed.
-private let measurementLock = Mutex(())
+/// The calling thread's identity, as the malloc hook sees it (`pthread_self()`).
+private func currentThreadID() -> UInt {
+    #if canImport(Darwin)
+        UInt(bitPattern: pthread_self())
+    #else
+        UInt(pthread_self())
+    #endif
+}
+
+/// Serializes measurements. The hook is process-wide, so two measurements that overlapped (parallel tests) reset each
+/// other's count, and the second `begin` saved the counting hook itself as the hook to chain to: every later allocation
+/// then recursed until the stack overflowed. A window is opened and closed by separate calls, so this is a flag that
+/// `acquire` waits on rather than a scope: it holds the thread that owns the measurement (0 when none).
+private enum Measurements {
+    private static let owner = Mutex<UInt>(0)
+
+    /// Waits for the running measurement, if any, then takes over. A thread that already owns one traps: it would wait
+    /// for itself.
+    static func acquire() {
+        let me = currentThreadID()
+        var attempts = 0
+        while true {
+            let acquired = owner.withLock { current in
+                precondition(current != me, "measurements must not nest")
+                guard current == 0 else { return false }
+                current = me
+                return true
+            }
+            if acquired { return }
+            // Measurements are short, so yield at first; a long window should not keep a core busy.
+            attempts += 1
+            if attempts < 64 { sched_yield() } else { usleep(500) }
+        }
+    }
+
+    /// Whether the calling thread owns the measurement.
+    static var heldByCurrentThread: Bool {
+        let me = currentThreadID()
+        return owner.withLock { $0 == me }
+    }
+
+    static func release() {
+        let me = currentThreadID()
+        owner.withLock { current in
+            precondition(current == me, "no measurement is open on this thread")
+            current = 0
+        }
+    }
+}
 
 /// Counts the heap allocations the calling thread makes DURING `body`. Other threads' allocations are
 /// not counted, so concurrent tests cannot inflate it, and neither is work `body` hands to another
@@ -49,9 +94,42 @@ public func mallocDelta(_ body: () -> Void) -> Int? {
         body()
         return nil
     }
-    return measurementLock.withLock { _ in
-        adtk_malloc_count_begin()
-        body()
+    Measurements.acquire()
+    defer { Measurements.release() }
+    adtk_malloc_count_begin()
+    body()
+    return Int(adtk_malloc_count_end())
+}
+
+/// A measurement that one thread counts and another opens and closes: a loop that runs on a thread of its own, say,
+/// with a second thread that drives it and opens the window once the loop is warm. Name the counted thread with
+/// ``watchCurrentThread()`` (from that thread, before the window opens), then ``begin()`` and ``end()`` from one
+/// thread, which need not be the counted one. Allocations the counted thread makes between the two are the count.
+/// Like ``mallocDelta(_:)`` it is serialized with every other measurement, so the window must be short and must not
+/// contain a measurement of its own. Where counting is unavailable every call does nothing and ``end()`` returns `nil`.
+public enum AllocationWindow {
+    private static let watched = Atomic<UInt>(0)
+
+    /// Makes the calling thread the one whose allocations the next window counts.
+    public static func watchCurrentThread() {
+        watched.store(currentThreadID(), ordering: .relaxed)
+    }
+
+    /// Waits for other measurements, then starts counting the watched thread (the caller if none was named).
+    public static func begin() {
+        guard allocationCountingAvailable else { return }
+        Measurements.acquire()
+        let thread = watched.load(ordering: .relaxed)
+        adtk_malloc_window_begin(thread == 0 ? currentThreadID() : thread)
+    }
+
+    /// Stops counting and returns the number of allocations the watched thread made since ``begin()``. Call it on the
+    /// thread that called `begin()`, before any teardown that allocates. Returns `nil` too when this thread has no
+    /// window open.
+    public static func end() -> Int? {
+        guard allocationCountingAvailable, Measurements.heldByCurrentThread else { return nil }
+        watched.store(0, ordering: .relaxed)
+        defer { Measurements.release() }
         return Int(adtk_malloc_count_end())
     }
 }

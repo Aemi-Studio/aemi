@@ -29,11 +29,23 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     }
 
     private var ordered = Heap<Entry>()
-    private var live: [UInt64: (key: Key, continuation: UnsafeContinuation<Value, any Error>)] = [:]
+    private var live: [UInt64: Parked] = [:]
     private var nextID: UInt64 = 0
+    /// How many live entries were parked with `counted: false`.
+    private var uncounted = 0
 
-    /// The number of *live* parked continuations (cancelled / woken ones excluded).
-    var count: Int { live.count }
+    private struct Parked {
+        let key: Key
+        let continuation: UnsafeContinuation<Value, any Error>
+        let counted: Bool
+    }
+
+    /// The number of *live* parked continuations that count (cancelled / woken ones, and ones parked with
+    /// `counted: false`, excluded).
+    var count: Int { live.count - uncounted }
+
+    /// The number of live continuations parked with `counted: false`.
+    var uncountedCount: Int { uncounted }
 
     /// Heap slots held, live or stale. Exposed for tests that pin the compaction bound.
     var storedSlotCount: Int { ordered.count }
@@ -42,9 +54,9 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     /// so a registry that churns a handful of entries does not rebuild on every cancel.
     private static var compactionFloor: Int { 32 }
 
-    /// The furthest parked key still live, or `nil` if none — the "drain to the end"
+    /// The furthest counted key still live, or `nil` if none — the "drain to the end"
     /// boundary `TestClock.runToLastSleeper()` advances to.
-    var maxKey: Key? { live.values.map(\.key).max() }
+    var maxKey: Key? { live.values.lazy.filter(\.counted).map(\.key).max() }
 
     /// Vend a fresh identifier so the caller can build its cancellation handler before it
     /// decides whether to actually park.
@@ -54,9 +66,22 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     }
 
     /// Park `continuation` under `key`, keyed by a previously-vended `id`.
-    mutating func park(id: UInt64, key: Key, _ continuation: UnsafeContinuation<Value, any Error>) {
-        live[id] = (key, continuation)
+    ///
+    /// A continuation parked with `counted: false` is woken like any other but is left out of ``count``
+    /// and ``maxKey``: it belongs to the test harness, not to the code under test.
+    mutating func park(
+        id: UInt64, key: Key, _ continuation: UnsafeContinuation<Value, any Error>, counted: Bool = true
+    ) {
+        live[id] = Parked(key: key, continuation: continuation, counted: counted)
+        if !counted { uncounted += 1 }
         ordered.insert(Entry(key: key, id: id))
+    }
+
+    /// Remove the live entry parked under `id`, keeping the uncounted tally in step.
+    private mutating func take(_ id: UInt64) -> UnsafeContinuation<Value, any Error>? {
+        guard let parked = live.removeValue(forKey: id) else { return nil }
+        if !parked.counted { uncounted -= 1 }
+        return parked.continuation
     }
 
     /// Remove and return every live continuation whose key is `<= bound`, in ascending
@@ -67,8 +92,8 @@ struct ContinuationRegistry<Key: Comparable, Value> {
         var woken: [(UnsafeContinuation<Value, any Error>, Value)] = []
         while let next = ordered.min, next.key <= bound {
             _ = ordered.popMin()
-            if let parked = live.removeValue(forKey: next.id) {
-                woken.append((parked.continuation, value))
+            if let continuation = take(next.id) {
+                woken.append((continuation, value))
             }
         }
         return woken
@@ -79,8 +104,8 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     mutating func wakeOne() -> UnsafeContinuation<Value, any Error>? {
         while let next = ordered.min {
             _ = ordered.popMin()
-            if let parked = live.removeValue(forKey: next.id) {
-                return parked.continuation
+            if let continuation = take(next.id) {
+                return continuation
             }
         }
         return nil
@@ -89,7 +114,7 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     /// Remove and return the continuation parked under `id` (for cancellation), if still
     /// live. Its heap slot is left for `wake` to skip, or for the next compaction to drop.
     mutating func remove(id: UInt64) -> UnsafeContinuation<Value, any Error>? {
-        let removed = live.removeValue(forKey: id)?.continuation
+        let removed = take(id)
         if removed != nil { compactIfStale() }
         return removed
     }

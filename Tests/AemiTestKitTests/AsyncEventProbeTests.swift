@@ -94,7 +94,7 @@ struct AsyncEventProbeTests {
         let probe = AsyncEventProbe<String>()
         probe.record("partial")
         let waiter = Task { try await probe.wait(forAtLeast: 3, within: .seconds(30), clock: clock) }
-        try await clock.waitForSleepers(atLeast: 1)
+        try await clock.waitForUntrackedSleepers(atLeast: 1)
 
         for _ in 0 ..< 50 { await Task.yield() }
         clock.advance(by: .seconds(29))
@@ -111,7 +111,7 @@ struct AsyncEventProbeTests {
         let clock = TestClock()
         let probe = AsyncEventProbe<Int>()
         let waiter = Task { try await probe.wait(forAtLeast: 1, within: .seconds(30), clock: clock) }
-        try await clock.waitForSleepers(atLeast: 1)
+        try await clock.waitForUntrackedSleepers(atLeast: 1)
 
         probe.record(7)
 

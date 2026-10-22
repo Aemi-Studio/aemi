@@ -58,6 +58,10 @@ public final class TestClock: Clock, Sendable, CustomStringConvertible {
         /// Rendezvous waiters keyed by a target **live untracked** sleeper count.
         var untrackedWaiters = ContinuationRegistry<Int, Void>()
 
+        init(now: Instant) {
+            self.now = now
+        }
+
         /// Every parked rendezvous wait, whatever it waits for.
         var rendezvousWaiterCount: Int {
             countWaiters.count + registrationWaiters.count + untrackedWaiters.count

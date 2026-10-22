@@ -1,12 +1,25 @@
-/// Base64 (RFC 4648). Domain-neutral and `Foundation`-free, built on ``OutputSpan`` like ``Hex`` and
-/// ``PercentCoding``: iterative (no recursion) and no-trap — ``decode(_:alphabet:)`` returns `nil` on
-/// malformed input rather than crashing, matching the byte kernel's no-trap-at-boundaries rule. Both
-/// the standard (`+`/`/`, §4) and URL-safe (`-`/`_`, §5) alphabets are supported, with optional `=`
-/// padding. Consolidates the standard-alphabet encoder that lived in `ADHTMLSRI` (SRI `sha256-…`
-/// tokens) so the AD* family shares one base64 implementation.
+/// Base64 (RFC 4648). Domain-neutral and `Foundation`-free, in the style of ``Hex`` and
+/// ``PercentCoding``: iterative (no recursion) and no-trap — a malformed input is an error value,
+/// never a crash, matching the byte kernel's no-trap-at-boundaries rule.
 ///
-/// Cold path by design (SRI digests, cache-busting artifact names, small config blobs), so the codec
-/// favors clarity over the `@inlinable` hot-loop treatment ``Hex`` / ``SWAR`` get.
+/// Behavior is chosen per use case with ``Options``: the standard or URL-safe alphabet (or a validated
+/// custom one), required, optional, or forbidden `=` padding, canonical or lenient leftover bits, and
+/// whether and how line breaks and spaces are skipped. The presets cover the common cases:
+///
+/// - ``Options/strict``, ``Options/urlSafe``, ``Options/urlSafeNoPadding``: exactly one text per byte
+///   string. Use these for anything signed, hashed, or compared (OpenPGP armor, JWT, tokens).
+/// - ``Options/mime``, ``Options/pem``: wrapped lines, line breaks skipped, line length enforced.
+/// - ``Options/lenient``: the historical behavior, and the default of the `Alphabet`-only API.
+///
+/// ```swift
+/// let bytes = try Base64.decode(armorBody, options: .strict)       // throws DecodeError
+/// let token = Base64.encodedString(digest, options: .urlSafeNoPadding)
+/// let pem   = Base64.encodedString(der, options: .pem)             // 64-column lines
+/// ```
+///
+/// Decoding contiguous input (`Array`, `ArraySlice`, a native `String.utf8`, a `Span`) takes a
+/// table-driven fast path, and `decode(_:into:options:)` / `encode(_:into:options:)` write into a
+/// caller buffer without allocating.
 public enum Base64 {
     /// The 64-character alphabet. ``standard`` is RFC 4648 §4 (`+`/`/`); ``urlSafe`` is §5 (`-`/`_`),
     /// the form safe inside URLs and filenames.
@@ -17,47 +30,12 @@ public enum Base64 {
 
     /// Base64-encodes `bytes`. With `padding` (default), the output is `=`-padded to a multiple of 4;
     /// without it, the padding is omitted (the common URL-safe convention). Allowed bytes only — every
-    /// input byte is encoded, so this never fails.
+    /// input byte is encoded, so this never fails. For line wrapping or a custom alphabet, use
+    /// ``encode(_:options:)``.
     public static func encode(
         _ bytes: some Collection<UInt8>, alphabet: Alphabet = .standard, padding: Bool = true
     ) -> [UInt8] {
-        let table = alphabet == .standard ? standardEncode : urlSafeEncode
-        let n = bytes.count
-        let fullGroups = n / 3
-        let remainder = n % 3
-        // Exact output size: 4 chars per full 3-byte group; a 1- or 2-byte tail is 2 or 3 chars, rounded
-        // up to 4 with `=` when padding. Sizing the `OutputSpan` exactly means a single allocation, no
-        // CoW, and bounds-checked appends.
-        let tailCount = remainder == 0 ? 0 : (padding ? 4 : remainder + 1)
-        let outCount = fullGroups * 4 + tailCount
-        return [UInt8](capacity: outCount) { span in
-            var iterator = bytes.makeIterator()
-            for _ in 0 ..< fullGroups {
-                guard let b0 = iterator.next(), let b1 = iterator.next(), let b2 = iterator.next() else {
-                    return
-                }
-                let chunk = (UInt32(b0) << 16) | (UInt32(b1) << 8) | UInt32(b2)
-                span.append(table[Int((chunk >> 18) & 0x3F)])
-                span.append(table[Int((chunk >> 12) & 0x3F)])
-                span.append(table[Int((chunk >> 6) & 0x3F)])
-                span.append(table[Int(chunk & 0x3F)])
-            }
-            if remainder == 1, let b0 = iterator.next() {
-                let chunk = UInt32(b0) << 16
-                span.append(table[Int((chunk >> 18) & 0x3F)])
-                span.append(table[Int((chunk >> 12) & 0x3F)])
-                if padding {
-                    span.append(padByte)
-                    span.append(padByte)
-                }
-            } else if remainder == 2, let b0 = iterator.next(), let b1 = iterator.next() {
-                let chunk = (UInt32(b0) << 16) | (UInt32(b1) << 8)
-                span.append(table[Int((chunk >> 18) & 0x3F)])
-                span.append(table[Int((chunk >> 12) & 0x3F)])
-                span.append(table[Int((chunk >> 6) & 0x3F)])
-                if padding { span.append(padByte) }
-            }
-        }
+        encode(bytes, options: Options(alphabet: AlphabetTable(alphabet), padding: padding ? .required : .forbidden))
     }
 
     /// Base64-encodes `bytes` and returns the result as a `String` (the encoding is always ASCII).
@@ -79,24 +57,5 @@ public enum Base64 {
         try? decode(bytes, options: Options(alphabet: AlphabetTable(alphabet)))
     }
 
-    // MARK: - Tables
-
     @usableFromInline static let padByte = UInt8(ascii: "=")
-
-    /// RFC 4648 §4 alphabet (`A–Z a–z 0–9 + /`).
-    static let standardEncode: [UInt8] = Array(
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".utf8)
-    /// RFC 4648 §5 URL/filename-safe alphabet (`+`→`-`, `/`→`_`).
-    static let urlSafeEncode: [UInt8] = Array(
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".utf8)
-
-    /// Byte → 0–63 sextet value (`-1` = not in the alphabet).
-    static let standardDecode: [Int8] = reverseTable(standardEncode)
-    static let urlSafeDecode: [Int8] = reverseTable(urlSafeEncode)
-
-    private static func reverseTable(_ encode: [UInt8]) -> [Int8] {
-        var table = [Int8](repeating: -1, count: 256)
-        for (index, byte) in encode.enumerated() { table[Int(byte)] = Int8(index) }
-        return table
-    }
 }

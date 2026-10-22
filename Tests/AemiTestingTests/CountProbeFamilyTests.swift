@@ -6,6 +6,14 @@ import Testing
 /// `CountProbe`'s side of the probe family contract it shares with `AemiTestKit`'s `AsyncEventProbe`: clock-injected
 /// timeouts, the bounded timeout message, condition waits, wake order and the cancellation rules. Timeouts run on a
 /// `TestClock`, so none of them costs time.
+/// A reference-typed log. Swift 6.3 rejects capturing a local `Mutex` (noncopyable) in a `Task` closure, so the lock
+/// lives inside a `Sendable` class that the tasks capture instead.
+private final class ResumeLog: Sendable {
+    private let names = Mutex<[String]>([])
+    func append(_ name: String) { names.withLock { $0.append(name) } }
+    var snapshot: [String] { names.withLock { $0 } }
+}
+
 @Suite("CountProbe family", .timeLimit(.minutes(1)))
 struct CountProbeFamilyTests {
     /// Waits on `probe` under a test clock, advances past the timeout once it is armed, and returns the error.
@@ -190,25 +198,25 @@ struct CountProbeFamilyTests {
 
     @Test func `waiters are resumed in threshold order, then in the order they began waiting`() async throws {
         let probe = CountProbe()
-        let order = Mutex<[String]>([])
+        let order = ResumeLog()
         // Registered out of threshold order; each waiter notes when its task resumes. Recording one event at a
         // time, with the previous waiter observed before the next record, makes the resume order visible.
         let waiters = [("b", 2), ("a", 1), ("c", 2)]
             .map { name, target in
                 Task {
                     try await probe.wait(forAtLeast: target, timeout: .seconds(30))
-                    order.withLock { $0.append(name) }
+                    order.append(name)
                 }
             }
         while probe.waiterCount < 3 { await Task.yield() }
 
         probe.record()
-        while order.withLock({ $0.count }) < 1 { await Task.yield() }
+        while order.snapshot.count < 1 { await Task.yield() }
         probe.record()
         for waiter in waiters { try await waiter.value }
 
-        #expect(order.withLock { $0 }.first == "a", "the lowest threshold is released first")
-        #expect(Set(order.withLock { $0 }) == ["a", "b", "c"])
+        #expect(order.snapshot.first == "a", "the lowest threshold is released first")
+        #expect(Set(order.snapshot) == ["a", "b", "c"])
     }
 
     @Test func `a wait in an already cancelled task throws even if its boundary was reached`() async {

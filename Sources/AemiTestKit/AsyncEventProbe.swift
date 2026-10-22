@@ -82,7 +82,10 @@ public typealias AsyncProbe<Event: Sendable> = AsyncEventProbe<Event>
 ///
 /// Both race the boundary against a **clock-injectable** timeout, so under a `TestClock` there is
 /// *zero* real-time deadline: the wait ends only when the events arrive or the test advances the clock
-/// past the timeout. The overloads without a clock use a `ContinuousClock` and a generous default.
+/// past the timeout. The overloads without a clock use a `ContinuousClock` and a default of 30 seconds: a
+/// hang guard, not a latency assertion. A wait returns as soon as its boundary is reached, so a long default
+/// costs time only when a test is genuinely stuck and cannot break a test that passes, while a short one fails
+/// tests on a busy machine or under a sanitizer.
 ///
 /// A wait returns the events at the moment its boundary was reached: a wait that had to suspend returns
 /// exactly the events up to its threshold (or, for a condition, up to the first record that made it hold),
@@ -218,10 +221,14 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
             work: { try await self.waitForThreshold(count).events })
     }
 
-    /// Convenience over `ContinuousClock` with a generous real-time deadline. Prefer
+    /// Convenience over `ContinuousClock` with a default deadline of 30 seconds. Prefer
     /// the clock-injectable overload under a `TestClock`.
+    ///
+    /// The default is a hang guard, not a latency assertion: a wait returns as soon as its boundary is
+    /// reached, so a long default costs time only when a test is genuinely stuck, and cannot break a test
+    /// that passes. A short one only fails tests on a busy machine or under a sanitizer.
     @discardableResult
-    public func wait(forAtLeast count: Int, timeout: Duration = .seconds(2)) async throws -> [Event] {
+    public func wait(forAtLeast count: Int, timeout: Duration = .seconds(30)) async throws -> [Event] {
         try await wait(forAtLeast: count, within: timeout, clock: ContinuousClock())
     }
 
@@ -248,10 +255,11 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
             work: { try await self.waitForCondition(condition) })
     }
 
-    /// Convenience over `ContinuousClock` with a generous real-time deadline.
+    /// Convenience over `ContinuousClock` with a default deadline of 30 seconds (a hang guard; see
+    /// ``wait(forAtLeast:timeout:)``).
     @discardableResult
     public func wait(
-        until condition: @escaping @Sendable ([Event]) -> Bool, timeout: Duration = .seconds(2)
+        until condition: @escaping @Sendable ([Event]) -> Bool, timeout: Duration = .seconds(30)
     ) async throws -> [Event] {
         try await wait(until: condition, within: timeout, clock: ContinuousClock())
     }

@@ -1,4 +1,3 @@
-import Foundation
 import Synchronization
 
 /// Virtual `Clock` whose `sleep(for:)` only resumes when the test
@@ -61,13 +60,13 @@ import Synchronization
 /// try await gate.wait()                            // production-opened signal
 /// ```
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-public final class TestClock: Clock, Sendable {
+public final class TestClock: Clock, Sendable, CustomStringConvertible {
     public typealias Duration = Swift.Duration
 
     public struct Instant: InstantProtocol, Sendable {
         public let offset: Duration
 
-        public init(offset: Duration) {
+        public init(offset: Duration = .zero) {
             self.offset = offset
         }
 
@@ -84,112 +83,131 @@ public final class TestClock: Clock, Sendable {
         }
     }
 
-    private let state: Mutex<State>
-
-    private struct State {
-        var now: Instant = Instant(offset: .zero)
-        var sleepers: [Sleeper] = []
-        var registrationWaiters: [RegistrationWaiter] = []
-        var markWaiters: [MarkWaiter] = []
-        /// Sleepers registered since the clock was created, cancelled ones included; the
-        /// baseline every ``RegistrationMark`` is taken against.
-        var registrations: UInt64 = 0
-        var nextSleeperID: UInt64 = 0
-        var nextWaiterID: UInt64 = 0
-    }
-
-    private struct Sleeper {
-        let id: UInt64
-        let deadline: Instant
-        let continuation: CheckedContinuation<Void, any Error>
-    }
-
-    private struct RegistrationWaiter {
-        let id: UInt64
-        let target: Int
-        let continuation: CheckedContinuation<Void, any Error>
-    }
-
-    private struct MarkWaiter {
-        let id: UInt64
-        let target: UInt64
-        let continuation: CheckedContinuation<Void, any Error>
-    }
-
-    /// A point in the clock's registration history, taken synchronously with
-    /// ``registrationMark()`` so a later ``waitForSleepers(_:after:)`` counts exactly the
-    /// sleepers that registered after it, whatever task ran first.
+    /// A point in the clock's registration history, taken synchronously with ``registrationMark()`` so a later
+    /// ``waitForSleepers(_:after:)`` counts exactly the sleepers that registered after it, whatever task ran
+    /// first.
     public struct RegistrationMark: Sendable, Hashable {
         fileprivate let registrations: UInt64
     }
 
-    public init() {
-        self.state = Mutex(State())
+    private typealias Continuation = CheckedContinuation<Void, any Error>
+
+    private struct Sleeper {
+        let id: UInt64
+        let deadline: Instant
+        /// Whether the sleep counts toward ``sleeperCount`` and the rendezvous (see ``withUntrackedSleeps(_:)``).
+        let counted: Bool
+        let continuation: Continuation
     }
+
+    /// What a rendezvous waits for.
+    private enum Condition {
+        case trackedSleepers(atLeast: Int)
+        case untrackedSleepers(atLeast: Int)
+        case registrations(reaching: UInt64)
+    }
+
+    private struct Waiter {
+        let id: UInt64
+        let condition: Condition
+        let continuation: Continuation
+    }
+
+    private struct State {
+        var now = Instant(offset: .zero)
+        var sleepers: [Sleeper] = []
+        var waiters: [Waiter] = []
+        /// Counted sleepers registered since the clock was created, cancelled ones included; the baseline every
+        /// ``RegistrationMark`` is taken against.
+        var registrations: UInt64 = 0
+        var nextID: UInt64 = 0
+
+        mutating func makeID() -> UInt64 {
+            nextID += 1
+            return nextID
+        }
+
+        var trackedCount: Int { sleepers.reduce(0) { $0 + ($1.counted ? 1 : 0) } }
+
+        func isSatisfied(_ condition: Condition) -> Bool {
+            switch condition {
+                case .trackedSleepers(let count): trackedCount >= count
+                case .untrackedSleepers(let count): sleepers.count - trackedCount >= count
+                case .registrations(let target): registrations >= target
+            }
+        }
+
+        /// Removes and returns, in the order they began waiting, every waiter the current state satisfies.
+        /// Callers resume the result *outside* the lock.
+        mutating func takeSatisfiedWaiters() -> [Continuation] {
+            let (ready, waiting) = waiters.reduce(into: ([Waiter](), [Waiter]())) { split, waiter in
+                if isSatisfied(waiter.condition) { split.0.append(waiter) } else { split.1.append(waiter) }
+            }
+            waiters = waiting
+            return ready.map(\.continuation)
+        }
+    }
+
+    private let state = Mutex(State())
+
+    public init() {}
 
     public var now: Instant { state.withLock { $0.now } }
     public var minimumResolution: Duration { .zero }
+
+    /// How many tasks are currently parked in ``sleep(until:tolerance:)``. Lets a test sequence deterministically
+    /// instead of guessing with a `Task.yield()`.
+    ///
+    /// Sleeps the harness starts for itself — a probe's or a spy's timeout — are *untracked* and left out (see
+    /// ``withUntrackedSleeps(_:)``), so only the code under test and the test's own sleepers count.
+    public var sleeperCount: Int { state.withLock { $0.trackedCount } }
+
+    /// How many untracked sleeps are currently parked: the timeouts of probe and spy waits that were given this
+    /// clock. A test that drives such a timeout rendezvouses with it here, then advances.
+    public var untrackedSleeperCount: Int { state.withLock { $0.sleepers.count - $0.trackedCount } }
+
+    /// The clock's time and what is parked on it, for a failure message.
+    public var description: String {
+        let (now, sleepers, waiters) = state.withLock { ($0.now, $0.sleepers, $0.waiters.count) }
+        let deadlines = sleepers.map { "\($0.deadline.offset)\($0.counted ? "" : " (untracked)")" }
+        return "TestClock(now: \(now.offset), sleepers: [\(deadlines.joined(separator: ", "))], "
+            + "rendezvous waiters: \(waiters))"
+    }
 
     // MARK: - Clock conformance
 
     public func sleep(until deadline: Instant, tolerance: Duration?) async throws {
         try Task.checkCancellation()
 
-        let sleeperID: UInt64 = state.withLock { current in
-            current.nextSleeperID += 1
-            return current.nextSleeperID
-        }
+        let sleeperID = state.withLock { $0.makeID() }
+        let counted = !HarnessSleep.isActive
 
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
-                // Append the sleeper and satisfy queue thresholds atomically under the lock.
-                // Resume them outside the lock to avoid re-entrancy
-                // into the clock from the resumed task.
-                let (outcome, registrationsToResume): (SleepOutcome, [CheckedContinuation<Void, any Error>]) =
-                    state.withLock { current in
-                        if Task.isCancelled { return (.cancelled, []) }
-                        if current.now >= deadline { return (.deadlineAlreadyPast, []) }
-                        current.sleepers.append(
-                            Sleeper(id: sleeperID, deadline: deadline, continuation: cont))
-                        current.registrations &+= 1
-
-                        var resumed: [CheckedContinuation<Void, any Error>] = []
-                        var stillWaiting: [RegistrationWaiter] = []
-                        for waiter in current.registrationWaiters {
-                            if current.sleepers.count >= waiter.target {
-                                resumed.append(waiter.continuation)
-                            } else {
-                                stillWaiting.append(waiter)
-                            }
-                        }
-                        current.registrationWaiters = stillWaiting
-                        var marksStillWaiting: [MarkWaiter] = []
-                        for waiter in current.markWaiters {
-                            if current.registrations >= waiter.target {
-                                resumed.append(waiter.continuation)
-                            } else {
-                                marksStillWaiting.append(waiter)
-                            }
-                        }
-                        current.markWaiters = marksStillWaiting
-                        return (.suspended, resumed)
-                    }
+            try await withCheckedThrowingContinuation { (cont: Continuation) in
+                // Append the sleeper and satisfy rendezvous thresholds atomically under the lock. Resume them
+                // outside the lock to avoid re-entrancy into the clock from the resumed task.
+                let (outcome, rendezvous) = state.withLock { current -> (SleepOutcome, [Continuation]) in
+                    if Task.isCancelled { return (.cancelled, []) }
+                    if current.now >= deadline { return (.deadlineAlreadyPast, []) }
+                    current.sleepers.append(
+                        Sleeper(id: sleeperID, deadline: deadline, counted: counted, continuation: cont))
+                    if counted { current.registrations &+= 1 }
+                    return (.suspended, current.takeSatisfiedWaiters())
+                }
                 switch outcome {
                     case .cancelled: cont.resume(throwing: CancellationError())
                     case .deadlineAlreadyPast: cont.resume()
                     case .suspended: break
                 }
-                for waiter in registrationsToResume {
+                for waiter in rendezvous {
                     waiter.resume()
                 }
             }
         } onCancel: {
-            let resumer: CheckedContinuation<Void, any Error>? = state.withLock { current in
+            let resumer: Continuation? = state.withLock { current in
                 guard let idx = current.sleepers.firstIndex(where: { $0.id == sleeperID })
                 else { return nil }
-                let cont = current.sleepers[idx].continuation
-                current.sleepers.remove(at: idx)
-                return cont
+                return current.sleepers.remove(at: idx).continuation
             }
             resumer?.resume(throwing: CancellationError())
         }
@@ -203,39 +221,20 @@ public final class TestClock: Clock, Sendable {
     /// - Precondition: `count` must be positive.
     public func waitForSleepers(count: Int = 1) async throws {
         precondition(count >= 1, "waitForSleepers count must be >= 1")
-        try Task.checkCancellation()
+        try await rendezvous(.trackedSleepers(atLeast: count))
+    }
 
-        let waiterID: UInt64 = state.withLock { current in
-            current.nextWaiterID += 1
-            return current.nextWaiterID
-        }
+    /// Suspends until at least `count` sleepers are queued, including existing sleepers: the same as
+    /// ``waitForSleepers(count:)``, in the spelling the `AemiTestKit` clock uses.
+    public func waitForSleepers(atLeast count: Int) async throws {
+        try await waitForSleepers(count: count)
+    }
 
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
-                let outcome: WaitOutcome = state.withLock { current in
-                    if Task.isCancelled { return .cancelled }
-                    if current.sleepers.count >= count { return .satisfied }
-                    current.registrationWaiters.append(
-                        RegistrationWaiter(
-                            id: waiterID, target: count, continuation: cont))
-                    return .queued
-                }
-                switch outcome {
-                    case .cancelled: cont.resume(throwing: CancellationError())
-                    case .satisfied: cont.resume()
-                    case .queued: break
-                }
-            }
-        } onCancel: {
-            let resumer: CheckedContinuation<Void, any Error>? = state.withLock { current in
-                guard let idx = current.registrationWaiters.firstIndex(where: { $0.id == waiterID })
-                else { return nil }
-                let cont = current.registrationWaiters[idx].continuation
-                current.registrationWaiters.remove(at: idx)
-                return cont
-            }
-            resumer?.resume(throwing: CancellationError())
-        }
+    /// Suspends until at least `count` untracked sleeps are parked: the timeout of a probe or spy wait given this
+    /// clock. Use it to know a timeout is armed before advancing past it.
+    /// - Throws: `CancellationError` if cancelled before the threshold is satisfied.
+    public func waitForUntrackedSleepers(atLeast count: Int) async throws {
+        try await rendezvous(.untrackedSleepers(atLeast: count))
     }
 
     /// The current point in the registration history, for ``waitForSleepers(_:after:)``.
@@ -261,20 +260,37 @@ public final class TestClock: Clock, Sendable {
     public func waitForSleepers(_ count: Int, after mark: RegistrationMark) async throws {
         try Task.checkCancellation()
         guard count > 0 else { return }
-        let target = mark.registrations &+ UInt64(count)
+        try await rendezvous(.registrations(reaching: mark.registrations &+ UInt64(count)))
+    }
 
-        let waiterID: UInt64 = state.withLock { current in
-            current.nextWaiterID += 1
-            return current.nextWaiterID
-        }
+    /// Suspends until `count` further sleepers register, counting only registrations after this
+    /// call starts; the same as ``waitForSleepers(_:after:)`` with a mark taken now.
+    ///
+    /// "Now" is when this call *runs*, not when the task that makes it was created: a wait spawned alongside the
+    /// work can start after the sleeper it wants has already registered, and then waits for one more that never
+    /// comes. Take a ``registrationMark()`` synchronously before spawning the work and use
+    /// ``waitForSleepers(_:after:)`` in that case.
+    ///
+    /// - Parameter count: The number of further registrations; a non-positive count returns
+    ///   immediately.
+    /// - Throws: `CancellationError` if cancelled before the registrations happened.
+    public func waitForAdditionalSleepers(_ count: Int) async throws {
+        try await waitForSleepers(count, after: registrationMark())
+    }
+
+    /// The shared choreography of every rendezvous wait: reserve an id, then — atomically with the cancellation
+    /// check — either find the condition already met or queue the continuation, and make cancellation dequeue it
+    /// and throw.
+    private func rendezvous(_ condition: Condition) async throws {
+        try Task.checkCancellation()
+        let waiterID = state.withLock { $0.makeID() }
 
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
+            try await withCheckedThrowingContinuation { (cont: Continuation) in
                 let outcome: WaitOutcome = state.withLock { current in
                     if Task.isCancelled { return .cancelled }
-                    if current.registrations >= target { return .satisfied }
-                    current.markWaiters.append(
-                        MarkWaiter(id: waiterID, target: target, continuation: cont))
+                    if current.isSatisfied(condition) { return .satisfied }
+                    current.waiters.append(Waiter(id: waiterID, condition: condition, continuation: cont))
                     return .queued
                 }
                 switch outcome {
@@ -284,28 +300,13 @@ public final class TestClock: Clock, Sendable {
                 }
             }
         } onCancel: {
-            let resumer: CheckedContinuation<Void, any Error>? = state.withLock { current in
-                guard let idx = current.markWaiters.firstIndex(where: { $0.id == waiterID })
+            let resumer: Continuation? = state.withLock { current in
+                guard let idx = current.waiters.firstIndex(where: { $0.id == waiterID })
                 else { return nil }
-                let cont = current.markWaiters[idx].continuation
-                current.markWaiters.remove(at: idx)
-                return cont
+                return current.waiters.remove(at: idx).continuation
             }
             resumer?.resume(throwing: CancellationError())
         }
-    }
-
-    /// Suspends until `count` further sleepers register, counting only registrations after this
-    /// call; the same as ``waitForSleepers(_:after:)`` with a mark taken now.
-    ///
-    /// Prefer the mark form when the sleepers may register before this call runs, for example
-    /// when the wait lives in a task spawned alongside the work.
-    ///
-    /// - Parameter count: The number of further registrations; a non-positive count returns
-    ///   immediately.
-    /// - Throws: `CancellationError` if cancelled before the registrations happened.
-    public func waitForAdditionalSleepers(_ count: Int) async throws {
-        try await waitForSleepers(count, after: registrationMark())
     }
 
     /// Moves the virtual clock forward by `duration`, resuming every
@@ -321,20 +322,66 @@ public final class TestClock: Clock, Sendable {
     /// opens in its post-sleep body), not insert a `Task.yield()`
     /// here.
     public func advance(by duration: Duration) {
-        let toRelease: [CheckedContinuation<Void, any Error>] = state.withLock { current in
-            current.now = current.now.advanced(by: duration)
-            var due: [Sleeper] = []
-            var remaining: [Sleeper] = []
-            for sleeper in current.sleepers {
-                if current.now >= sleeper.deadline {
-                    due.append(sleeper)
-                } else {
-                    remaining.append(sleeper)
-                }
+        release { $0.now = $0.now.advanced(by: duration) }
+    }
+
+    /// Moves the virtual clock to `instant` (no-op if it is already at or past it), resuming every sleeper whose
+    /// deadline has elapsed.
+    ///
+    /// The comparison and the move happen under one lock acquisition, so concurrent calls land on the latest
+    /// instant instead of each adding its own distance.
+    public func advance(to instant: Instant) {
+        release { if instant > $0.now { $0.now = instant } }
+    }
+
+    /// Wakes every parked sleeper by advancing to the furthest pending deadline — the "let all remaining timers
+    /// fire" step at the end of a deterministic time test. Untracked sleeps (a probe's timeout) are ignored.
+    public func runToLastSleeper() {
+        let furthest = state.withLock { $0.sleepers.lazy.filter(\.counted).map(\.deadline).max() }
+        if let furthest { advance(to: furthest) }
+    }
+
+    /// Releases everything that is parked — sleepers (tracked or not) and rendezvous waiters — by making each throw
+    /// `CancellationError`, and returns how many were released. Time does not move.
+    ///
+    /// Call it at the end of a test whose code under test leaves a sleeper parked on purpose, so the parked task
+    /// finishes instead of outliving the test. Unlike ``runToLastSleeper()``, which makes the sleeps *succeed*, this
+    /// makes them fail, so the code under test sees a cancellation rather than the time it was waiting for.
+    @discardableResult
+    public func drain() -> Int {
+        let released = state.withLock { current in
+            let continuations = current.sleepers.map(\.continuation) + current.waiters.map(\.continuation)
+            current.sleepers.removeAll()
+            current.waiters.removeAll()
+            return continuations
+        }
+        for continuation in released { continuation.resume(throwing: CancellationError()) }
+        return released.count
+    }
+
+    /// Runs `body` with every `TestClock` sleep that the tasks it *creates* start marked *untracked*.
+    ///
+    /// An untracked sleep parks and wakes like any other, but is not counted by ``sleeperCount``, does not satisfy
+    /// ``waitForSleepers(count:)`` or a registration mark, and is ignored by ``runToLastSleeper()``. Probe and spy
+    /// waits use it for their timeouts: the harness's own timer must not make a rendezvous believe the code under
+    /// test has reached its `sleep`.
+    ///
+    /// The marking is a task-local, so it follows the tasks created inside `body` (`Task { }`, `group.addTask`) and
+    /// nothing else.
+    public static func withUntrackedSleeps<Result>(_ body: () throws -> Result) rethrows -> Result {
+        try HarnessSleep.$isActive.withValue(true, operation: body)
+    }
+
+    /// Applies `move` to the state, then resumes (outside the lock) every sleeper the new time makes due, in the
+    /// order they were queued.
+    private func release(_ move: (inout State) -> Void) {
+        let toRelease: [Continuation] = state.withLock { current in
+            move(&current)
+            let (due, remaining) = current.sleepers.reduce(into: ([Sleeper](), [Sleeper]())) { split, sleeper in
+                if current.now >= sleeper.deadline { split.0.append(sleeper) } else { split.1.append(sleeper) }
             }
             current.sleepers = remaining
-            due.sort { $0.id < $1.id }
-            return due.map(\.continuation)
+            return due.sorted { $0.id < $1.id }.map(\.continuation)
         }
         for cont in toRelease {
             cont.resume()
@@ -343,4 +390,9 @@ public final class TestClock: Clock, Sendable {
 
     private enum SleepOutcome { case deadlineAlreadyPast, suspended, cancelled }
     private enum WaitOutcome { case queued, satisfied, cancelled }
+}
+
+/// Whether the current task was created inside ``TestClock/withUntrackedSleeps(_:)``.
+private enum HarnessSleep {
+    @TaskLocal static var isActive = false
 }

@@ -103,15 +103,15 @@ var packageDependencies: [Package.Dependency] = [
     // 603 builds with the Swift 6.3 toolchain the CI 6.3 lane uses; 604 is the Swift 6.4 release consumers on
     // Xcode 27 pin. Both are accepted so a consumer's pin never conflicts with this range.
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.0" ..< "605.0.0"),
-    .package(url: "https://github.com/apple/swift-collections.git", from: "1.6.0"),
-    .package(url: "https://github.com/apple/swift-system.git", from: "1.7.2")
+    .package(url: "https://github.com/apple/swift-collections.git", from: "1.7.3"),
+    .package(url: "https://github.com/apple/swift-system.git", from: "1.8.1")
 ]
 if isDev {
     packageDependencies.append(
-        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.0.0"))
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.5.0"))
     // ordo-one benchmark suite (`AEMI_DEV=1 swift package benchmark`).
     packageDependencies.append(
-        .package(url: "https://github.com/ordo-one/benchmark", from: "1.4.0"))
+        .package(url: "https://github.com/ordo-one/benchmark", from: "1.38.0"))
 }
 
 // The in-package LintBuild plugin runs `swift format lint --strict` as a prebuild step on the

@@ -46,7 +46,9 @@ teardown cannot leave a task suspended on the shared test executor after the tes
 
 The deadline is **clock-injectable**, so under a ``TestClock`` settling is real-time-free,
 and a genuinely hung task surfaces as an ``AsyncEventProbeTimeoutError`` pointing at the
-probe rather than as a silent suite hang. The seam costs production nothing yet gives tests
+probe rather than as a silent suite hang. The waits without a clock use a `ContinuousClock` and the spy's
+`defaultTimeout`, 30 seconds: a hang guard, not a latency assertion, so a long default costs time only when a
+task is genuinely stuck while a short one fails tests on a busy machine or under a sanitizer. The seam costs production nothing yet gives tests
 an exact "all the work this triggered has finished" boundary — the thing `Task.sleep` only
 approximates.
 

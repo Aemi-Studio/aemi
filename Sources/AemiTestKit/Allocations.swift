@@ -103,32 +103,47 @@ public func mallocDelta(_ body: () -> Void) -> Int? {
 
 /// A measurement that one thread counts and another opens and closes: a loop that runs on a thread of its own, say,
 /// with a second thread that drives it and opens the window once the loop is warm. Name the counted thread with
-/// ``watchCurrentThread()`` (from that thread, before the window opens), then ``begin()`` and ``end()`` from one
-/// thread, which need not be the counted one. Allocations the counted thread makes between the two are the count.
+/// ``watchCurrentThread()`` (from that thread, before the window opens), then ``begin(watching:)`` and ``end()`` from
+/// one thread, which need not be the counted one. Allocations the counted thread makes between the two are the count.
 /// Like ``mallocDelta(_:)`` it is serialized with every other measurement, so the window must be short and must not
 /// contain a measurement of its own. Where counting is unavailable every call does nothing and ``end()`` returns `nil`.
+///
+/// Hand the ``Watch`` that ``watchCurrentThread()`` returns to ``begin(watching:)``. Without it ``begin(watching:)``
+/// falls back to the thread named last, a single process-wide slot, so two threads that name themselves before either
+/// window opens can swap: the first window then counts the second thread. The token pairs them exactly.
 public enum AllocationWindow {
-    private static let watched = Atomic<UInt>(0)
-
-    /// Makes the calling thread the one whose allocations the next window counts.
-    public static func watchCurrentThread() {
-        watched.store(currentThreadID(), ordering: .relaxed)
+    /// The thread a window counts, as named by ``watchCurrentThread()``.
+    public struct Watch: Sendable {
+        fileprivate let thread: UInt
     }
 
-    /// Waits for other measurements, then starts counting the watched thread (the caller if none was named).
-    public static func begin() {
+    /// The thread last named, for a ``begin(watching:)`` that is given no ``Watch``. Consumed by the next `begin`.
+    private static let lastWatched = Atomic<UInt>(0)
+
+    /// Makes the calling thread the one whose allocations the next window counts, and returns the token that names it.
+    @discardableResult
+    public static func watchCurrentThread() -> Watch {
+        let watch = Watch(thread: currentThreadID())
+        lastWatched.store(watch.thread, ordering: .relaxed)
+        return watch
+    }
+
+    /// Waits for other measurements, then starts counting `watch`'s thread: the thread named last when `watch` is
+    /// `nil`, or the caller when none was named.
+    public static func begin(watching watch: Watch? = nil) {
         guard allocationCountingAvailable else { return }
         Measurements.acquire()
-        let thread = watched.load(ordering: .relaxed)
-        adtk_malloc_window_begin(thread == 0 ? currentThreadID() : thread)
+        // Read after the serializing lock is held, and consumed, so a stale name never leaks into a later window.
+        let named = lastWatched.exchange(0, ordering: .relaxed)
+        let thread = watch?.thread ?? (named == 0 ? currentThreadID() : named)
+        adtk_malloc_window_begin(thread)
     }
 
-    /// Stops counting and returns the number of allocations the watched thread made since ``begin()``. Call it on the
-    /// thread that called `begin()`, before any teardown that allocates. Returns `nil` too when this thread has no
-    /// window open.
+    /// Stops counting and returns the number of allocations the watched thread made since ``begin(watching:)``. Call it
+    /// on the thread that called `begin`, before any teardown that allocates. Returns `nil` too when this thread has
+    /// no window open.
     public static func end() -> Int? {
         guard allocationCountingAvailable, Measurements.heldByCurrentThread else { return nil }
-        watched.store(0, ordering: .relaxed)
         defer { Measurements.release() }
         return Int(adtk_malloc_count_end())
     }

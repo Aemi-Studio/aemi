@@ -40,13 +40,22 @@ public struct ThreadGate: Sendable {
 /// work that should pile up behind the holder, then open the gate and join the holder.
 /// Deterministic — the batch is guaranteed assembled before the gate opens, with no
 /// timing assumptions.
+///
+/// If `body` throws, the gate is opened and the holder joined before the error propagates:
+/// a failed test must not leave a thread parked on a gate nobody will open.
 public func withThreadGatedBatch(
     hold: @escaping @Sendable (_ gate: ThreadGate) -> Void,
     _ body: (_ openGate: @Sendable () -> Void) async throws -> Void
 ) async rethrows {
     let gate = ThreadGate()
     let holder = Task.detached { hold(gate) }
-    try await body { gate.open() }
+    do {
+        try await body { gate.open() }
+    } catch {
+        gate.open()
+        _ = await holder.value
+        throw error
+    }
     _ = await holder.value
 }
 

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 
 @testable import AemiTestKit
@@ -74,6 +75,7 @@ struct AllocationsTests {
     /// also checks that counting still works once the measurements are done.
     @Test
     func `measurements from several threads at once leave allocation counting intact`() async {
+        guard allocationCountingAvailable else { return }  // no hook is installed under a sanitizer
         await #expect(processExitsWith: .success) {
             await withTaskGroup(of: Void.self) { group in
                 for _ in 0 ..< 8 {
@@ -91,5 +93,72 @@ struct AllocationsTests {
             _ = sink
             precondition(count != 0, "allocation counting stopped observing allocations")
         }
+    }
+
+    // MARK: Windows
+
+    /// A one-way flag that threads wait on by polling, so the sequence of a test is fixed without a timer.
+    private final class Flag: Sendable {
+        private let raised = Mutex(false)
+        func raise() { raised.withLock { $0 = true } }
+        func wait() {
+            while !raised.withLock({ $0 }) { sched_yield() }
+        }
+    }
+
+    private final class Reading: Sendable {
+        let value = Mutex<Int?>(nil)
+    }
+
+    /// Opens a window on a second thread over the allocations the calling thread makes, while that second thread also
+    /// allocates (`otherThread` times) inside the window. Returns what `AllocationWindow.end()` returned.
+    private func windowOverThisThread(allocating count: Int, otherThread other: Int) -> Int? {
+        let opened = Flag()
+        let finished = Flag()
+        let done = Flag()
+        let result = Reading()
+        AllocationWindow.watchCurrentThread()
+        let driver = Thread {
+            AllocationWindow.begin()
+            opened.raise()
+            var sink: [UInt8] = []
+            for round in 0 ..< other { sink = [UInt8](repeating: UInt8(truncatingIfNeeded: round), count: 64) }
+            _ = sink
+            finished.wait()
+            let count = AllocationWindow.end()
+            result.value.withLock { $0 = count }
+            done.raise()
+        }
+        driver.start()
+        opened.wait()
+        var sink: [UInt8] = []
+        for round in 0 ..< count { sink = [UInt8](repeating: UInt8(truncatingIfNeeded: round), count: 64) }
+        _ = sink
+        finished.raise()
+        done.wait()
+        return result.value.withLock { $0 }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `a window counts the watched thread and not the thread that opened it`() throws {
+        guard allocationCountingAvailable else { return }
+        _ = windowOverThisThread(allocating: 1, otherThread: 1)  // warm up (lazy init)
+        let quiet = try #require(windowOverThisThread(allocating: 25, otherThread: 0))
+        let busy = try #require(windowOverThisThread(allocating: 25, otherThread: 500))
+        #expect(quiet >= 25, "each 64-byte array is a heap allocation")
+        #expect(busy == quiet, "the opening thread's own 500 allocations are not counted")
+    }
+
+    @Test
+    func `a window leaves measurements working and ends only once`() throws {
+        guard allocationCountingAvailable else { return }
+        #expect(AllocationWindow.end() == nil, "no window is open")
+        _ = windowOverThisThread(allocating: 3, otherThread: 0)
+        #expect(AllocationWindow.end() == nil, "the window was closed")
+        var sink: [UInt8] = []
+        _ = mallocDelta { sink = [UInt8](repeating: 0, count: 4096) }  // warm up
+        let count = mallocDelta { sink = [UInt8](repeating: 1, count: 4096) }
+        _ = sink
+        #expect((count ?? 0) >= 1, "mallocDelta counts after a window")
     }
 }

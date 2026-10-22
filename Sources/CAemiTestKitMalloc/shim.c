@@ -22,8 +22,10 @@ extern adtk_malloc_logger_t *malloc_logger;
 static _Atomic(uint64_t) adtk_alloc_count = 0;
 static _Atomic(adtk_malloc_logger_t *) adtk_prev_logger = 0;
 static _Atomic(int) adtk_active = 0;
-/* The thread that opened the window. Only its allocations count: another thread's work in the same
-   window is not the measured body's, and counting it let parallel test suites fail a ceiling. */
+/* The thread being counted: the one that opened the window, or the one a window named. Only its
+   allocations count: another thread's work in the same window is not the measured body's, and counting
+   it let parallel test suites fail a ceiling. Identified with `pthread_self()`, not a thread-local: the
+   first access to a thread-local can itself allocate, which would re-enter this hook. */
 static _Atomic(pthread_t) adtk_owner = 0;
 
 static void adtk_counting_logger(uint32_t type, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3,
@@ -43,19 +45,25 @@ static void adtk_counting_logger(uint32_t type, uintptr_t arg1, uintptr_t arg2, 
 
 int adtk_malloc_counting_available(void) { return 1; }
 
-void adtk_malloc_count_begin(void) {
+/* Resets the counter, records `thread` as the one to count and installs the hook. Does nothing when the
+   hook is already installed (an overlapping `begin`): saving our own hook as the one to chain to would
+   make it call itself on every allocation until the stack overflows, so the chain is kept as it is. */
+static void adtk_begin_counting(pthread_t thread) {
     adtk_malloc_logger_t *current = __atomic_load_n(&malloc_logger, __ATOMIC_RELAXED);
-    /* Already counting (an overlapping `begin`): saving our own hook as the one to chain to would make
-       it call itself on every allocation until the stack overflows, so keep the chain as it is. */
     if (current == adtk_counting_logger) {
         return;
     }
     atomic_store_explicit(&adtk_alloc_count, 0, memory_order_relaxed);
-    atomic_store_explicit(&adtk_owner, pthread_self(), memory_order_relaxed);
+    atomic_store_explicit(&adtk_owner, thread, memory_order_relaxed);
     atomic_store_explicit(&adtk_prev_logger, current, memory_order_relaxed);
     atomic_store_explicit(&adtk_active, 1, memory_order_relaxed);
     __atomic_store_n(&malloc_logger, adtk_counting_logger, __ATOMIC_RELAXED);
 }
+
+void adtk_malloc_count_begin(void) { adtk_begin_counting(pthread_self()); }
+
+/* `thread` is a `pthread_self()` value carried as an integer by the Swift side. */
+void adtk_malloc_window_begin(uintptr_t thread) { adtk_begin_counting((pthread_t)thread); }
 
 uint64_t adtk_malloc_count_end(void) {
     if (!atomic_exchange_explicit(&adtk_active, 0, memory_order_relaxed)) {
@@ -71,6 +79,7 @@ uint64_t adtk_malloc_count_end(void) {
 
 int adtk_malloc_counting_available(void) { return 0; }
 void adtk_malloc_count_begin(void) {}
+void adtk_malloc_window_begin(uintptr_t thread) { (void)thread; }
 uint64_t adtk_malloc_count_end(void) { return 0; }
 
 #endif

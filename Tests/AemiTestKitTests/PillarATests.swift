@@ -64,9 +64,9 @@ struct PillarATests {
     func `wait times out deterministically under a TestClock with zero real time`() async throws {
         let clock = TestClock()
         let probe = AsyncEventProbe<Int>()
-        // Advance only after the timeout sleeper has registered on the clock.
+        // Advance only after the timeout has armed on the clock (an untracked sleeper).
         let advancer = Task {
-            while clock.sleeperCount == 0 { await Task.yield() }
+            while clock.untrackedSleeperCount == 0 { await Task.yield() }
             clock.advance(by: .seconds(5))
         }
         await #expect(throws: AsyncEventProbeTimeoutError.self) {
@@ -128,7 +128,7 @@ struct PillarATests {
             try? await Task.sleep(for: .seconds(86_400))  // never completes during the test
         }
         let advancer = Task {
-            while clock.sleeperCount == 0 { await Task.yield() }
+            while clock.untrackedSleeperCount == 0 { await Task.yield() }
             clock.advance(by: .seconds(5))
         }
         await #expect(throws: AsyncEventProbeTimeoutError.self) {

@@ -44,6 +44,8 @@ public final class TestClock: Clock, Sendable {
         var countWaiters = ContinuationRegistry<Int, Void>()
         /// Rendezvous waiters keyed by a target **cumulative registration** count.
         var registrationWaiters = ContinuationRegistry<UInt64, Void>()
+        /// Rendezvous waiters keyed by a target **live untracked** sleeper count.
+        var untrackedWaiters = ContinuationRegistry<Int, Void>()
 
         /// Rendezvous waiters share one id sequence; each registry only needs its ids unique.
         private var nextWaiterID: UInt64 = 0
@@ -55,7 +57,8 @@ public final class TestClock: Clock, Sendable {
 
         /// Record that a sleeper just parked and return every rendezvous waiter it satisfies.
         /// Callers must resume the result *outside* the lock.
-        mutating func noteRegistration() -> Wakes {
+        mutating func noteRegistration(counted: Bool) -> Wakes {
+            guard counted else { return untrackedWaiters.wake(upTo: sleepers.uncountedCount, with: ()) }
             registrations &+= 1
             var woken = countWaiters.wake(upTo: sleepers.count, with: ())
             woken += registrationWaiters.wake(upTo: registrations, with: ())
@@ -74,7 +77,15 @@ public final class TestClock: Clock, Sendable {
 
     /// How many tasks are currently parked in `sleep`. Lets a test sequence
     /// deterministically: spin until `sleeperCount == N`, then `advance`.
+    ///
+    /// Sleeps the harness starts for itself — a probe's or a spy's timeout — are *untracked* and left
+    /// out (see ``withUntrackedSleeps(_:)``), so only the code under test and the test's own sleepers
+    /// satisfy a rendezvous.
     public var sleeperCount: Int { state.withLock { $0.sleepers.count } }
+
+    /// How many untracked sleeps are currently parked: the timeouts of probe and spy waits that were
+    /// given this clock. A test that drives such a timeout rendezvouses with it here, then advances.
+    public var untrackedSleeperCount: Int { state.withLock { $0.sleepers.uncountedCount } }
 
     /// Heap slots the sleeper queue holds, live or stale. For tests that pin the compaction bound.
     var storedSleeperSlotCount: Int { state.withLock { $0.sleepers.storedSlotCount } }
@@ -82,6 +93,7 @@ public final class TestClock: Clock, Sendable {
     public func sleep(until deadline: Instant, tolerance: Duration? = nil) async throws {
         try Task.checkCancellation()
         let id = state.withLock { $0.sleepers.makeID() }
+        let counted = !HarnessSleep.isActive
         enum Action { case resumeNow, cancelled, suspended }
         try await withTaskCancellationHandler {
             try await withUnsafeThrowingContinuation {
@@ -89,8 +101,8 @@ public final class TestClock: Clock, Sendable {
                 let (action, rendezvous) = state.withLock { s -> (Action, Wakes) in
                     if Task.isCancelled { return (.cancelled, []) }
                     if deadline <= s.now { return (.resumeNow, []) }
-                    s.sleepers.park(id: id, key: deadline, continuation)
-                    return (.suspended, s.noteRegistration())
+                    s.sleepers.park(id: id, key: deadline, continuation, counted: counted)
+                    return (.suspended, s.noteRegistration(counted: counted))
                 }
                 // Release anyone waiting to observe this park, outside the lock.
                 for (waiter, _) in rendezvous { waiter.resume() }
@@ -210,6 +222,38 @@ public final class TestClock: Clock, Sendable {
     /// before it parks the next sleeper.
     var additionalWaiterCount: Int { state.withLock { $0.registrationWaiters.count } }
 
+    /// Suspend until **at least** `count` untracked sleeps are parked: the timeout of a probe or spy
+    /// wait given this clock. Use it to know a timeout is armed before advancing past it.
+    ///
+    /// Cancellation unregisters and throws `CancellationError`.
+    public func waitForUntrackedSleepers(atLeast count: Int) async throws {
+        try await rendezvous(
+            park: { s, id, continuation in
+                if s.sleepers.uncountedCount >= count { return .satisfied }
+                s.untrackedWaiters.park(id: id, key: count, continuation)
+                return .parked
+            },
+            unpark: { $0.untrackedWaiters.remove(id: $1) })
+    }
+
+    /// Runs `body` with every `TestClock` sleep that the tasks it *creates* start marked *untracked*.
+    ///
+    /// An untracked sleep parks and wakes like any other, but is not counted by ``sleeperCount``, does
+    /// not satisfy ``waitForSleepers(atLeast:)`` or a registration mark, and is ignored by
+    /// ``runToLastSleeper()``. Probe and spy waits use it for their timeouts: the harness's own timer
+    /// must not make a rendezvous believe the code under test has reached its `sleep`.
+    ///
+    /// The marking is a task-local, so it follows the tasks created inside `body` (`Task { }`,
+    /// `group.addTask`) and nothing else; `body` itself is synchronous because a task-local scope that
+    /// spans a suspension is toolchain-specific.
+    ///
+    /// ```swift
+    /// let timer = TestClock.withUntrackedSleeps { Task { try await clock.sleep(for: .seconds(30)) } }
+    /// ```
+    public static func withUntrackedSleeps<Result>(_ body: () throws -> Result) rethrows -> Result {
+        try HarnessSleep.$isActive.withValue(true, operation: body)
+    }
+
     private typealias Continuation = UnsafeContinuation<Void, any Error>
 
     /// What a rendezvous found when it tried to park.
@@ -247,4 +291,9 @@ public final class TestClock: Clock, Sendable {
         let furthest = state.withLock { $0.sleepers.maxKey }
         if let furthest { advance(to: furthest) }
     }
+}
+
+/// Whether the current task was created inside ``TestClock/withUntrackedSleeps(_:)``.
+private enum HarnessSleep {
+    @TaskLocal static var isActive = false
 }

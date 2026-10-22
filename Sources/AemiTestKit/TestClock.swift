@@ -13,6 +13,17 @@ import Synchronization
 /// `ContinuationRegistry` (a deadline-ordered heap), so waking the due ones is a few
 /// pops rather than a full scan-and-sort, and the park / wake / cancel logic is shared
 /// with `AsyncEventProbe` rather than re-rolled here.
+///
+/// ## Rendezvous before you advance
+///
+/// `Clock.sleep(for:)` is a protocol extension: it reads `now`, adds the duration, and only then calls
+/// ``sleep(until:tolerance:)``, so the deadline is fixed *before* the sleeper parks. An ``advance(by:)``
+/// that lands in between makes the sleep return at once without ever parking (about 5 in 2000 concurrent
+/// sleeps raced an advancing task), and one that lands before the call makes the deadline relative to
+/// the advanced time. A conforming type cannot intercept that extension for generic callers, so the
+/// clock cannot close the window; the test closes it by waiting for the sleeper to park
+/// (``waitForSleepers(atLeast:)``, or ``waitForSleepers(_:after:)`` with a mark taken beforehand) and
+/// advancing only afterwards.
 public final class TestClock: Clock, Sendable, CustomStringConvertible {
     public struct Instant: InstantProtocol, Sendable {
         /// Elapsed `Duration` since the clock's origin.

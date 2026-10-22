@@ -147,6 +147,33 @@ struct TestClockTests {
         #expect(clock.now.offset == .seconds(5), "advancing to the past is a no-op")
     }
 
+    /// Two `advance(to:)` calls that each read the time and then added the distance would both
+    /// move the clock, overshooting the target. One lock acquisition makes the call idempotent.
+    @Test
+    func `concurrent advances to the same instant land on that instant`() async {
+        let target = TestClock.Instant(offset: .seconds(1))
+        for _ in 0 ..< 500 {
+            let clock = TestClock()
+            await withTaskGroup(of: Void.self) { group in
+                for _ in 0 ..< 16 { group.addTask { clock.advance(to: target) } }
+            }
+            #expect(clock.now == target)
+        }
+    }
+
+    @Test
+    func `concurrent advances to different instants land on the latest`() async {
+        for _ in 0 ..< 200 {
+            let clock = TestClock()
+            await withTaskGroup(of: Void.self) { group in
+                for second in 1 ... 16 {
+                    group.addTask { clock.advance(to: TestClock.Instant(offset: .seconds(second))) }
+                }
+            }
+            #expect(clock.now.offset == .seconds(16))
+        }
+    }
+
     @Test
     func `runToLastSleeper wakes every parked sleeper`() async throws {
         let clock = TestClock()

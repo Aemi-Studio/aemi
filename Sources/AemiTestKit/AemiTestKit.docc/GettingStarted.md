@@ -40,6 +40,9 @@ the shipped-safe product:
 | Wait until async work has recorded *N* events, then inspect them | ``AsyncEventProbe`` |
 | Settle a batch of spawned tasks without racing on results | `TaskProvider` + ``TaskProviderSpy`` |
 | Force a specific interleaving of concurrent work | ``ThreadGate`` / ``AsyncGate`` |
+| Complete requests by hand, out of order | ``ManualCompletion`` |
+| Wait until an object is released, or until `@Observable` state changes | `deallocationProbe(of:)` / `waitForObservedState` — see <doc:TestDoubles> |
+| Count heap allocations, or record a benchmark figure | ``mallocDelta(_:)`` / ``AllocationWindow`` / ``recordBenchmark(_:environmentVariable:)`` — see <doc:AllocationsAndBenchmarks> |
 | Reproduce a random corpus byte-for-byte across runs | ``SeededRNG`` + ``Seed`` |
 | Prove a parser never traps on corrupt input | ``ByteMutator`` + ``fuzzNeverTraps(seed:iterations:edits:mutator:traceEnv:corpus:exercise:)`` |
 | Prove a recursive descent survives its depth cap | `runOnConstrainedStack` + ``DepthSweep`` |
@@ -60,7 +63,7 @@ import AemiTestKit
         try await clock.sleep(until: clock.now.advanced(by: .seconds(10)))
         woke.record(1)
     }
-    while clock.sleeperCount == 0 { await Task.yield() }  // wait for it to park
+    try await clock.waitForSleepers(atLeast: 1)            // wait for it to park
     clock.advance(by: .seconds(10))                        // zero real time elapses
     try await sleeper.value
     #expect(woke.events == [1])

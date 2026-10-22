@@ -76,12 +76,21 @@ public final class AsyncGate: Sendable {
 /// the serial work it occupies), run `body` to enqueue the work that should pile up
 /// behind the holder, then open the gate and await the holder. Deterministic — the batch
 /// is assembled before the gate opens, with no blocked threads or timing assumptions.
+///
+/// If `body` throws, the gate is opened and the holder joined before the error propagates:
+/// a failed test must not leave a task suspended on a gate nobody will open.
 public func withAsyncGatedBatch(
     hold: @escaping @Sendable (_ gate: AsyncGate) async -> Void,
     _ body: (_ openGate: @Sendable () -> Void) async throws -> Void
 ) async rethrows {
     let gate = AsyncGate()
     let holder = Task { await hold(gate) }
-    try await body { gate.open() }
+    do {
+        try await body { gate.open() }
+    } catch {
+        gate.open()
+        await holder.value
+        throw error
+    }
     await holder.value
 }

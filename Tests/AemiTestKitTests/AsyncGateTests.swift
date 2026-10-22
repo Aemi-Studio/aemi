@@ -93,4 +93,21 @@ struct AsyncGateTests {
         #expect(order.events.last == "holder-resumed")
         #expect(order.events.contains("body"))
     }
+
+    @Test
+    func `withAsyncGatedBatch opens the gate and joins the holder when the body throws`() async {
+        struct Failure: Error {}
+        let order = AsyncEventProbe<String>()
+        await #expect(throws: Failure.self) {
+            try await withAsyncGatedBatch(
+                hold: { gate in
+                    order.record("holder-start")
+                    try? await gate.waitUntilOpen()
+                    order.record("holder-resumed")
+                },
+                { _ in throw Failure() })
+        }
+        // The holder was released and joined before the error propagated, not left suspended.
+        #expect(order.events.last == "holder-resumed")
+    }
 }

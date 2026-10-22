@@ -45,4 +45,21 @@ struct ThreadGateTests {
         #expect(order.events.last == "holder-resumed")
         #expect(order.events.contains("body"))
     }
+
+    @Test
+    func `withThreadGatedBatch opens the gate and joins the holder when the body throws`() async {
+        struct Failure: Error {}
+        let order = AsyncEventProbe<String>()
+        await #expect(throws: Failure.self) {
+            try await withThreadGatedBatch(
+                hold: { gate in
+                    order.record("holder-start")
+                    gate.waitUntilOpen()
+                    order.record("holder-resumed")
+                },
+                { _ in throw Failure() })
+        }
+        // The holder thread was released and joined before the error propagated, not left blocked.
+        #expect(order.events.last == "holder-resumed")
+    }
 }

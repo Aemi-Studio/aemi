@@ -3,6 +3,14 @@ import Testing
 
 @testable import AemiTestKit
 
+/// A flag a `Task` sets and the test reads. Swift 6.3 rejects capturing a local `Mutex` (noncopyable) in a `Task`
+/// closure, so the lock lives inside a `Sendable` class that the task captures instead.
+private final class ReleaseFlag: Sendable {
+    private let state = Mutex(false)
+    func set() { state.withLock { $0 = true } }
+    var isSet: Bool { state.withLock { $0 } }
+}
+
 /// `TestClock`'s mark form of the "further sleepers" rendezvous. The mark is taken synchronously, so no task
 /// ordering can shift the baseline: this is what a test reaches for when the wait cannot be parked before the
 /// sleeper it wants registers.
@@ -19,7 +27,7 @@ struct TestClockRegistrationMarkTests {
     @Test
     func `a mark counts only sleepers registered after it was taken`() async throws {
         let clock = TestClock()
-        let released = Mutex(false)
+        let released = ReleaseFlag()
         try await withThrowingTaskGroup(of: Void.self) { group in
             park(2, on: clock, in: &group)
             try await clock.waitForSleepers(atLeast: 2)
@@ -30,12 +38,12 @@ struct TestClockRegistrationMarkTests {
             try await clock.waitForSleepers(atLeast: 2)
             let waiter = Task {
                 try await clock.waitForSleepers(2, after: mark)
-                released.withLock { $0 = true }
+                released.set()
             }
             park(1, on: clock, in: &group)
             try await clock.waitForSleepers(atLeast: 3)
             for _ in 0 ..< 100 { await Task.yield() }
-            #expect(!released.withLock { $0 }, "one registration after the mark is not two")
+            #expect(!released.isSet, "one registration after the mark is not two")
 
             park(1, on: clock, in: &group)
             try await waiter.value

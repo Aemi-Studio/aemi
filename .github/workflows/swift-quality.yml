@@ -170,15 +170,15 @@ on:
       arcleak-version:
         required: false
         type: string
-        default: "0.10.2"
+        default: "0.11.0"
       dolly-version:
         required: false
         type: string
-        default: "0.10.2"
+        default: "0.10.3"
       deadwood-version:
         required: false
         type: string
-        default: "0.10.1"
+        default: "0.10.2"
 
 permissions:
   contents: read

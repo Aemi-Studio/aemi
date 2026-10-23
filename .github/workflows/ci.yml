@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        swift: ['6.3', '6.4.1']
+        swift: ['6.3.3', '6.4.1']
         configuration: [debug, release]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,7 +47,12 @@ jobs:
       - name: Build
         run: swift build -c '${{ matrix.configuration }}'
       - name: Test
-        run: swift test -c '${{ matrix.configuration }}'
+        # Swift 6.3's `swift test` runs every test module in ONE process, so ~30 stress tests (200-500
+        # iterations each) share a 3-CPU runner's cooperative pool and starve real-time waits: one of them
+        # (ThreadGateTests) timed out on every parallel 6.3 run, while each module alone and the whole
+        # suite with --no-parallel passed (debug and release). 6.4 runs each module separately and passes
+        # in parallel, so only 6.3 is serialized; it costs ~10-15 s.
+        run: swift test -c '${{ matrix.configuration }}' ${{ startsWith(matrix.swift, '6.3') && '--no-parallel' || '' }}
       - name: Save the SwiftPM tree
         if: ${{ always() && github.ref == 'refs/heads/main' && steps.spm.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

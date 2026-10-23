@@ -5,7 +5,7 @@ name: Swift Quality
 #
 #   jobs:
 #     quality:
-#       uses: Aemi-Studio/aemi/.github/workflows/swift-quality.yml@main
+#       uses: Aemi-Studio/aemi/.github/workflows/swift-quality.yml@<commit SHA>  # pin; never @main
 #       with:
 #         dev-env-var: ADF_DEV
 #         requires-published-siblings: true   # set when the package has first-party AD-family deps
@@ -204,7 +204,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
-        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@58895701ab0a4ffe014515a90448cb54b48fd8c7 # main as of 2026-10-23
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
@@ -212,7 +212,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Aemi-Studio/aemi
-          ref: main
+          # The commit the CALLER pinned this workflow to, not main: a caller's canonical config, scripts and
+          # analyzer pins then change only when it moves its pin. With `ref: main`, one config edit here failed
+          # the drift check in every pinned caller at once (2026-10-23). `main` is only a fallback.
+          ref: ${{ github.job_workflow_sha || 'main' }}
           path: .aemi-tools
       - name: Config drift (.swift-format + .swiftlint.yml == canonical)
         shell: bash
@@ -275,7 +278,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
-        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@58895701ab0a4ffe014515a90448cb54b48fd8c7 # main as of 2026-10-23
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
@@ -362,7 +365,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
-        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@58895701ab0a4ffe014515a90448cb54b48fd8c7 # main as of 2026-10-23
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
@@ -439,7 +442,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
-        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@58895701ab0a4ffe014515a90448cb54b48fd8c7 # main as of 2026-10-23
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
@@ -516,7 +519,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
-        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@58895701ab0a4ffe014515a90448cb54b48fd8c7 # main as of 2026-10-23
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
@@ -569,7 +572,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
-        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@58895701ab0a4ffe014515a90448cb54b48fd8c7 # main as of 2026-10-23
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}
@@ -629,7 +632,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Authenticate private dependency
         if: inputs.dependency-repository != ''
-        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@main
+        uses: Aemi-Studio/aemi/.github/actions/setup-private-dependency@58895701ab0a4ffe014515a90448cb54b48fd8c7 # main as of 2026-10-23
         with:
           repository: ${{ inputs.dependency-repository }}
           ssh-key: ${{ secrets.dependency-ssh-key }}

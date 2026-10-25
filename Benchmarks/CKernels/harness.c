@@ -102,6 +102,13 @@ static void shuffle(size_t *order, size_t count) {
     }
 }
 
+// Shared with small_inputs.c, which keeps its own samples but not its own generator.
+uint64_t small_next_random(void) { return next_random(); }
+void small_shuffle(size_t *order, size_t count) { shuffle(order, count); }
+int small_compare_doubles(const void *a, const void *b) { return compare_doubles(a, b); }
+int check_small(void);
+void bench_small(void);
+
 // MARK: - Differential check
 
 static int check_fold(void) {
@@ -269,10 +276,19 @@ static void bench_scan(size_t len) {
 
 int main(int argc, char **argv) {
     if (argc > 1 && strcmp(argv[1], "--check") == 0) {
-        int failures = check_fold() + check_scan();
-        printf("differential check: %d mismatches (%zu fold and %zu scan variants)\n", failures, FOLD_COUNT,
-               SCAN_COUNT);
+        int failures = check_fold() + check_scan() + check_small();
+        printf("differential check: %d mismatches (%zu fold and %zu scan variants, and the small-input kernels)\n",
+               failures, FOLD_COUNT, SCAN_COUNT);
         return failures != 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "--small") == 0) {
+        pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+        double load[3] = {0, 0, 0};
+        getloadavg(load, 3);
+        printf("backend %s; load average %.2f %.2f %.2f; %s\n\n", adf_kernels_backend(), load[0], load[1],
+               load[2], __clang_version__);
+        bench_small();
+        return 0;
     }
     pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
     double load[3] = {0, 0, 0};

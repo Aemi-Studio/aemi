@@ -1,5 +1,6 @@
 #!/bin/bash
-# Benchmarks (default) or differentially checks (--check) CAemiKernels' fold_ascii and index_of_nonascii.
+# Benchmarks (default), benchmarks the small-input scanners (--small) or differentially checks (--check) CAemiKernels'
+# fold_ascii, index_of_nonascii and the other byte scanners.
 #
 # The kernels are compiled exactly as SwiftPM compiles the CAemiKernels target in release: -Os (read
 # from the build's response file on 2026-10-18) plus the package's strict C settings, parsed from
@@ -20,6 +21,8 @@ extra=""
 if [ "${1:-}" = "--check" ]; then
     mode=check
     extra="-g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+elif [ "${1:-}" = "--small" ]; then
+    mode=small
 fi
 
 cc() { clang -c $extra "$@"; }
@@ -29,6 +32,11 @@ for source in "$kernels"/*.c; do
 done
 git -C "$root" show '3e64286^:Sources/CAemiKernels/adf_fold.c' | sed 's/adf_fold_ascii/prev_fold_ascii/g' > "$out/prev_fold.c"
 cc -Os -std=c11 -I"$kernels/include" "$out/prev_fold.c" -o "$out/prev_fold.o"
+# The scanners as they were before the small-input work (SMALL_BASE), under other names: "before" in --small.
+SMALL_BASE=afc1be3
+git -C "$root" show "$SMALL_BASE:Sources/CAemiKernels/adf_scan.c" | sed 's/adf_index_of/prev_index_of/g; s/adf_first_/prev_first_/g' > "$out/prev_scan.c"
+cc -Os -std=c11 -I"$kernels/include" "$out/prev_scan.c" -o "$out/prev_scan.o"
+cc -O2 -std=c11 -I"$kernels/include" "$root/Benchmarks/CKernels/small_inputs.c" -o "$out/small_inputs.o"
 cc -Os -std=c11 -DVARIANT=Os "$root/Benchmarks/CKernels/scalar_ref.c" -o "$out/ref_Os.o"
 cc -O2 -std=c11 -DVARIANT=O2 "$root/Benchmarks/CKernels/scalar_ref.c" -o "$out/ref_O2.o"
 cc -O2 -fno-vectorize -fno-slp-vectorize -std=c11 -DVARIANT=O2_novec "$root/Benchmarks/CKernels/scalar_ref.c" -o "$out/ref_O2_novec.o"
@@ -38,6 +46,8 @@ clang $extra "$out"/*.o -o "$out/bench-c-kernels"
 
 if [ "$mode" = check ]; then
     "$out/bench-c-kernels" --check
+elif [ "$mode" = small ]; then
+    "$out/bench-c-kernels" --small
 else
     "$out/bench-c-kernels"
 fi

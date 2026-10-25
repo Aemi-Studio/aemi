@@ -24,26 +24,12 @@
 static int g_isa = ADF_ISA_SCALAR;
 static pthread_once_t g_once = PTHREAD_ONCE_INIT;
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) && (defined(__x86_64__) || defined(__aarch64__))
 /// 1 when the named `sysctl` integer is present and non-zero.
 static int adf_sysctl_flag(const char *name) {
     int value = 0;
     size_t size = sizeof(value);
     if (sysctlbyname(name, &value, &size, NULL, 0) != 0) {
-        return 0;
-    }
-    return value;
-}
-#endif
-
-#if defined(__x86_64__) && defined(__APPLE__)
-/// 1 when this x86-64 process is running under Rosetta 2 translation. Rosetta implements at most
-/// SSE4.2 (no AVX), and traps AVX as illegal — so we must clamp the tier regardless of what CPUID
-/// claims. `sysctl.proc_translated` is absent (ENOENT) on native processes.
-static int adf_running_translated(void) {
-    int value = 0;
-    size_t size = sizeof(value);
-    if (sysctlbyname("sysctl.proc_translated", &value, &size, NULL, 0) != 0) {
         return 0;
     }
     return value;
@@ -67,8 +53,9 @@ static void adf_resolve(void) {
         g_isa = ADF_ISA_X86_AVX512;
     }
 #if defined(__APPLE__)
-    // Clamp under Rosetta: never advertise anything above SSE4.2 to the dispatcher.
-    if (adf_running_translated() && g_isa > ADF_ISA_X86_SSE42) {
+    // Rosetta 2 implements at most SSE4.2 (no AVX) and traps AVX as illegal, so clamp the tier
+    // regardless of what CPUID claims. `sysctl.proc_translated` is absent (ENOENT) on native processes.
+    if (adf_sysctl_flag("sysctl.proc_translated") && g_isa > ADF_ISA_X86_SSE42) {
         g_isa = ADF_ISA_X86_SSE42;
     }
 #endif

@@ -46,6 +46,39 @@ size_t prev_index_of_nonascii(const uint8_t *, size_t);
 size_t prev_index_of_string_stop(const uint8_t *, size_t, uint8_t, uint8_t);
 size_t prev_first_disallowed_text(const uint8_t *, size_t, uint8_t, int);
 
+/// Nibble tables for a set of bytes, or 0 if it has more than eight distinct rows (the lower nibbles that occur with one upper nibble). The Swift facade
+/// (AemiKernels.ByteSet) does the same, and this is the harness's own copy so that the C kernel is checked without it.
+static int build_tables(const uint8_t *set, size_t count, uint8_t lo[16], uint8_t hi[16]) {
+    uint16_t rows[16] = {0};
+    for (size_t i = 0; i < count; ++i) rows[set[i] >> 4] |= (uint16_t)(1u << (set[i] & 15));
+    uint16_t patterns[8];
+    int used = 0;
+    memset(lo, 0, 16);
+    memset(hi, 0, 16);
+    for (int h = 0; h < 16; ++h) {
+        if (rows[h] == 0) continue;
+        int bit = -1;
+        for (int p = 0; p < used; ++p) if (patterns[p] == rows[h]) bit = p;
+        if (bit < 0) {
+            if (used == 8) return 0;
+            patterns[used] = rows[h];
+            bit = used++;
+        }
+        hi[h] = (uint8_t)(1u << bit);
+        for (int l = 0; l < 16; ++l) if (rows[h] & (1u << l)) lo[l] |= (uint8_t)(1u << bit);
+    }
+    return 1;
+}
+
+/// Markdown's inline special bytes: newline, backslash, backtick, * _ ~ [ ] ! < &.
+static const uint8_t md_set[] = {'\n', '\\', '`', '*', '_', '~', '[', ']', '!', '<', '&'};
+static uint8_t md_lo[16], md_hi[16];
+__attribute__((constructor)) static void init_md_tables(void) { build_tables(md_set, sizeof md_set, md_lo, md_hi); }
+static size_t now_set(const uint8_t *buf, size_t len) { return adf_index_of_set(buf, len, md_lo, md_hi); }
+static size_t prev_set(const uint8_t *buf, size_t len) { return adf_index_of_set_scalar(buf, len, md_lo, md_hi); }
+static size_t ref_set(const uint8_t *buf, size_t len) { return adf_index_of_set_scalar(buf, len, md_lo, md_hi); }
+static void plant_set(uint8_t *buf, size_t position) { buf[position] = md_set[position % sizeof md_set]; }
+
 DEFINE_ADAPTERS(any5, adf_index_of_any5(buf, len, MD_NEEDLES),
                 prev_index_of_any5(buf, len, MD_NEEDLES),
                 adf_index_of_any5_scalar(buf, len, MD_NEEDLES))
@@ -78,6 +111,7 @@ static const kernel kernels[] = {
     {"index_of_nonascii", now_nonascii, prev_nonascii, ref_nonascii, plant_nonascii},
     {"index_of_string_stop", now_string_stop, prev_string_stop, ref_string_stop, plant_quote},
     {"first_disallowed_text", now_disallowed, prev_disallowed, ref_disallowed, plant_control},
+    {"index_of_set", now_set, prev_set, ref_set, plant_set},
 };
 #define KERNEL_COUNT (sizeof kernels / sizeof kernels[0])
 
@@ -168,6 +202,24 @@ static int check_parameters(void) {
         if (adf_index_of_string_stop(block, len, n[0], n[1]) != adf_index_of_string_stop_scalar(block, len, n[0], n[1])) {
             printf("MISMATCH index_of_string_stop len %zu quote %u escape %u\n", len, n[0], n[1]);
             ++failures;
+        }
+        {
+            // a random set of up to three rows: every set the tables can hold exactly
+            uint8_t set[48], lo[16], hi[16];
+            size_t count = 0;
+            for (int row = 0; row < 3; ++row) {
+                uint8_t h = (uint8_t)(small_next_random() & 15);
+                for (int l = 0; l < 16; ++l) if (small_next_random() % 5 == 0) set[count++] = (uint8_t)(h << 4 | l);
+            }
+            if (count && build_tables(set, count, lo, hi)) {
+                size_t got = adf_index_of_set(block, len, lo, hi);
+                size_t want = len;
+                for (size_t i = 0; i < len && want == len; ++i) for (size_t k = 0; k < count; ++k) if (block[i] == set[k]) { want = i; break; }
+                if (got != want) {
+                    printf("MISMATCH index_of_set len %zu set of %zu bytes: %zu != %zu\n", len, count, got, want);
+                    ++failures;
+                }
+            }
         }
         free(block);
     }

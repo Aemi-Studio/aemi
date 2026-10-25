@@ -84,6 +84,14 @@ size_t adf_index_of_any5(
 size_t adf_index_of_any5_scalar(
     const uint8_t *buf, size_t len, uint8_t n0, uint8_t n1, uint8_t n2, uint8_t n3, uint8_t n4);
 
+// MARK: - First byte in any set (two nibble tables)
+
+/// Index of the first byte `b` in `buf[0..<len]` with `lo[b & 15] & hi[b >> 4] != 0`, or `len` if none. The two 16-byte tables encode a set of bytes (a Teddy- or
+/// simdjson-style classification): a set of up to eight distinct "rows" (the lower nibbles that occur with one upper nibble) is exact, which is how a tokenizer's
+/// special characters usually fall; the Swift facade builds the tables and refuses a set that does not fit. Picks the widest available backend.
+size_t adf_index_of_set(const uint8_t *buf, size_t len, const uint8_t lo[16], const uint8_t hi[16]);
+size_t adf_index_of_set_scalar(const uint8_t *buf, size_t len, const uint8_t lo[16], const uint8_t hi[16]);
+
 // MARK: - First non-ASCII byte (ASCII-run skip)
 
 /// Index of the first byte in `buf[0..<len]` with the high bit set (`>= 0x80`), or `len` if every

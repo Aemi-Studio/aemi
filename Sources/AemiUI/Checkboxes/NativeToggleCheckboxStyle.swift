@@ -16,13 +16,14 @@ public struct NativeToggleCheckboxStyle: ToggleStyle {
         case mixed
 
         init(from configuration: ToggleStyleConfiguration) {
-            self = if configuration.isOn {
-                .on
-            } else if configuration.isMixed {
-                .mixed
-            } else {
-                .off
-            }
+            self =
+                if configuration.isOn {
+                    .on
+                } else if configuration.isMixed {
+                    .mixed
+                } else {
+                    .off
+                }
         }
     }
 
@@ -37,8 +38,6 @@ public struct NativeToggleCheckboxStyle: ToggleStyle {
 
     var placement: Placement = .leading
     var spacing: CGFloat?
-
-    private var computedSpacing: CGFloat { spacing != nil ? spacing! : placement == .leading ? 8 : 0 }
 
     private func makePlacement(configuration: Configuration) -> some View {
         HStack(spacing: spacing) {
@@ -75,27 +74,28 @@ public struct NativeToggleCheckboxStyle: ToggleStyle {
 
     private func symbol(for value: ToggleValue) -> CheckboxSymbol? {
         switch value {
-        case .on: .checkmark
-        case .off: nil
-        case .mixed: .minus
+            case .on: .checkmark
+            case .off: nil
+            case .mixed: .minus
         }
     }
 
     private func backgroundStyle(for value: ToggleValue) -> any ShapeStyle {
         switch value {
-        case .on: tint ?? Color.green
-        case .off: Color.gray.secondary
-        case .mixed: Color.gray
+            case .on: tint ?? Color.green
+            case .off: Color.gray.secondary
+            case .mixed: Color.gray
         }
     }
 }
 
-public extension ToggleStyle where Self == NativeToggleCheckboxStyle {
-    static var nativeCheckbox: some ToggleStyle {
+extension ToggleStyle where Self == NativeToggleCheckboxStyle {
+    public static var nativeCheckbox: some ToggleStyle {
         NativeToggleCheckboxStyle()
     }
 
-    static func nativeCheckbox(placement: Self.Placement = .leading, spacing: CGFloat? = nil) -> some ToggleStyle {
+    public static func nativeCheckbox(placement: Self.Placement = .leading, spacing: CGFloat? = nil) -> some ToggleStyle
+    {
         NativeToggleCheckboxStyle(
             placement: placement,
             spacing: spacing

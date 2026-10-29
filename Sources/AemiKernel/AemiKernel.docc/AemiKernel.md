@@ -78,3 +78,4 @@ wrapped lines, and ``Base64/Options/lenient`` keeps the historical behavior.
 ### Hashing
 
 - ``XXH64``
+- ``WyHash``

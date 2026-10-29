@@ -1,8 +1,10 @@
 import AemiFileSystem
+import AemiInterner
 import AemiKernel
 import AemiKernels
 import AemiText
 import Benchmark
+import Dispatch
 import Foundation
 
 // AemiFoundation's benchmark suite on ordo-one's `Benchmark` framework, matching the sibling packages.
@@ -137,6 +139,134 @@ private func foundationWalk(_ root: String) -> Int {
         }
     }
     return files
+}
+
+/// Key streams for the interner benchmarks (ADR 0019): maintastic's USR and token dumps when `AEMI_INTERNER_CORPUS` names
+/// the directory holding `usrs.txt` and `tokens.txt` (one key per line, an empty line between files), else seeded
+/// look-alikes of the same shape: 660,000 USR-like keys of about 120 bytes over 120,000 distinct, and 1.1 million token-like
+/// keys over 30,000 distinct, a few of them hot. Each stream is split into runs of about 220 keys, as files are.
+private struct KeyStream {
+    /// Every key's bytes back to back, as a reader's buffer holds them.
+    let storage: [UInt8]
+    let starts: [Int]
+    let lengths: [Int]
+    let runs: [Range<Int>]
+
+    var count: Int { starts.count }
+
+    init(keys: [[UInt8]], runs: [Range<Int>]) {
+        var storage: [UInt8] = []
+        var starts: [Int] = []
+        var lengths: [Int] = []
+        for key in keys {
+            starts.append(storage.count)
+            lengths.append(key.count)
+            storage += key
+        }
+        self.storage = storage
+        self.starts = starts
+        self.lengths = lengths
+        self.runs = runs
+    }
+
+    /// Calls `body` with each key of `range`, in order, as a slice of one buffer.
+    func forEach(in range: Range<Int>, _ body: (UnsafeRawBufferPointer) -> Void) {
+        storage.withUnsafeBytes { buffer in
+            for index in range {
+                body(UnsafeRawBufferPointer(rebasing: buffer[starts[index] ..< (starts[index] + lengths[index])]))
+            }
+        }
+    }
+
+    static func load(_ name: String, synthetic: () -> [[UInt8]]) -> KeyStream {
+        var keys: [[UInt8]] = []
+        var runs: [Range<Int>] = []
+        if let directory = ProcessInfo.processInfo.environment["AEMI_INTERNER_CORPUS"],
+            let data = FileManager.default.contents(atPath: directory + "/" + name)
+        {
+            var start = 0
+            for line in data.split(separator: 0x0A, omittingEmptySubsequences: false) {
+                if line.isEmpty {
+                    if keys.count > start { runs.append(start ..< keys.count) }
+                    start = keys.count
+                } else {
+                    keys.append(Array(line))
+                    if keys.count - start == 220 && name == "usrs.txt" {
+                        runs.append(start ..< keys.count)
+                        start = keys.count
+                    }
+                }
+            }
+            if keys.count > start { runs.append(start ..< keys.count) }
+        } else {
+            keys = synthetic()
+            runs = stride(from: 0, to: keys.count, by: 220).map { $0 ..< Swift.min($0 + 220, keys.count) }
+        }
+        return KeyStream(keys: keys, runs: runs)
+    }
+}
+
+private func syntheticKeys(count: Int, distinct: Int, length: Int, hot: Int) -> [[UInt8]] {
+    var state: UInt64 = 0x0019
+    func next() -> Int {
+        state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+        return Int(truncatingIfNeeded: state >> 33)
+    }
+    let vocabulary: [[UInt8]] = (0 ..< distinct)
+        .map { index in
+            let width = Swift.max(1, length / 2 + next() % Swift.max(1, length))
+            var key = Array("k\(index)-".utf8)
+            while key.count < width { key.append(UInt8(97 + next() % 26)) }
+            return key
+        }
+    return (0 ..< count)
+        .map { _ in hot > 0 && next() % 3 == 0 ? vocabulary[next() % hot] : vocabulary[next() % distinct] }
+}
+
+private let usrStream = KeyStream.load("usrs.txt") {
+    syntheticKeys(count: 660_000, distinct: 120_000, length: 120, hot: 0)
+}
+private let tokenStream = KeyStream.load("tokens.txt") {
+    syntheticKeys(count: 1_100_000, distinct: 30_000, length: 6, hot: 40)
+}
+
+/// Today's interning in the analyzers: a `String` per key into `[String: UInt32]`.
+private func dictionaryIntern(_ stream: KeyStream) -> Int {
+    var table: [String: UInt32] = [:]
+    var sum: UInt32 = 0
+    stream.forEach(in: 0 ..< stream.count) { key in
+        let text = String(decoding: key, as: UTF8.self)
+        if let symbol = table[text] {
+            sum &+= symbol
+        } else {
+            table[text] = UInt32(table.count)
+        }
+    }
+    return Int(sum) &+ table.count
+}
+
+private func arenaIntern(_ stream: KeyStream) -> Int {
+    let interner = Interner()
+    var sum: UInt32 = 0
+    stream.forEach(in: 0 ..< stream.count) { sum &+= interner.intern($0).rawValue }
+    return Int(sum) &+ interner.count
+}
+
+private func mergedIntern(_ stream: KeyStream, workers: Int) -> Int {
+    let locals: [Interner] = (0 ..< workers).map { _ in Interner() }
+    let parts: [Range<Int>] = (0 ..< workers)
+        .map { part in
+            let lower = stream.runs[stream.runs.count * part / workers].lowerBound
+            let upper =
+                part == workers - 1 ? stream.count : stream.runs[stream.runs.count * (part + 1) / workers].lowerBound
+            return lower ..< upper
+        }
+    DispatchQueue.concurrentPerform(iterations: workers) { part in
+        let local = locals[part]
+        stream.forEach(in: parts[part]) { _ = local.intern($0) }
+    }
+    let merged = Interner.merge(locals, workers: workers)
+    return merged.interner.count
 }
 
 nonisolated(unsafe) let benchmarks = {
@@ -439,6 +569,20 @@ nonisolated(unsafe) let benchmarks = {
             for _ in bm.scaledIterations {
                 blackHole(try? DirectoryWalk.walk(root, policy: .init(workers: workers)).entries.count)
             }
+        }
+    }
+
+    // MARK: interner — a String per key into [String: UInt32] against AemiInterner, one thread and merged over workers
+    // (ADR 0019). The enforced gates are the interner's tests (no allocation per repeated key, deterministic symbols).
+    for (name, stream) in [("usr", usrStream), ("token", tokenStream)] {
+        Benchmark("interner/\(name) [String: UInt32]") { bm in
+            for _ in bm.scaledIterations { blackHole(dictionaryIntern(stream)) }
+        }
+        Benchmark("interner/\(name) AemiInterner") { bm in
+            for _ in bm.scaledIterations { blackHole(arenaIntern(stream)) }
+        }
+        Benchmark("interner/\(name) AemiInterner merged, 4 workers") { bm in
+            for _ in bm.scaledIterations { blackHole(mergedIntern(stream, workers: 4)) }
         }
     }
 }

@@ -55,3 +55,9 @@ threads happen to reach them.
   (analyzerkit roadmap 0023, 0024, 0027); the gain to expect is the table's, 2.6 to 6 times, not a whole run's.
 - A symbol's text is bytes; a consumer that needs a `String` per lookup loses part of the gain, so the consumers compare
   and hash symbols and resolve text only to print it.
+- The merge pays when the parts' vocabularies overlap little, as files' do: on maintastic's streams four workers take
+  8.1 and 7.3 ms against 20 and 19 ms on one thread. When every part meets most of the keys (a seeded stream with no
+  locality) each part interns nearly the whole vocabulary and the merge redoes that work: no faster than one thread.
+- Interning is a call into another module: in the package benchmark it costs 15 to 20% over the same code compiled into
+  the caller's module (which equals the probe). `intern` is not `@inlinable`, which would expose the table; the consumer
+  migrations measure whether it matters in a real run.

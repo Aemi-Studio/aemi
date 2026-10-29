@@ -1,7 +1,9 @@
+import AemiFileSystem
 import AemiKernel
 import AemiKernels
 import AemiText
 import Benchmark
+import Foundation
 
 // AemiFoundation's benchmark suite on ordo-one's `Benchmark` framework, matching the sibling packages.
 // Run with `AEMI_DEV=1 swift package benchmark` (add `BENCHMARK_DISABLE_JEMALLOC=1` if jemalloc isn't
@@ -103,6 +105,38 @@ private func naiveXMLEscape(_ s: String) -> String {
         }
     }
     return out
+}
+
+/// A source-like tree under the temporary directory: `width` packages of `depth` nested directories, three files each,
+/// for the directory-walk benchmarks (ADR 0017). Built once per process.
+private let walkTree: String = {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("aemi-walk-bench").path
+    try? FileManager.default.removeItem(atPath: root)
+    for package in 0 ..< 40 {
+        var directory = root + "/Package\(package)/Sources"
+        for level in 0 ..< 8 {
+            directory += "/Level\(level)"
+            try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            for file in ["A.swift", "B.swift", "README.md"] {
+                FileManager.default.createFile(atPath: directory + "/" + file, contents: Data())
+            }
+        }
+    }
+    return root
+}()
+
+/// Today's walk in analyzerkit's `SourceDiscovery`: a listing and an attributes dictionary per entry.
+private func foundationWalk(_ root: String) -> Int {
+    var files = 0
+    var stack = [root]
+    while let directory = stack.popLast() {
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? [] where !name.hasPrefix(".") {
+            let path = directory + "/" + name
+            let type = (try? FileManager.default.attributesOfItem(atPath: path))?[.type] as? FileAttributeType
+            if type == .typeDirectory { stack.append(path) } else { files += 1 }
+        }
+    }
+    return files
 }
 
 nonisolated(unsafe) let benchmarks = {
@@ -389,6 +423,21 @@ nonisolated(unsafe) let benchmarks = {
             base64Scratch.withUnsafeMutableBufferPointer { buffer in
                 var span = MutableSpan(_unsafeElements: buffer)
                 blackHole(try? Base64.encode(base64Payload, into: &span, options: .strict))
+            }
+        }
+    }
+
+    // MARK: directory walk — a stat per entry (today's SourceDiscovery) against AemiFileSystem's readdir walker, 1 and 4
+    // workers. The enforced threshold is an operation count (no stat per regular file, AemiFileSystemTests); these are
+    // for comparing variants side by side, as wall time alone never gates.
+    let root = walkTree
+    Benchmark("directoryWalk/FileManager+attributes") { bm in
+        for _ in bm.scaledIterations { blackHole(foundationWalk(root)) }
+    }
+    for workers in [1, 4] {
+        Benchmark("directoryWalk/readdir \(workers) worker(s)") { bm in
+            for _ in bm.scaledIterations {
+                blackHole(try? DirectoryWalk.walk(root, policy: .init(workers: workers)).entries.count)
             }
         }
     }

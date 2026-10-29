@@ -368,7 +368,7 @@ if isDev {
         .executableTarget(
             name: "AemiFoundationSuite",
             dependencies: [
-                "AemiKernel", "AemiText", "AemiKernels",
+                "AemiKernel", "AemiText", "AemiKernels", "AemiFileSystem",
                 .product(name: "Benchmark", package: "benchmark")
             ],
             path: "Benchmarks/AemiFoundationSuite",

@@ -1,7 +1,7 @@
 import AemiUnicode
 import Testing
 
-/// `UnicodeData` and simple case folding, promoted from AemiRegex with their generated tables (aemi ADR 0017). The tables are checked
+/// `UnicodeData` and simple case folding, promoted from AemiRegex with their generated tables (aemi ADR 0018). The tables are checked
 /// against the standard library (independent data) and by their own invariants; AemiRegex's golden tests check what an engine does with
 /// them against Go.
 struct UnicodeDataTests {

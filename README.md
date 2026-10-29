@@ -75,7 +75,7 @@ umbrella when an Apple application needs that whole group.
 | `AemiKernels` | Swift access to the C byte-scanning and SIMD kernels. |
 | `AemiUnicode` | Unicode primitives. |
 | `AemiText` | Text algorithms built on the Unicode and byte primitives. |
-| `AemiIO` | POSIX file and storage operations. |
+| `AemiIO` | POSIX file and storage operations, and file watching (FSEvents, kqueue). |
 | `AemiMetrics` | Process metrics. |
 | `AemiRuntime` | Task/clock interfaces, resource pools, and blocking-work offloading. |
 | `AemiFoundation` | Runtime umbrella for the kernel, text, IO, metrics, and concurrency products. |

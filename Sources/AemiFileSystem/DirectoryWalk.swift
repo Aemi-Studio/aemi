@@ -108,7 +108,7 @@ public enum DirectoryWalk {
     /// Walks `root` under `policy`.
     /// - Throws: an ``IOError`` when the root itself cannot be opened.
     public static func walk(_ root: String, policy: Policy = Policy()) throws(IOError) -> Result {
-        Result(root: root, entries: [], failures: [], limited: false, cancelled: false, statistics: Statistics())
+        try walk(root, policy: policy, afterListing: nil)
     }
 
     /// The test seam for a tree changing under the walk: called after a directory is listed and before any of its
@@ -116,12 +116,50 @@ public enum DirectoryWalk {
     static func walk(_ root: String, policy: Policy, afterListing: (@Sendable (String) -> Void)?) throws(IOError)
         -> Result
     {
-        try walk(root, policy: policy)
+        try WalkEngine(root: root, policy: policy, afterListing: afterListing, onBatch: nil).run()
     }
 
     /// The same walk as batches of entries, each sorted, delivered while the walk runs; the stream finishes after the
     /// last batch, or with the root's ``IOError``.
     public static func batches(_ root: String, policy: Policy = Policy()) -> AsyncThrowingStream<[Entry], any Error> {
-        AsyncThrowingStream { $0.finish() }
+        AsyncThrowingStream { continuation in
+            // A consumer that stops listening cancels the walk.
+            let stopped = Flag()
+            continuation.onTermination = { _ in stopped.set() }
+            var streamed = policy
+            let asked = policy.isCancelled
+            streamed.isCancelled = { stopped.isSet || asked?() == true }
+            let engine: WalkEngine
+            do {
+                engine = try WalkEngine(
+                    root: root, policy: streamed, afterListing: nil, onBatch: { continuation.yield($0) })
+            } catch {
+                continuation.finish(throwing: error)
+                return
+            }
+            let run: @Sendable () -> Void = {
+                _ = engine.run()
+                continuation.finish()
+            }
+            if !WorkerThread.spawn(run) { run() }
+        }
+    }
+
+    /// A flag set once, from any thread.
+    private final class Flag: @unchecked Sendable {
+        private let monitor = Monitor()
+        private var value = false
+
+        var isSet: Bool {
+            monitor.lock()
+            defer { monitor.unlock() }
+            return value
+        }
+
+        func set() {
+            monitor.lock()
+            value = true
+            monitor.unlock()
+        }
     }
 }

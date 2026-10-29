@@ -60,9 +60,26 @@ jobs:
           path: .build
           key: spm-${{ runner.os }}-${{ matrix.swift }}-${{ matrix.configuration }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
 
+  unicode-tables:
+    # The categories, scripts and folding orbits are generated from Go's unicode package (aemi ADR 0017; moved from AemiRegex): the
+    # table in the repository must be what the generator writes. The binary-property table comes from node's RegExp and is not
+    # regenerated here: a newer node carries a newer Unicode, and that table moves with the Go one, by hand, when Go moves.
+    name: Unicode tables are regenerable
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+      - name: Regenerate and compare
+        run: |
+          go run scripts/unicode/gen.go > /tmp/UnicodeDataTables.swift
+          diff -u Sources/AemiUnicode/Generated/UnicodeDataTables.swift /tmp/UnicodeDataTables.swift
+
   result:
     name: ci result
-    needs: test
+    needs: [test, unicode-tables]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2

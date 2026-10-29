@@ -171,4 +171,24 @@ size_t adf_index_of_byte_scalar(const uint8_t *buf, size_t len, uint8_t needle);
 }
 #endif
 
+
+// MARK: - First position of any of a set of byte pairs (Teddy)
+
+/// The size in bytes of a pair-set table: the low-nibble and high-nibble tables (16 bytes each) of the first byte, then of the second
+/// byte of a pair. Entry `n` of a table is a bitmask of the buckets (0 to 7) that hold a pair whose byte has nibble `n`.
+#define ADF_PAIR_SET_TABLE_BYTES 64
+
+/// The first position `i >= from` with `i + 1 < len` where `hay[i], hay[i + 1]` are accepted by a common bucket of `table`, or
+/// `SIZE_MAX` when there is none. A candidate, not a certain pair: pairs that share a bucket accept each other's nibbles. A real pair is
+/// never skipped. NEON on arm64, SSSE3 on x86-64 when present, else the scalar reference. Reads `hay[0 ..< len]` only.
+size_t adf_pair_set_find(const uint8_t *table, const uint8_t *hay, size_t len, size_t from);
+/// The scalar reference of `adf_pair_set_find`.
+size_t adf_pair_set_find_scalar(const uint8_t *table, const uint8_t *hay, size_t len, size_t from);
+/// Writes every candidate (as in `adf_pair_set_find`) from `from` on into `out`, ascending, at most `cap`, and returns how many. `*resume`
+/// is where to continue: every candidate before it is written, none at or after it. The scan is complete when `*resume >= len`. It
+/// always makes progress (`*resume > from`, or `*resume >= len`) when `cap >= 1`; a `cap` under 16 takes the scalar path. Writes only
+/// `out[0 ..< cap]`; reads only `hay[0 ..< len]`.
+size_t adf_pair_set_candidates(
+    const uint8_t *table, const uint8_t *hay, size_t len, size_t from, size_t *out, size_t cap, size_t *resume);
+
 #endif /* CADFKERNELS_H */

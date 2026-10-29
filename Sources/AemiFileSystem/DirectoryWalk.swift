@@ -47,6 +47,9 @@ public enum DirectoryWalk {
         public var reportsDirectories: Bool
         /// Stop after this many entries; the result says it was limited.
         public var limit: Int?
+        /// How many levels are listed: 1 lists the root's entries and enters none of its directories. Directories at the
+        /// last level are still reported when ``reportsDirectories`` asks for them. Nil walks the whole tree.
+        public var maxDepth: Int?
         /// Worker threads; four was the measured knee (diary 2026-10-29-02).
         public var workers: Int
         /// Polled between directories; true stops the walk, and the result says it was cancelled.
@@ -55,7 +58,7 @@ public enum DirectoryWalk {
         public init(
             skippedNames: Set<String> = [], includesHidden: Bool = false, links: Links = .never,
             accepts: (@Sendable (Candidate) -> Bool)? = nil, reportsDirectories: Bool = false, limit: Int? = nil,
-            workers: Int = 4, isCancelled: (@Sendable () -> Bool)? = nil
+            maxDepth: Int? = nil, workers: Int = 4, isCancelled: (@Sendable () -> Bool)? = nil
         ) {
             self.skippedNames = skippedNames
             self.includesHidden = includesHidden
@@ -63,6 +66,7 @@ public enum DirectoryWalk {
             self.accepts = accepts
             self.reportsDirectories = reportsDirectories
             self.limit = limit
+            self.maxDepth = maxDepth
             self.workers = workers
             self.isCancelled = isCancelled
         }

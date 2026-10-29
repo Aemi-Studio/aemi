@@ -168,6 +168,7 @@ let package = Package(
         .library(name: "AemiText", targets: ["AemiText"]),
         .library(name: "AemiIO", targets: ["AemiIO"]),
         .library(name: "AemiFileSystem", targets: ["AemiFileSystem"]),
+        .library(name: "AemiInterner", targets: ["AemiInterner"]),
         .library(name: "AemiMetrics", targets: ["AemiMetrics"]),
         // Concurrency seams + pools (formerly ADConcurrency).
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
@@ -234,6 +235,10 @@ let package = Package(
         // AemiFileSystem — a parallel directory walker on readdir and d_type (ADR 0017).
         .target(
             name: "AemiFileSystem", dependencies: ["AemiIO"], swiftSettings: kernelSettings,
+            plugins: libraryBuildPlugins),
+        // AemiInterner — UTF-8 keys as dense symbols: a chunked arena, wyhash, a deterministic sharded merge (ADR 0019).
+        .target(
+            name: "AemiInterner", dependencies: ["AemiKernel"], swiftSettings: kernelSettings,
             plugins: libraryBuildPlugins),
         .target(name: "AemiMetrics", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         // AemiRuntime — zero-dep production seams (TaskProvider/Clock) + ResourcePool /
@@ -309,6 +314,8 @@ let package = Package(
         .testTarget(name: "AemiIOTests", dependencies: ["AemiIO"], swiftSettings: testSettings),
         .testTarget(
             name: "AemiFileSystemTests", dependencies: ["AemiFileSystem", "AemiIO"], swiftSettings: testSettings),
+        .testTarget(
+            name: "AemiInternerTests", dependencies: ["AemiInterner", "AemiTestKit"], swiftSettings: testSettings),
         .testTarget(
             name: "AemiMetricsTests", dependencies: ["AemiMetrics"], swiftSettings: testSettings),
         .testTarget(

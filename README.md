@@ -71,14 +71,14 @@ umbrella when an Apple application needs that whole group.
 
 | Product | Provides |
 | --- | --- |
-| `AemiKernel` | Byte, integer, floating-point, and tape primitives. |
-| `AemiKernels` | Swift access to the C byte-scanning and SIMD kernels. |
-| `AemiUnicode` | Unicode primitives. |
+| `AemiKernel` | Byte, integer, floating-point, and tape primitives; strict UTF-8 reading, checked byte views, byte bitmaps, sparse sets. |
+| `AemiKernels` | Swift access to the C byte-scanning and SIMD kernels: single bytes, sets, pairs and pair sets (Teddy). |
+| `AemiUnicode` | Unicode primitives: categories, scripts, binary properties and case folding (Unicode 17), scalar sets. |
 | `AemiText` | Text algorithms built on the Unicode and byte primitives. |
 | `AemiIO` | POSIX file and storage operations, and file watching (FSEvents, kqueue). |
 | `AemiFileSystem` | A parallel directory walker on `readdir` and `d_type`: no stat per regular file, directories opened by root-relative path with no link followed, policies for names, links, pruning and limits, a sorted result or batches while it runs. |
 | `AemiMetrics` | Process metrics. |
-| `AemiRuntime` | Task/clock interfaces, resource pools, and blocking-work offloading. |
+| `AemiRuntime` | Task/clock interfaces, resource and scratch pools, and blocking-work offloading. |
 | `AemiFoundation` | Runtime umbrella for the kernel, text, IO, metrics, and concurrency products. |
 | `AemiMacroSupport` | SwiftSyntax helpers for compiler plugins. Select this only in macro targets. |
 

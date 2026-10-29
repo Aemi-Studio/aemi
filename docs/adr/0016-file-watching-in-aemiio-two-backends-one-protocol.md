@@ -46,6 +46,8 @@ and reported it twice.
   made again, one level only, suppression, unwatch, the thread closing its queue on stop and on release), `DirectoryWatch` and
   `FileIdentity`. Writing them found two bugs before release: a wake trigger that replaced the event's tag, so a wake read as a change,
   and a directory made between choosing an anchor and registering it going unseen.
-- Not tested: `KqueueWatcher`'s overflow rescan (kqueue coalesces a directory's events, so a burst does not fill the buffer the way it
-  does FSEvents'), and the Swift 6.3 floor (only 6.4.0 is installed here; CI runs 6.3.3).
+- Verified after the first commit: `KqueueWatcher`'s overflow rescan, through the loop's `publish` (a test that fails with the rescan
+  disabled; a thread cannot be made to outrun a reader on demand); and the Swift 6.3 floor: AemiIO and its tests build with 6.3.3 and the
+  59 tests pass serially, against the Command Line Tools' macOS 26.5 SDK (6.3.3 cannot read this machine's macOS 27 SDK, and the full
+  suite needs XCTest, which those tools lack). Still not built: Linux, where nothing of the watching compiles yet.
 - Atelier's `AtelierFileTree` and ask's `AskTools` drop their copies and use these.

@@ -196,6 +196,30 @@ import Testing
             #expect(closed)
         }
 
+        @Test func `a consumer that falls behind the buffer is told to look at everything it watches`() async throws {
+            let tree = try TempTree()
+            let paths = (0 ..< 3).map { tree.root + "/file-\($0)" }
+            for path in paths { try Data().write(to: URL(fileURLWithPath: path)) }
+            let queue = try #require(KernelQueue())
+            let (events, continuation) = AsyncStream.makeStream(
+                of: FileWatchEvent.self, bufferingPolicy: .bufferingNewest(2))
+            let loop = KqueueEventLoop(
+                queue: queue, continuation: continuation, suppression: SuppressionWindow(window: .seconds(1)),
+                stopped: nil)
+            loop.update { state, queue in for path in paths { state.watchFile(path, queue: queue) } }
+
+            // Five changes into a buffer of two, with no one reading: the first three are dropped.
+            loop.publish(paths.map(FileWatchEvent.fileChanged) + [.fileChanged(paths[0]), .fileChanged(paths[1])])
+            continuation.finish()
+
+            var seen: [FileWatchEvent] = []
+            for await event in events { seen.append(event) }
+            // The rescan names every watched file, and the buffer keeps the newest: the last two of it.
+            #expect(seen == [.fileChanged(paths[1]), .fileChanged(paths[2])])
+            loop.update { state, _ in state.closeAll() }
+            queue.close()
+        }
+
         @Test func `the event stream finishes after stop`() async throws {
             let watcher = try KqueueWatcher()
             watcher.stop()

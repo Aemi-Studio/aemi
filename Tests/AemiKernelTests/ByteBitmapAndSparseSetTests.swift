@@ -1,7 +1,7 @@
 import AemiKernel
 import Testing
 
-/// `ByteBitmap` and `SparseSet`, promoted from AemiRegex (aemi ADR 0017).
+/// `ByteBitmap` and `SparseSet`, promoted from AemiRegex (aemi ADR 0018).
 struct ByteBitmapAndSparseSetTests {
     @Test func `a byte bitmap holds exactly the ranges inserted, across every word`() {
         var set = ByteBitmap()

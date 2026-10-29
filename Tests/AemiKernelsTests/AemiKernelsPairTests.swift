@@ -1,7 +1,7 @@
 import AemiKernels
 import Testing
 
-/// `AemiKernels.firstIndex(ofPair:_:in:from:)`, promoted from AemiRegex (aemi ADR 0017), against a naive scan, at every length around
+/// `AemiKernels.firstIndex(ofPair:_:in:from:)`, promoted from AemiRegex (aemi ADR 0018), against a naive scan, at every length around
 /// the vector width and from every start offset.
 struct AemiKernelsPairTests {
     private static let sizes = [0, 1, 2, 15, 16, 17, 18, 31, 32, 33, 63, 64, 65, 100, 257]

@@ -2,7 +2,7 @@ import AemiRuntime
 import Synchronization
 import Testing
 
-/// `ScratchPool`, promoted from AemiRegex (aemi ADR 0017): values are reused, made only when none is free, and each is used by one
+/// `ScratchPool`, promoted from AemiRegex (aemi ADR 0018): values are reused, made only when none is free, and each is used by one
 /// caller at a time.
 struct ScratchPoolTests {
     @Test func `a value is reused, with what the last user left in it`() {

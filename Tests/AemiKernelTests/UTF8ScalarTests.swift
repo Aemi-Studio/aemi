@@ -2,7 +2,7 @@ import AemiKernel
 import AemiTestKit
 import Testing
 
-/// `UTF8Scalar`, promoted from AemiRegex (aemi ADR 0017): a sequence is a scalar only when it is well formed. The reference is the
+/// `UTF8Scalar`, promoted from AemiRegex (aemi ADR 0018): a sequence is a scalar only when it is well formed. The reference is the
 /// standard library's own strict decoder.
 struct UTF8ScalarTests {
     /// The standard library's reading of the scalar at the start of `bytes`: its value and width, or nil when the bytes there are not

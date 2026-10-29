@@ -61,7 +61,7 @@ jobs:
           key: spm-${{ runner.os }}-${{ matrix.swift }}-${{ matrix.configuration }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
 
   unicode-tables:
-    # The categories, scripts and folding orbits are generated from Go's unicode package (aemi ADR 0017; moved from AemiRegex): the
+    # The categories, scripts and folding orbits are generated from Go's unicode package (aemi ADR 0018; moved from AemiRegex): the
     # table in the repository must be what the generator writes. The binary-property table comes from node's RegExp and is not
     # regenerated here: a newer node carries a newer Unicode, and that table moves with the Go one, by hand, when Go moves.
     name: Unicode tables are regenerable
@@ -77,9 +77,25 @@ jobs:
           go run scripts/unicode/gen.go > /tmp/UnicodeDataTables.swift
           diff -u Sources/AemiUnicode/Generated/UnicodeDataTables.swift /tmp/UnicodeDataTables.swift
 
+  c-kernels:
+    # The C kernels against their scalar references with AddressSanitizer and UndefinedBehaviorSanitizer: every fold and scan variant,
+    # and the pair-set (Teddy) kernel on arm64 and, under Rosetta, its x86-64 SSSE3 path. The Swift tests run only the host's own
+    # backend. AVX2 and AVX-512 run nowhere yet: Rosetta reports SSE4.2 at most (docs/research/c-kernels-and-rust-2026-10.md).
+    name: C kernels, differential under sanitizers
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rosetta, for the x86-64 path
+        run: sudo softwareupdate --install-rosetta --agree-to-license || true
+      - name: Fold and scan kernels
+        run: scripts/bench-c-kernels.sh --check
+      - name: Pair-set kernel
+        run: scripts/pair-set-check.sh
+
   result:
     name: ci result
-    needs: [test, unicode-tables]
+    needs: [test, unicode-tables, c-kernels]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2

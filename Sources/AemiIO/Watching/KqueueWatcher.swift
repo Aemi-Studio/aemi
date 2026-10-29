@@ -151,8 +151,8 @@
         }
 
         /// Yields `changes`; when the buffer dropped any, everything watched once more, at the end, where the buffer
-        /// keeps it.
-        private func publish(_ changes: [FileWatchEvent]) {
+        /// keeps it. Internal for the overflow test, which cannot make the thread outrun a reader on demand.
+        func publish(_ changes: [FileWatchEvent]) {
             var overflowed = false
             for change in changes {
                 if case .dropped = continuation.yield(change) { overflowed = true }

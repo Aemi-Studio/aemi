@@ -111,6 +111,7 @@ final class WalkEngine: @unchecked Sendable {
         var listing = Listing()
         guard let handle = unsafe openDirectory(directory, failure: &listing.failure) else { return listing }
         listing.opened = true
+        let depth = directory.isEmpty ? 0 : directory.utf8.reduce(1) { $1 == UInt8(ascii: "/") ? $0 + 1 : $0 }
         defer { unsafe closedir(handle) }
         while let record = unsafe readdir(handle) {
             let name = unsafe Self.name(of: record)
@@ -138,7 +139,8 @@ final class WalkEngine: @unchecked Sendable {
             let candidate = DirectoryWalk.Candidate(relativePath: path, name: name, kind: kind)
             if let accepts = policy.accepts, !accepts(candidate) { continue }
             if kind == .directory {
-                listing.subdirectories.append(path)
+                // A directory at the last level asked for is reported, not entered.
+                if Self.enters(depth: depth + 1, within: policy.maxDepth) { listing.subdirectories.append(path) }
                 if policy.reportsDirectories { listing.reported.append(.init(relativePath: path, kind: .directory)) }
             } else {
                 listing.reported.append(.init(relativePath: path, kind: kind))
@@ -207,6 +209,9 @@ final class WalkEngine: @unchecked Sendable {
             return current
         }
     #endif
+
+    /// Whether a directory `depth` levels below the root (its entries one level deeper) is listed under `maxDepth`.
+    private static func enters(depth: Int, within maxDepth: Int?) -> Bool { maxDepth.map { depth < $0 } ?? true }
 
     private static func name(of record: UnsafeMutablePointer<dirent>) -> String {
         unsafe withUnsafePointer(to: &record.pointee.d_name) { tuple in

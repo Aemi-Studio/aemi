@@ -124,6 +124,20 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
         return (root, outside)
     }
 
+    /// One level, as a project-layout lookup lists each ancestor: no subdirectory is opened, however many there are.
+    @Test func `a depth bound lists the levels asked for and opens no directory below them`() throws {
+        let root = try Self.tree(files: ["Top.swift": "", "A/B.swift": "", "A/Deep/C.swift": "", "D/E.swift": ""])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let one = try DirectoryWalk.walk(root.path, policy: .init(reportsDirectories: true, maxDepth: 1))
+        let expectedOne: [DirectoryWalk.Entry] = [directory("A"), directory("D"), file("Top.swift")]
+        #expect(one.entries == expectedOne)
+        #expect(one.statistics.directoriesOpened == 1)
+        let two = try DirectoryWalk.walk(root.path, policy: .init(maxDepth: 2))
+        let expectedTwo: [DirectoryWalk.Entry] = [file("A/B.swift"), file("D/E.swift"), file("Top.swift")]
+        #expect(two.entries == expectedTwo)
+        #expect(two.statistics.directoriesOpened == 3)
+    }
+
     @Test func `links are reported and not followed by default`() throws {
         let (root, outside) = try Self.linkedTree()
         defer {

@@ -77,6 +77,7 @@ umbrella when an Apple application needs that whole group.
 | `AemiText` | Text algorithms built on the Unicode and byte primitives. |
 | `AemiIO` | POSIX file and storage operations, and file watching (FSEvents, kqueue). |
 | `AemiFileSystem` | A parallel directory walker on `readdir` and `d_type`: no stat per regular file, directories opened by root-relative path with no link followed, policies for names, links, pruning and limits, a sorted result or batches while it runs. |
+| `AemiInterner` | UTF-8 keys as dense `UInt32` symbols without making a `String`: a chunked arena, an open-addressing table hashed with wyhash, a frozen form for readers on any thread, a parallel merge whose symbols equal sequential interning, and a compact serialised form. |
 | `AemiMetrics` | Process metrics. |
 | `AemiRuntime` | Task/clock interfaces, resource and scratch pools, and blocking-work offloading. |
 | `AemiFoundation` | Runtime umbrella for the kernel, text, IO, metrics, and concurrency products. |

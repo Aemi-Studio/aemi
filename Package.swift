@@ -315,7 +315,8 @@ let package = Package(
         .testTarget(
             name: "AemiFileSystemTests", dependencies: ["AemiFileSystem", "AemiIO"], swiftSettings: testSettings),
         .testTarget(
-            name: "AemiInternerTests", dependencies: ["AemiInterner", "AemiTestKit"], swiftSettings: testSettings),
+            name: "AemiInternerTests", dependencies: ["AemiInterner", "AemiKernel", "AemiTestKit"],
+            swiftSettings: testSettings),
         .testTarget(
             name: "AemiMetricsTests", dependencies: ["AemiMetrics"], swiftSettings: testSettings),
         .testTarget(
@@ -375,7 +376,7 @@ if isDev {
         .executableTarget(
             name: "AemiFoundationSuite",
             dependencies: [
-                "AemiKernel", "AemiText", "AemiKernels", "AemiFileSystem",
+                "AemiKernel", "AemiText", "AemiKernels", "AemiFileSystem", "AemiInterner",
                 .product(name: "Benchmark", package: "benchmark")
             ],
             path: "Benchmarks/AemiFoundationSuite",

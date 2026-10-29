@@ -1,7 +1,7 @@
 import AemiUnicode
 import Testing
 
-/// `UnicodeScalarSet`, promoted from AemiRegex (aemi ADR 0017): sorted, merged ranges, and the set algebra a class needs. Each operation
+/// `UnicodeScalarSet`, promoted from AemiRegex (aemi ADR 0018): sorted, merged ranges, and the set algebra a class needs. Each operation
 /// is checked against plain `Set<UInt32>` arithmetic over a small universe.
 struct UnicodeScalarSetTests {
     private static let universe: ClosedRange<UInt32> = 0 ... 40

@@ -1,5 +1,5 @@
 // Generates Sources/AemiUnicode/Generated/UnicodeDataTables.swift from Go's unicode package: general categories, scripts, the category
-// aliases Go's regexp accepts, and simple case-folding orbits, for AemiUnicode's `UnicodeData` (aemi ADR 0017; moved from AemiRegex). One source, one Unicode version (printed in the file), so categories,
+// aliases Go's regexp accepts, and simple case-folding orbits, for AemiUnicode's `UnicodeData` (aemi ADR 0018; moved from AemiRegex). One source, one Unicode version (printed in the file), so categories,
 // scripts and folding can never disagree with each other, and the data is the same data the Go oracle uses.
 //
 // The generator also checks the rules the Swift side uses to derive sets, and fails if Go disagrees: the one-letter groups are unions of

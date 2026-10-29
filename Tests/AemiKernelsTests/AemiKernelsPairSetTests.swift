@@ -2,7 +2,7 @@ import AemiKernels
 import AemiTestKit
 import Testing
 
-/// `AemiKernels.PairSet` (promoted from AemiRegex, aemi ADR 0017) is a C (NEON, SSSE3, scalar) Teddy kernel: candidates come from
+/// `AemiKernels.PairSet` (promoted from AemiRegex, aemi ADR 0018) is a C (NEON, SSSE3, scalar) Teddy kernel: candidates come from
 /// nibble lookups, so it may offer a position that is not a pair (buckets collide) but must never skip one that is.
 struct AemiKernelsPairSetTests {
     private typealias Pair = (first: UInt8, second: UInt8)

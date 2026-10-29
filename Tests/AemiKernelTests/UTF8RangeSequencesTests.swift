@@ -2,7 +2,7 @@ import AemiKernel
 import AemiTestKit
 import Testing
 
-/// `UTF8RangeSequences`, promoted from AemiRegex (aemi ADR 0017): the sequences of a range match exactly the UTF-8 encodings of its
+/// `UTF8RangeSequences`, promoted from AemiRegex (aemi ADR 0018): the sequences of a range match exactly the UTF-8 encodings of its
 /// members. The reference encoder is the standard library's.
 struct UTF8RangeSequencesTests {
     private static func matches(_ sequences: [[ClosedRange<UInt8>]], _ bytes: [UInt8]) -> Int {

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the pair-set (Teddy) kernel check for the host architecture and, on Apple silicon, also for x86_64 (run under Rosetta) so the
-# SSSE3 path is exercised, with AddressSanitizer and UndefinedBehaviorSanitizer. Moved from AemiRegex with the kernel (ADR 0017).
+# SSSE3 path is exercised, with AddressSanitizer and UndefinedBehaviorSanitizer. Moved from AemiRegex with the kernel (ADR 0018).
 # Exit status is the check's.
 set -eu
 cd "$(dirname "$0")"

@@ -167,6 +167,7 @@ let package = Package(
         .library(name: "AemiUnicode", targets: ["AemiUnicode"]),
         .library(name: "AemiText", targets: ["AemiText"]),
         .library(name: "AemiIO", targets: ["AemiIO"]),
+        .library(name: "AemiFileSystem", targets: ["AemiFileSystem"]),
         .library(name: "AemiMetrics", targets: ["AemiMetrics"]),
         // Concurrency seams + pools (formerly ADConcurrency).
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
@@ -229,6 +230,10 @@ let package = Package(
             swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         .target(
             name: "AemiIO", dependencies: ["AemiKernel"], swiftSettings: kernelSettings,
+            plugins: libraryBuildPlugins),
+        // AemiFileSystem — a parallel directory walker on readdir and d_type (ADR 0017).
+        .target(
+            name: "AemiFileSystem", dependencies: ["AemiIO"], swiftSettings: kernelSettings,
             plugins: libraryBuildPlugins),
         .target(name: "AemiMetrics", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         // AemiRuntime — zero-dep production seams (TaskProvider/Clock) + ResourcePool /
@@ -302,6 +307,8 @@ let package = Package(
             name: "AemiTextTests", dependencies: ["AemiText", "AemiTestKit"],
             swiftSettings: testSettings),
         .testTarget(name: "AemiIOTests", dependencies: ["AemiIO"], swiftSettings: testSettings),
+        .testTarget(
+            name: "AemiFileSystemTests", dependencies: ["AemiFileSystem", "AemiIO"], swiftSettings: testSettings),
         .testTarget(
             name: "AemiMetricsTests", dependencies: ["AemiMetrics"], swiftSettings: testSettings),
         .testTarget(

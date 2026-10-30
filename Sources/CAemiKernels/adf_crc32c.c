@@ -79,7 +79,7 @@ uint32_t adf_crc32c_update_scalar(uint32_t crc, const uint8_t *buf, size_t len) 
 
 #if defined(__aarch64__)
 // Eight bytes per `crc32cx`, then one step each of four, two and one: a 12-byte name is two instructions, not five.
-__attribute__((target("+crc"))) static uint32_t crc_words(uint32_t crc, const uint8_t *buf, size_t len) {
+__attribute__((target("+crc"), always_inline)) static inline uint32_t crc_words(uint32_t crc, const uint8_t *buf, size_t len) {
     for (; len >= 8; buf += 8, len -= 8) {
         uint64_t word;
         memcpy(&word, buf, 8);
@@ -255,7 +255,11 @@ uint32_t adf_crc32c_update(uint32_t crc, const uint8_t *buf, size_t len) {
 #if defined(__aarch64__) && defined(__ARM_FEATURE_CRC32) && defined(__ARM_FEATURE_AES)
     // Every Apple arm64 target (and any built for a CPU that has both) guarantees the instructions at compile time:
     // no runtime lookup, which cost about two nanoseconds a call, more than the CRC of a short name.
-    return len >= 4096 ? crc_hybrid(crc, buf, len) : len >= 256 ? crc_fold8(crc, buf, len) : crc_words(crc, buf, len);
+    // Short inputs first (names, descriptors, inodes) and inline: their cost is the calls around them.
+    if (len < 256) {
+        return crc_words(crc, buf, len);
+    }
+    return len >= 4096 ? crc_hybrid(crc, buf, len) : crc_fold8(crc, buf, len);
 #elif defined(__aarch64__)
     if (adf_kernels_has_crc32_pmull()) {
         return len >= 4096 ? crc_hybrid(crc, buf, len) : len >= 256 ? crc_fold8(crc, buf, len) : crc_words(crc, buf, len);

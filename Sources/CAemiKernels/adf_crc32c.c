@@ -4,8 +4,9 @@
 //
 //  CRC-32C (Castagnoli, reflected), raw update (ADR 0020, promoted from MacFS). arm64 with CRC32 and PMULL: from 256
 //  bytes, eight 128-bit accumulators fold 128 bytes per step with PMULL (lane 0 times x^(8D+31), lane 1 times
-//  x^(8D-33) mod P, bit-reflected, D the fold distance), merge by 16-byte folds and reduce with two `crc32cx`; the rest
-//  with `crc32cx`. x86-64 with SSE4.2: `crc32` eight bytes at a time. Otherwise, and as the oracle: one table lookup per
+//  x^(8D-33) mod P, bit-reflected, D the fold distance), joined with SHA3's `eor3` where the target has it, merge by
+//  16-byte folds and reduce with two `crc32cx`; the rest with `crc32cx`, `crc32cw`, `crc32ch` and `crc32cb`. Where the
+//  target guarantees CRC32 and AES (every Apple arm64 one) there is no runtime check. x86-64 with SSE4.2: `crc32` eight bytes at a time. Otherwise, and as the oracle: one table lookup per
 //  byte. The derivation is MacFS's docs/research/2026-10-30-neon-kernels.md.
 //
 
@@ -76,23 +77,45 @@ uint32_t adf_crc32c_update_scalar(uint32_t crc, const uint8_t *buf, size_t len) 
 }
 
 #if defined(__aarch64__)
+// Eight bytes per `crc32cx`, then one step each of four, two and one: a 12-byte name is two instructions, not five.
 __attribute__((target("crc"))) static uint32_t crc_words(uint32_t crc, const uint8_t *buf, size_t len) {
     for (; len >= 8; buf += 8, len -= 8) {
         uint64_t word;
         memcpy(&word, buf, 8);
         crc = __crc32cd(crc, word);
     }
-    for (; len > 0; ++buf, --len) {
+    if (len & 4) {
+        uint32_t word;
+        memcpy(&word, buf, 4);
+        crc = __crc32cw(crc, word);
+        buf += 4;
+    }
+    if (len & 2) {
+        uint16_t half;
+        memcpy(&half, buf, 2);
+        crc = __crc32ch(crc, half);
+        buf += 2;
+    }
+    if (len & 1) {
         crc = __crc32cb(crc, *buf);
     }
     return crc;
 }
 
+#if defined(__ARM_FEATURE_SHA3)
+// With SHA3 (every Apple arm64 core), `eor3` joins the two products and the block in one instruction.
+__attribute__((target("aes,sha3"), always_inline)) static inline uint64x2_t crc_fold(uint64x2_t acc, uint64x2_t block, poly64_t k0, poly64_t k1) {
+    const poly128_t low = vmull_p64((poly64_t)vgetq_lane_u64(acc, 0), k0);
+    const poly128_t high = vmull_p64((poly64_t)vgetq_lane_u64(acc, 1), k1);
+    return veor3q_u64(vreinterpretq_u64_p128(low), vreinterpretq_u64_p128(high), block);
+}
+#else
 __attribute__((target("aes"), always_inline)) static inline uint64x2_t crc_fold(uint64x2_t acc, uint64x2_t block, poly64_t k0, poly64_t k1) {
     const poly128_t low = vmull_p64((poly64_t)vgetq_lane_u64(acc, 0), k0);
     const poly128_t high = vmull_p64((poly64_t)vgetq_lane_u64(acc, 1), k1);
     return veorq_u64(veorq_u64(vreinterpretq_u64_p128(low), vreinterpretq_u64_p128(high)), block);
 }
+#endif
 
 // The eight accumulators are written out, not an array in a loop: at -Os (a release build) the compiler neither unrolls
 // the loop nor keeps an array in registers, and the fold fell to 20 GB/s.
@@ -145,7 +168,11 @@ __attribute__((target("sse4.2"))) static uint32_t crc_sse42(uint32_t crc, const 
 #endif
 
 uint32_t adf_crc32c_update(uint32_t crc, const uint8_t *buf, size_t len) {
-#if defined(__aarch64__)
+#if defined(__aarch64__) && defined(__ARM_FEATURE_CRC32) && defined(__ARM_FEATURE_AES)
+    // Every Apple arm64 target (and any built for a CPU that has both) guarantees the instructions at compile time:
+    // no runtime lookup, which cost about two nanoseconds a call, more than the CRC of a short name.
+    return len >= 256 ? crc_fold8(crc, buf, len) : crc_words(crc, buf, len);
+#elif defined(__aarch64__)
     if (adf_kernels_has_crc32_pmull()) {
         return len >= 256 ? crc_fold8(crc, buf, len) : crc_words(crc, buf, len);
     }

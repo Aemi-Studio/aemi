@@ -47,6 +47,7 @@ the shipped-safe product:
 | Prove a parser never traps on corrupt input | ``ByteMutator`` + ``fuzzNeverTraps(seed:iterations:edits:mutator:traceEnv:corpus:exercise:)`` |
 | Prove a recursive descent survives its depth cap | `runOnConstrainedStack` + ``DepthSweep`` |
 | Compare your output against a reference model | ``ReferenceComparison`` |
+| Prove a kernel never reads past (or before) its input | ``GuardedBytes`` |
 | Keep a heavy `#expect` from blowing the type-check budget | the typed asserts — see <doc:OraclesAndAsserts> |
 | Need a private scratch directory or database path | ``TemporaryDirectory`` / `withTemporaryFilePath(prefix:extension:_:)` |
 

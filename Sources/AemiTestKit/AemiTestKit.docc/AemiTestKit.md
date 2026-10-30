@@ -103,6 +103,7 @@ test framework:
 - ``FuzzReport``
 - ``DepthSweep``
 - ``ReferenceComparison``
+- ``GuardedBytes``
 
 ### Scratch files & test selection
 

@@ -305,6 +305,95 @@ jobs:
             "$TOOL" "$VERSION" "${variants%,}" > "$BUNDLE/info.json"
           zip -qr "$TOOL-$VERSION.artifactbundle.zip" "$BUNDLE"
           sha256sum "$TOOL-$VERSION.artifactbundle.zip" > "$TOOL-$VERSION.artifactbundle.zip.sha256"
+      - name: The release note, from the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: source
+          sparse-checkout: release-notes
+      - name: Lint the release note and fill its archives
+        # The note is `release-notes/<tag>.md` in the tool's repository, written before the tag with the fixed
+        # sections (analyzerkit roadmap 0030); its Archives section is filled here from the published .sha256 files.
+        # The lint is inline so a caller that pins this workflow gets it; aemi's CI runs it on fixtures.
+        run: |
+          set -euo pipefail
+          note="source/release-notes/$GITHUB_REF_NAME.md"
+          if [ ! -f "$note" ]; then
+            echo "::error::no release note at release-notes/$GITHUB_REF_NAME.md; write it with the fixed sections before tagging"
+            exit 1
+          fi
+          cat > release-note-lint.py <<'PY'
+          # release-note-lint:begin
+          """Lint a release note with the fixed sections and fill its Archives section (analyzerkit roadmap 0030).
+
+          Usage: release-note-lint.py NOTE ASSET_DIR OUT. Every section must be present, in any order, and hold text or
+          "none". Checksums written in Archives must be among the published .sha256 files; the section is then rewritten
+          with every archive and the bundle's SwiftPM checksum, and the note goes to OUT.
+          """
+          import pathlib
+          import re
+          import sys
+
+          SECTIONS = [
+              "Archives", "Flags", "Exit codes", "Report", "Configuration", "Cache",
+              "Findings that may appear", "Findings that may disappear", "Consumer steps",
+          ]
+
+
+          def main(note_path, asset_dir, out_path):
+              text = pathlib.Path(note_path).read_text()
+              title, sections, order = "", {}, []
+              current = None
+              for line in text.splitlines():
+                  heading = re.match(r"^## (.+?)\s*$", line)
+                  if heading:
+                      current = heading.group(1)
+                      sections[current] = []
+                      order.append(current)
+                  elif current is None:
+                      title += line + "\n"
+                  else:
+                      sections[current].append(line)
+              errors = [f"missing section: {name}" for name in SECTIONS if name not in sections]
+              for name in SECTIONS:
+                  if name in sections and name != "Archives":
+                      body = re.sub(r"<!--.*?-->", "", "\n".join(sections[name]), flags=re.S).strip()
+                      if not body:
+                          errors.append(f"empty section: {name} (write the change, or none)")
+              published = {}
+              for sha_file in sorted(pathlib.Path(asset_dir).glob("*.sha256")):
+                  digest, name = sha_file.read_text().split()[:2]
+                  published[name.lstrip("*")] = digest.lower()
+              if not published:
+                  errors.append(f"no .sha256 file in {asset_dir}")
+              written = re.findall(r"\b[0-9a-fA-F]{64}\b", "\n".join(sections.get("Archives", [])))
+              for digest in written:
+                  if digest.lower() not in published.values():
+                      errors.append(f"Archives: {digest} does not match a published .sha256")
+              if errors:
+                  for error in errors:
+                      print(f"release note {note_path}: {error}", file=sys.stderr)
+                  return 1
+              archives = [""]
+              for name, digest in published.items():
+                  archives.append(f"- `{name}`: `{digest}`")
+              for name, digest in published.items():
+                  if name.endswith(".artifactbundle.zip"):
+                      archives.append("")
+                      archives.append(f"SwiftPM checksum (`swift package compute-checksum`): `{digest}`")
+              archives.append("")
+              sections["Archives"] = archives
+              out = title + "".join(f"## {name}\n" + "\n".join(sections[name]).rstrip("\n") + "\n\n" for name in order)
+              pathlib.Path(out_path).write_text(out.rstrip("\n") + "\n")
+              return 0
+
+
+          if __name__ == "__main__":
+              sys.exit(main(*sys.argv[1:4]))
+          # release-note-lint:end
+          PY
+          python3 release-note-lint.py "$note" . release-note.md
+          cat release-note.md
       - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -314,8 +403,9 @@ jobs:
           assets=(${{ inputs.tool }}-*.tar.gz ${{ inputs.tool }}-*.artifactbundle.zip ${{ inputs.tool }}-*.sha256)
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber "${assets[@]}"
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file release-note.md
           else
-            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes "${assets[@]}"
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file release-note.md "${assets[@]}"
           fi
 
   gate:

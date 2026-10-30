@@ -47,6 +47,27 @@ struct AemiKernelsCRC32CTests {
         }
     }
 
+    /// The hybrid works in 4096-byte chunks, each from seed 0 and shifted into place: lengths on and around one and several
+    /// chunks, with every remainder path after them (none, the fold, single words), from misaligned starts.
+    @Test func chunkBoundariesAndSeveralChunks() {
+        var state: UInt32 = 0x1234_5678
+        let data = (0 ..< 70_000)
+            .map { _ -> UInt8 in
+                state = state &* 1_664_525 &+ 1_013_904_223
+                return UInt8(truncatingIfNeeded: state >> 24)
+            }
+        for start in [0, 5] {
+            for length in [
+                4095, 4096, 4097, 4096 + 255, 4096 + 256, 8191, 8192, 8192 + 300, 12_288 + 7, 65_536, 65_536 + 4096 + 77
+            ] {
+                let slice = data[start ..< (start + length)]
+                #expect(Self.crc(~0, slice, .fastest) == Self.reference(~0, slice), "length \(length) at \(start)")
+                #expect(
+                    Self.crc(0x0BAD_F00D, slice, .fastest) == Self.reference(0x0BAD_F00D, slice), "seeded, \(length)")
+            }
+        }
+    }
+
     @Test func anEmptyBufferLeavesTheSeed() {
         #expect(Self.crc(0x1234_5678, [][...], .fastest) == 0x1234_5678)
     }

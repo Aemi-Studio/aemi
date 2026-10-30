@@ -251,6 +251,14 @@ __attribute__((target("sse4.2"))) static uint32_t crc_sse42(uint32_t crc, const 
 }
 #endif
 
+#if defined(__aarch64__) && !(defined(__ARM_FEATURE_CRC32) && defined(__ARM_FEATURE_AES))
+// Without the features on the command line the dispatcher is built without `+crc`, so the always-inline `crc_words` cannot be
+// inlined into it: this call carries the feature (found by `checksum-kernels-check.sh --linux`).
+__attribute__((target("+crc"))) static uint32_t crc_words_call(uint32_t crc, const uint8_t *buf, size_t len) {
+    return crc_words(crc, buf, len);
+}
+#endif
+
 uint32_t adf_crc32c_update(uint32_t crc, const uint8_t *buf, size_t len) {
 #if defined(__aarch64__) && defined(__ARM_FEATURE_CRC32) && defined(__ARM_FEATURE_AES)
     // Every Apple arm64 target (and any built for a CPU that has both) guarantees the instructions at compile time:
@@ -262,7 +270,7 @@ uint32_t adf_crc32c_update(uint32_t crc, const uint8_t *buf, size_t len) {
     return len >= 4096 ? crc_hybrid(crc, buf, len) : crc_fold8(crc, buf, len);
 #elif defined(__aarch64__)
     if (adf_kernels_has_crc32_pmull()) {
-        return len >= 4096 ? crc_hybrid(crc, buf, len) : len >= 256 ? crc_fold8(crc, buf, len) : crc_words(crc, buf, len);
+        return len >= 4096 ? crc_hybrid(crc, buf, len) : len >= 256 ? crc_fold8(crc, buf, len) : crc_words_call(crc, buf, len);
     }
 #elif defined(__x86_64__)
     if (adf_kernels_isa() >= ADF_ISA_X86_SSE42) {

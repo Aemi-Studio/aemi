@@ -1,0 +1,31 @@
+# Dependabot (the family's dependency updates, 2026-10-30).
+#
+# swift: the version requirements (from:, ranges, exact:). The family's own packages are pinned by revision, which Dependabot does
+# not read: they move together, in order, by hand or by a script (ask's roadmap 0166). Dependabot's Swift updater runs Swift 6.3.1 on
+# Linux, so a manifest that needs a newer toolchain fails there until Dependabot catches up; the entry is kept so it starts then.
+# github-actions: the workflows pin actions by commit SHA with the version in a comment; Dependabot updates both.
+# One grouped pull request per ecosystem, weekly, so the CI runs stay few.
+version: 2
+updates:
+  - package-ecosystem: "swift"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      swift-packages:
+        patterns: ["*"]
+    commit-message:
+      prefix: "build"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"

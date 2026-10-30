@@ -42,6 +42,10 @@ typedef enum {
 /// subsequent calls are a plain load. Value is one of `adf_isa_t`.
 int adf_kernels_isa(void);
 
+/// 1 on arm64 when the CPU has both the CRC32 and the PMULL (crypto) instructions, which `adf_crc32c_update` needs;
+/// resolved with the ISA tier. Always 0 off arm64.
+int adf_kernels_has_crc32_pmull(void);
+
 /// A human-readable name of the selected tier (for logging / benchmarks), e.g. "avx2", "neon+dotprod".
 const char *adf_kernels_backend(void);
 
@@ -133,6 +137,25 @@ size_t adf_index_of_control_or_any5_scalar(
 /// exact first-invalid offset is found by a scalar rescan only on the (rare) invalid path.
 size_t adf_first_invalid_utf8(const uint8_t *buf, size_t len);
 size_t adf_first_invalid_utf8_scalar(const uint8_t *buf, size_t len);
+
+// MARK: - CRC-32C, bit count, UTF-16LE ASCII prefix (promoted from MacFS, ADR 0020)
+
+/// CRC-32C (Castagnoli, reflected) of `buf[0..<len]` continued from `crc`, with no pre- or post-inversion: the caller
+/// chooses the seed and the final xor (ext4 and Btrfs metadata: seed ~0; Btrfs and iSCSI also invert the result).
+/// arm64 with CRC and PMULL: eight 128-bit accumulators folded with PMULL from 256 bytes, `crc32cx` below; x86-64 with
+/// SSE4.2: `crc32`; elsewhere a table. Every backend returns the same value.
+uint32_t adf_crc32c_update(uint32_t crc, const uint8_t *buf, size_t len);
+uint32_t adf_crc32c_update_scalar(uint32_t crc, const uint8_t *buf, size_t len);
+
+/// The number of set bits in `buf[0..<len]` (allocation bitmaps). NEON `cnt`, or POPCNT-lowered words.
+size_t adf_bit_count(const uint8_t *buf, size_t len);
+size_t adf_bit_count_scalar(const uint8_t *buf, size_t len);
+
+/// How many of the `count` UTF-16LE units at `units` (any alignment, `2 * count` bytes) are below 0x80 before the
+/// first that is not, copying each as one byte into `ascii` (which holds `count` bytes). NEON: eight units per
+/// `umaxv` check and `xtn` narrowing.
+size_t adf_utf16le_ascii_prefix(const uint8_t *units, size_t count, uint8_t *ascii);
+size_t adf_utf16le_ascii_prefix_scalar(const uint8_t *units, size_t count, uint8_t *ascii);
 
 // MARK: - Hamming distance (popcount of XOR) — bit-vector similarity
 

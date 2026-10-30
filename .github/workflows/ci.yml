@@ -92,6 +92,8 @@ jobs:
         run: scripts/bench-c-kernels.sh --check
       - name: Pair-set kernel
         run: scripts/pair-set-check.sh
+      - name: CRC-32C, bit count and UTF-16 kernels (ADR 0020)
+        run: scripts/checksum-kernels-check.sh
 
   result:
     name: ci result

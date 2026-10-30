@@ -12,6 +12,8 @@
 
 #include "CAemiKernels.h"
 
+#include <string.h>
+
 #if defined(__aarch64__)
 #include <arm_neon.h>
 #endif
@@ -104,4 +106,55 @@ void adf_hamming_scan(
     for (size_t v = 0; v < count; ++v) {
         out[v] = (uint32_t)adf_hamming_distance_scalar(query, corpus + v * width, width);
     }
+}
+
+// MARK: - Bit count (ADR 0020)
+
+size_t adf_bit_count_scalar(const uint8_t *buf, size_t len) {
+    size_t total = 0;
+    size_t i = 0;
+    for (; i + 8 <= len; i += 8) {
+        uint64_t word;
+        memcpy(&word, buf + i, 8);
+        total += (size_t)__builtin_popcountll(word);
+    }
+    for (; i < len; ++i) {
+        total += (size_t)__builtin_popcount((unsigned)buf[i]);
+    }
+    return total;
+}
+
+#if defined(__aarch64__)
+// The Hamming kernel without the XOR: `cnt` per byte, one widening pairwise add per 16 bytes into u16 lanes, flushed
+// through a widening reduction before a lane could pass 65535 (2048 blocks of at most 16 per lane).
+static size_t adf_bit_count_neon(const uint8_t *buf, size_t len) {
+    size_t total = 0;
+    size_t i = 0;
+    while (i + 16 <= len) {
+        size_t blockEnd = i + 2048 * 16;
+        if (blockEnd > len) {
+            blockEnd = len;
+        }
+        uint16x8_t acc = vdupq_n_u16(0);
+        for (; i + 64 <= blockEnd; i += 64) {
+            uint8x16_t sum = vaddq_u8(vaddq_u8(vcntq_u8(vld1q_u8(buf + i)), vcntq_u8(vld1q_u8(buf + i + 16))),
+                vaddq_u8(vcntq_u8(vld1q_u8(buf + i + 32)), vcntq_u8(vld1q_u8(buf + i + 48))));
+            acc = vpadalq_u8(acc, sum);  // at most 32 per byte lane, 64 per u16 lane per step
+        }
+        for (; i + 16 <= blockEnd; i += 16) {
+            acc = vpadalq_u8(acc, vcntq_u8(vld1q_u8(buf + i)));
+        }
+        total += (size_t)vaddlvq_u16(acc);
+    }
+    return total + adf_bit_count_scalar(buf + i, len - i);
+}
+#endif
+
+size_t adf_bit_count(const uint8_t *buf, size_t len) {
+#if defined(__aarch64__)
+    if (len >= 64 && adf_kernels_isa() >= ADF_ISA_ARM_NEON) {
+        return adf_bit_count_neon(buf, len);
+    }
+#endif
+    return adf_bit_count_scalar(buf, len);
 }

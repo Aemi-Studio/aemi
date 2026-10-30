@@ -22,6 +22,7 @@
 #endif
 
 static int g_isa = ADF_ISA_SCALAR;
+static int g_crc32_pmull = 0;
 static pthread_once_t g_once = PTHREAD_ONCE_INIT;
 
 #if defined(__APPLE__) && (defined(__x86_64__) || defined(__aarch64__))
@@ -70,10 +71,14 @@ static void adf_resolve(void) {
     if (adf_sysctl_flag("hw.optional.arm.FEAT_I8MM")) {
         g_isa = ADF_ISA_ARM_I8MM;
     }
+    g_crc32_pmull = adf_sysctl_flag("hw.optional.armv8_crc32") && adf_sysctl_flag("hw.optional.arm.FEAT_PMULL");
 #else
     {
         unsigned long hwcap = getauxval(AT_HWCAP);
         unsigned long hwcap2 = getauxval(AT_HWCAP2);
+#if defined(HWCAP_CRC32) && defined(HWCAP_PMULL)
+        g_crc32_pmull = (hwcap & HWCAP_CRC32) && (hwcap & HWCAP_PMULL);
+#endif
 #if defined(HWCAP_ASIMDDP)
         if (hwcap & HWCAP_ASIMDDP) {
             g_isa = ADF_ISA_ARM_DOTPROD;
@@ -96,6 +101,11 @@ static void adf_resolve(void) {
 int adf_kernels_isa(void) {
     pthread_once(&g_once, adf_resolve);
     return g_isa;
+}
+
+int adf_kernels_has_crc32_pmull(void) {
+    pthread_once(&g_once, adf_resolve);
+    return g_crc32_pmull;
 }
 
 const char *adf_kernels_backend(void) {

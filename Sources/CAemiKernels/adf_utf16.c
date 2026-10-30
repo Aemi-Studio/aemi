@@ -4,7 +4,8 @@
 //
 //  The ASCII prefix of UTF-16LE text, narrowed to bytes (ADR 0020, promoted from MacFS, where NTFS names are mostly
 //  ASCII). arm64: eight units per step, `umaxv` to test them and `xtn` to narrow. x86-64 (SSE2 is baseline): a mask of
-//  the bits a unit below 0x80 never has, then `packus`. The first unit that is not ASCII finishes byte by byte.
+//  the bits a unit below 0x80 never has, then `packus`. Then one four-unit word step (on a little-endian host), and the
+//  first unit that is not ASCII finishes unit by unit.
 //
 
 #include "CAemiKernels.h"
@@ -47,6 +48,20 @@ size_t adf_utf16le_ascii_prefix(const uint8_t *units, size_t count, uint8_t *asc
             break;
         }
         _mm_storel_epi64((__m128i *)(void *)(ascii + i), _mm_packus_epi16(block, block));
+    }
+#endif
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    // Four units in one 64-bit word: a 12-unit name ends with one such step rather than four single units.
+    if (i + 4 <= count) {
+        uint64_t word;
+        memcpy(&word, units + 2 * i, 8);
+        if ((word & 0xFF80FF80FF80FF80u) == 0) {
+            ascii[i] = (uint8_t)word;
+            ascii[i + 1] = (uint8_t)(word >> 16);
+            ascii[i + 2] = (uint8_t)(word >> 32);
+            ascii[i + 3] = (uint8_t)(word >> 48);
+            i += 4;
+        }
     }
 #endif
     return i + adf_utf16le_ascii_prefix_scalar(units + 2 * i, count - i, ascii + i);

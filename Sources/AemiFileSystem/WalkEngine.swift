@@ -2,8 +2,13 @@ internal import AemiIO
 
 #if canImport(Darwin)
     internal import Darwin
+
+    /// What `fdopendir` returns: Darwin's `DIR` is a complete type, Glibc's an opaque one.
+    typealias DirectoryStream = UnsafeMutablePointer<DIR>
 #elseif canImport(Glibc)
     internal import Glibc
+
+    typealias DirectoryStream = OpaquePointer
 #endif
 
 /// The walk itself: a shared queue of root-relative directory paths, worked by a bounded pool of threads, each listing one
@@ -176,7 +181,7 @@ final class WalkEngine: @unchecked Sendable {
     }
 
     /// `directory` opened relative to the root with no link followed anywhere on its path.
-    private func openDirectory(_ directory: String, failure: inout IOError?) -> UnsafeMutablePointer<DIR>? {
+    private func openDirectory(_ directory: String, failure: inout IOError?) -> DirectoryStream? {
         let path = directory.isEmpty ? "." : directory
         #if canImport(Darwin)
             let descriptor = unsafe openat(rootDescriptor, path, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW_ANY)

@@ -95,9 +95,22 @@ jobs:
       - name: CRC-32C, bit count and UTF-16 kernels (ADR 0020)
         run: scripts/checksum-kernels-check.sh
 
+  c-kernels-linux-arm64:
+    # The arm64 paths macOS never builds: the CRC's runtime feature check (HWCAP), and GCC, whose target attributes differ from
+    # clang's (aemi diary 2026-10-30-03). The same check, natively, with gcc and clang.
+    name: C kernels, arm64 Linux
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: CRC-32C, bit count and UTF-16 kernels with gcc
+        run: CC=gcc scripts/checksum-kernels-check.sh
+      - name: The same with clang
+        run: CC=clang scripts/checksum-kernels-check.sh
+
   result:
     name: ci result
-    needs: [test, unicode-tables, c-kernels]
+    needs: [test, unicode-tables, c-kernels, c-kernels-linux-arm64]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2

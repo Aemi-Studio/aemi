@@ -46,16 +46,19 @@ struct ScratchPoolTests {
         await withTaskGroup(of: Void.self) { group in
             for _ in 0 ..< 64 {
                 group.addTask {
+                    // Counted around the call, not inside the body: the pool holds a value from taking it to giving it back,
+                    // a window the body does not cover. Counted inside, a user between its body and its return made the next
+                    // user's new value look unneeded (26 runs in 30 failed so).
+                    let now = inUse.add(1, ordering: .relaxed).newValue
+                    _ = peak.max(now, ordering: .relaxed)
                     pool.withScratch { value in
-                        let now = inUse.add(1, ordering: .relaxed).newValue
-                        _ = peak.max(now, ordering: .relaxed)
                         // A value is someone else's only if two users hold it: each increments and checks its own count.
                         value += 1
                         let mine = value
                         for _ in 0 ..< 1_000 { _ = mine }
                         #expect(value == mine, "another user changed this value")
-                        inUse.subtract(1, ordering: .relaxed)
                     }
+                    inUse.subtract(1, ordering: .relaxed)
                 }
             }
         }

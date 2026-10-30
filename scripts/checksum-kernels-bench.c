@@ -33,6 +33,13 @@ int main(void) {
     printf("%s\n", adf_kernels_backend());
     MEASURE("crc32c, 64 MiB", size, sink += adf_crc32c_update(~0u, data, size));
     MEASURE("crc32c, 4 KiB blocks", size, for (size_t b = 0; b < size; b += 4096) sink += adf_crc32c_update(~0u, data + b, 4064));
+    MEASURE("crc32c, 4096-byte blocks", size, for (size_t b = 0; b < size; b += 4096) sink += adf_crc32c_update(~0u, data + b, 4096));
+    MEASURE("crc32c, one 64 KiB block, in cache", size, for (size_t b = 0; b < size; b += 65536) sink += adf_crc32c_update(~0u, data, 65536));
+    MEASURE("crc32c, 16 KiB blocks", size, for (size_t b = 0; b < size; b += 16384) sink += adf_crc32c_update(~0u, data + b, 16384));
+    MEASURE("crc32c, one 16 KiB block, in cache", size, for (size_t b = 0; b < size; b += 16384) sink += adf_crc32c_update(~0u, data, 16384));
+    MEASURE("crc32c, one 4 KiB block, in cache", size, for (size_t b = 0; b < size; b += 4096) sink += adf_crc32c_update(~0u, data, 4096));
+    MEASURE("crc32c, one 1 KiB block, in cache", size, for (size_t b = 0; b < size; b += 1024) sink += adf_crc32c_update(~0u, data, 1024));
+    MEASURE("crc32c, one 256-byte block, in cache", size, for (size_t b = 0; b < size; b += 256) sink += adf_crc32c_update(~0u, data, 256));
     MEASURE("crc32c scalar (table), 64 MiB", size, sink += adf_crc32c_update_scalar(~0u, data, size));
     MEASURE("bit count, 64 MiB", size, sink += adf_bit_count(data, size));
     MEASURE("bit count scalar, 64 MiB", size, sink += adf_bit_count_scalar(data, size));

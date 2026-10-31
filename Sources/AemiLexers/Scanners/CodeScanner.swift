@@ -32,24 +32,9 @@ struct CodeScanner {
     ) -> LexState {
         let classes = tables.classes.span
         let count = units.count
-        var index = 0
-        switch state.mode {
-            case .blockComment:
-                guard let block = tables.syntax.blockComment else { break }
-                let (end, depth) = blockCommentBody(units, from: 0, depth: state.count, block: block)
-                if end > 0 { tokens.append(Output(kind: .comment, range: 0 ..< end)) }
-                guard depth == 0 else { return LexState(mode: .blockComment, count: depth) }
-                index = end
-            case .string:
-                let quote = state.quote
-                let (end, isOpen) = stringBody(
-                    units, from: 0, quote: quote, isTriple: state.isTriple, hashes: state.count)
-                if end > 0 { tokens.append(Output(kind: .string, range: 0 ..< end)) }
-                guard !isOpen else { return state }
-                index = end
-            default:
-                break
-        }
+        let (resumed, open) = resume(units, from: state, into: &tokens)
+        if let open { return open }
+        var index = resumed
         while index < count {
             let unit = units[index]
             let flags = classes[Int(unit)]
@@ -57,7 +42,15 @@ struct CodeScanner {
                 let start = index
                 index += 1
                 while index < count, classes[Int(units[index])] & Class.identifier != 0 { index += 1 }
-                if !tables.compoundKeywords.isEmpty, let end = compoundKeywordEnd(units, from: start, wordEnd: index) {
+                if tables.prefixedRawStrings, index < count, units[index] == ASCII.quote || units[index] == ASCII.hash,
+                    let (kind, end, open) = prefixedRawString(units, wordStart: start, wordEnd: index)
+                {
+                    if let kind { tokens.append(Output(kind: kind, range: start ..< end)) }
+                    if let open { return open }
+                    index = end
+                } else if !tables.compoundKeywords.isEmpty,
+                    let end = compoundKeywordEnd(units, from: start, wordEnd: index)
+                {
                     index = end
                     tokens.append(Output(kind: .keyword, range: start ..< index))
                 } else if tables.keywords.contains(units, from: start, to: index) {
@@ -81,8 +74,34 @@ struct CodeScanner {
         return .initial
     }
 
+    /// Ends the construct `state` says `units` starts inside, appending its token: where plain code resumes, or the
+    /// state at the end of `units` when the construct runs on past it.
+    private func resume<Output: ScannerToken>(
+        _ units: Span<UInt8>, from state: LexState, into tokens: inout [Output]
+    ) -> (index: Int, open: LexState?) {
+        switch state.mode {
+            case .blockComment:
+                guard let block = tables.syntax.blockComment else { return (0, nil) }
+                let (end, depth) = blockCommentBody(units, from: 0, depth: state.count, block: block)
+                if end > 0 { tokens.append(Output(kind: .comment, range: 0 ..< end)) }
+                return (end, depth == 0 ? nil : LexState(mode: .blockComment, count: depth))
+            case .string:
+                let quote = state.quote
+                let (end, isOpen) = stringBody(
+                    units, from: 0, quote: quote, isTriple: state.isTriple, hashes: state.count, isRaw: state.isRaw)
+                if end > 0 { tokens.append(Output(kind: .string, range: 0 ..< end)) }
+                return (end, isOpen ? state : nil)
+            case .longString:
+                let (end, isOpen) = longStringBody(units, from: 0, level: state.count)
+                if end > 0 { tokens.append(Output(kind: .string, range: 0 ..< end)) }
+                return (end, isOpen ? state : nil)
+            default:
+                return (0, nil)
+        }
+    }
+
     /// What the special byte at `index` starts, tried in the order the languages need: a raw string, a directive, an
-    /// Objective-C string, a comment, a string, an attribute or a variable. Returns the token's kind, nil when the
+    /// Objective-C string, a comment, a string, a long string, an attribute or a variable. Returns the token's kind, nil when the
     /// byte starts none, the range to skip, which ends where scanning resumes, and the state at the end of `units`
     /// when the token runs on past it.
     private func scanSpecial(
@@ -125,6 +144,16 @@ struct CodeScanner {
             let (end, open) = stringEnd(units, from: index, quote: unit, hashes: 0)
             return (.string, index ..< end, open)
         }
+        if syntax.hasLongStrings, unit == ASCII.openBracket {
+            var bracket = index + 1
+            while bracket < units.count, units[bracket] == ASCII.equals { bracket += 1 }
+            guard bracket < units.count, units[bracket] == ASCII.openBracket else {
+                return (nil, index ..< bracket, nil)
+            }
+            let level = bracket - index - 1
+            let (end, isOpen) = longStringBody(units, from: bracket + 1, level: level)
+            return (.string, index ..< end, isOpen ? LexState(mode: .longString, count: level) : nil)
+        }
         if syntax.hasAnnotations, unit == ASCII.at, nextStartsWord {
             return (.attribute, index ..< wordEnd(units, from: index + 1, classes: classes), nil)
         }
@@ -166,8 +195,8 @@ struct CodeScanner {
         return end
     }
 
-    /// The end of a number: identifier characters, and dots followed by a digit or, when `units` ends the text, ending
-    /// it.
+    /// The end of a number: identifier characters, dots followed by a digit or, when `units` ends the text, ending
+    /// it, and an exponent's sign.
     private func numberEnd(_ units: Span<UInt8>, from start: Int, classes: Span<UInt8>, endsText: Bool) -> Int {
         var index = start
         while index < units.count {
@@ -176,6 +205,10 @@ struct CodeScanner {
                 index += 1
             } else if unit == ASCII.dot,
                 index + 1 < units.count ? classes[Int(units[index + 1])] & Class.digit != 0 : endsText
+            {
+                index += 1
+            } else if unit == ASCII.plus || unit == ASCII.hyphen,
+                isExponentSign(units, at: index, numberStart: start, classes: classes)
             {
                 index += 1
             } else {
@@ -234,17 +267,18 @@ struct CodeScanner {
     /// Where a string's body that resumes at `start` ends, and whether the string is still open at the end of `units`.
     ///
     /// A raw string closes only at a quote followed by as many hashes, and escapes only with a backslash followed by as
-    /// many. A tripled quote or a multi-line quote runs across lines; any other string stops at the end of its line,
+    /// many; a string marked raw, as Rust's `r"…"`, has no escapes at all. A raw, tripled or multi-line quote runs
+    /// across lines; any other string stops at the end of its line,
     /// unless an escape takes the line break, as a backslash ending a line does.
-    private func stringBody(
-        _ units: Span<UInt8>, from start: Int, quote: UInt8, isTriple: Bool, hashes: Int
+    func stringBody(
+        _ units: Span<UInt8>, from start: Int, quote: UInt8, isTriple: Bool, hashes: Int, isRaw: Bool = false
     ) -> (end: Int, isOpen: Bool) {
-        let spansLines = isTriple || tables.classes[Int(quote)] & Class.multilineQuote != 0
+        let spansLines = isRaw || isTriple || tables.classes[Int(quote)] & Class.multilineQuote != 0
         let quotes = isTriple ? 3 : 1
         var index = start
         while index < units.count {
             let unit = units[index]
-            if unit == ASCII.backslash {
+            if unit == ASCII.backslash, !isRaw {
                 if hashes == 0 {
                     index += 2
                     continue
@@ -305,6 +339,8 @@ extension CodeScanner {
         let compoundKeywords: [[UInt8]]
         /// Swift's `#"…"#` raw strings.
         let rawStrings: Bool
+        /// Rust's `r"…"` raw strings and `r#word` identifiers, read once here rather than through `syntax` per word.
+        let prefixedRawStrings: Bool
 
         init(language: Language) {
             let syntax = LanguageSyntax.syntax(for: language)
@@ -312,6 +348,7 @@ extension CodeScanner {
             self.language = language
             self.syntax = syntax
             self.rawStrings = rawStrings
+            prefixedRawStrings = syntax.hasPrefixedRawStrings
             keywords = KeywordTable(syntax.keywords)
             compoundKeywords = syntax.keywords.sorted().map { Array($0.utf8) }
                 .filter { word in
@@ -334,7 +371,8 @@ extension CodeScanner {
                     byte == ASCII.hash && (syntax.hasPreprocessor || rawStrings)
                     || byte == ASCII.at && (syntax.hasPreprocessor || syntax.hasAnnotations)
                     || byte == ASCII.dollar && syntax.hasVariables
-                if startsComment || isSigil { flags |= Class.special }
+                let opensLongString = byte == ASCII.openBracket && syntax.hasLongStrings
+                if startsComment || isSigil || opensLongString { flags |= Class.special }
                 classes[value] = flags
             }
             self.classes = classes

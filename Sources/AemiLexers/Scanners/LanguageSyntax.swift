@@ -17,6 +17,11 @@ struct LanguageSyntax: Sendable {
     var hasAnnotations = false
     /// `$word` and `${…}` are attributes (shells).
     var hasVariables = false
+    /// `r"…"`, `br"…"` and `cr"…"`, with any number of hashes around the quotes, are strings without escapes, and
+    /// `r#word` is an identifier (Rust).
+    var hasPrefixedRawStrings = false
+    /// `[[…]]` and `[==[…]==]` are strings without escapes that span lines (Lua).
+    var hasLongStrings = false
 
     static func syntax(for language: Language) -> LanguageSyntax {
         switch language {
@@ -172,7 +177,8 @@ struct LanguageSyntax: Sendable {
             "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe", "use", "where", "while",
             "union", "macro_rules"
         ],
-        nestsBlockComments: true
+        nestsBlockComments: true,
+        hasPrefixedRawStrings: true
     )
 
     static let go = LanguageSyntax(
@@ -204,6 +210,7 @@ struct LanguageSyntax: Sendable {
             "pairs", "ipairs", "type", "tostring", "tonumber", "setmetatable", "getmetatable", "error", "pcall"
         ],
         lineComments: [Array("--".utf8)], blockComment: (Array("--[[".utf8), Array("]]".utf8)),
-        quotes: [ASCII.quote, ASCII.apostrophe]
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        hasLongStrings: true
     )
 }

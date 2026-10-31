@@ -1,8 +1,8 @@
-// `public import`: the probe's creation site is Swift Testing's `SourceLocation`.
-public import Testing
-
 #if canImport(ObjectiveC)
+    // `public import`: the probe's creation site is Swift Testing's `SourceLocation`. Inside the condition, since
+    // nothing else in the file is public and an unused public import is an error.
     internal import ObjectiveC
+    public import Testing
 
     /// Returns a count-only probe that records once `object` is deallocated, without retaining it.
     ///

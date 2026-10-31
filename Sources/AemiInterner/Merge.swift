@@ -67,8 +67,11 @@ enum Merge {
             for index in 0 ..< count { body(index) }
             return
         }
+        // Swift 6.3's concurrentPerform takes a @Sendable closure; `body` runs only until it returns, on lanes that touch disjoint
+        // indices, which is what the callers' shared buffers rely on already.
+        nonisolated(unsafe) let body = body
         DispatchQueue.concurrentPerform(iterations: lanes) { lane in
-            for index in stride(from: lane, to: count, by: lanes) { body(index) }
+            for index in stride(from: lane, to: count, by: lanes) { unsafe body(index) }
         }
     }
 

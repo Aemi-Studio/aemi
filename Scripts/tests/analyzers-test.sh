@@ -1,6 +1,7 @@
 #!/bin/sh
 # Scripts/analyzers.sh on fake releases served from a file:// URL (analyzerkit roadmap 0031): an archive whose SHA-256
 # is the lock's installs and runs; a tampered one is refused before anything runs, with status 2.
+# shellcheck disable=SC2016,SC2034 # each check is a string check() evaluates, and it reads status
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)

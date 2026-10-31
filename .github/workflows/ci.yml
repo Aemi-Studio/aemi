@@ -31,15 +31,22 @@ jobs:
   linux:
     # The tools build aemi on Linux (swift-tool.yml's swift:6.4.1-noble). Without this job a Darwin-only spelling
     # (`UnsafeMutablePointer<DIR>`, which Glibc spells `OpaquePointer`) reaches every tool's CI before aemi's.
-    name: Linux build (swift:6.4.1-noble)
+    name: Linux build of the products the tools take (swift:6.4.1-noble)
     runs-on: ubuntu-latest
     container: swift:6.4.1-noble
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - name: Build every target and test
-        run: swift build --build-tests
+      # The products analyzerkit, AemiJSON and AemiProtobuf take, which the tools build on Linux. The rest of aemi is
+      # not meant for Linux (AemiCore imports Combine).
+      - name: Build the products the tools take
+        run: |
+          for product in AemiFileSystem AemiIO AemiKernel AemiKernels AemiRuntime AemiMetrics AemiMacroSupport AemiTestKit; do
+            echo "::group::$product"
+            swift build --product "$product"
+            echo "::endgroup::"
+          done
 
   test:
     name: Swift ${{ matrix.swift }} (${{ matrix.configuration }})

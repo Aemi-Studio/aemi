@@ -126,6 +126,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # bench-c-kernels.sh rebuilds the previous kernels from 3e64286's parent, which a shallow clone lacks.
+          fetch-depth: 0
       - name: Rosetta, for the x86-64 path
         run: sudo softwareupdate --install-rosetta --agree-to-license || true
       - name: Fold and scan kernels

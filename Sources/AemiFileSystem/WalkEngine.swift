@@ -206,7 +206,7 @@ final class WalkEngine: @unchecked Sendable {
             var current = dup(root)
             guard current >= 0 else { return -1 }
             for component in path.split(separator: "/") where component != "." {
-                let next = openat(current, String(component), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW)
+                let next = unsafe openat(current, String(component), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW)
                 close(current)
                 guard next >= 0 else { return -1 }
                 current = next
@@ -227,11 +227,12 @@ final class WalkEngine: @unchecked Sendable {
     }
 
     private static func kind(of type: UInt8) -> DirectoryWalk.Kind? {
-        switch Int32(type) {
-            case DT_DIR: .directory
-            case DT_REG: .file
-            case DT_LNK: .link
-            case DT_UNKNOWN: nil
+        // Darwin imports the DT_ constants as Int32, Glibc as Int.
+        switch Int(type) {
+            case Int(DT_DIR): .directory
+            case Int(DT_REG): .file
+            case Int(DT_LNK): .link
+            case Int(DT_UNKNOWN): nil
             default: .other
         }
     }

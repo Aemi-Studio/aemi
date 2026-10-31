@@ -18,7 +18,8 @@ extension LexState {
         case normal = 0
         /// A block comment; ``count`` is its nesting depth.
         case blockComment
-        /// A string opened by ``quote``, tripled when ``isTriple``; ``count`` is a raw string's hashes.
+        /// A string opened by ``quote``, tripled when ``isTriple``; ``count`` is a raw string's hashes, and ``isRaw``
+        /// says it has no escapes, as Rust's `r#"…"#`.
         case string
         /// HTML's `<!-- … -->`.
         case markupComment
@@ -30,6 +31,8 @@ extension LexState {
         case attributeValue
         /// The body of a `script` or `style` element, per ``kind``, which no token colours.
         case rawText
+        /// Lua's long string, `[[…]]` or `[==[…]==]`; ``count`` is its level, the number of equals signs.
+        case longString
     }
 
     /// The HTML element a tag opens, whose body the scanner skips.
@@ -39,17 +42,23 @@ extension LexState {
         case style
     }
 
-    // Bits 0-3: the mode; 4-11: the quote; 12: tripled; 13-14: the element kind; 16-31: the count.
-    init(mode: Mode, quote: UInt8 = 0, isTriple: Bool = false, kind: ElementKind = .other, count: Int = 0) {
+    // Bits 0-3: the mode; 4-11: the quote; 12: tripled; 13-14: the element kind; 15: raw; 16-31: the count.
+    init(
+        mode: Mode, quote: UInt8 = 0, isTriple: Bool = false, kind: ElementKind = .other, isRaw: Bool = false,
+        count: Int = 0
+    ) {
         let saturated = UInt32(min(max(count, 0), 0xFFFF))
         rawValue =
-            mode.rawValue | UInt32(quote) << 4 | (isTriple ? 1 << 12 : 0) | kind.rawValue << 13 | saturated << 16
+            mode.rawValue | UInt32(quote) << 4 | (isTriple ? 1 << 12 : 0) | kind.rawValue << 13
+            | (isRaw ? 1 << 15 : 0) | saturated << 16
     }
 
     var mode: Mode { Mode(rawValue: rawValue & 0xF) ?? .normal }
     var quote: UInt8 { UInt8(truncatingIfNeeded: rawValue >> 4) }
     var isTriple: Bool { rawValue & 1 << 12 != 0 }
     var kind: ElementKind { ElementKind(rawValue: rawValue >> 13 & 0x3) ?? .other }
-    /// A block comment's depth, a raw string's hashes or CSS's brace depth, at most 65,535.
+    /// A string without escapes, which closes only at its quote and hashes.
+    var isRaw: Bool { rawValue & 1 << 15 != 0 }
+    /// A block comment's depth, a raw string's hashes, a long string's level or CSS's brace depth, at most 65,535.
     var count: Int { Int(rawValue >> 16) }
 }

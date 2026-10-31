@@ -170,6 +170,8 @@ let package = Package(
         .library(name: "AemiFileSystem", targets: ["AemiFileSystem"]),
         .library(name: "AemiInterner", targets: ["AemiInterner"]),
         .library(name: "AemiMetrics", targets: ["AemiMetrics"]),
+        // Syntax lexers, whole text or a line at a time; not in the AemiFoundation umbrella.
+        .library(name: "AemiLexers", targets: ["AemiLexers"]),
         // Concurrency seams + pools (formerly ADConcurrency).
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
         // Shared swift-syntax helpers for macro compiler plugins. Never re-exported by an umbrella.
@@ -241,6 +243,9 @@ let package = Package(
             name: "AemiInterner", dependencies: ["AemiKernel"], swiftSettings: kernelSettings,
             plugins: libraryBuildPlugins),
         .target(name: "AemiMetrics", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+        // AemiLexers — hand-written scanners over borrowed UTF-8 bytes for 20 languages, whole text or a line at a time
+        // from each line's entry state. Standard library only. Moved from Atelier's AtelierLexers.
+        .target(name: "AemiLexers", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         // AemiRuntime — zero-dep production seams (TaskProvider/Clock) + ResourcePool /
         // BlockingOffloadPool. Separate from AemiCore's app-level TaskProvider/TaskRole.
         .target(name: "AemiRuntime", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
@@ -319,6 +324,8 @@ let package = Package(
             swiftSettings: testSettings),
         .testTarget(
             name: "AemiMetricsTests", dependencies: ["AemiMetrics"], swiftSettings: testSettings),
+        .testTarget(
+            name: "AemiLexersTests", dependencies: ["AemiLexers", "AemiTestKit"], swiftSettings: testSettings),
         .testTarget(
             name: "AemiMacroSupportTests", dependencies: ["AemiMacroSupport"],
             swiftSettings: testSettings),

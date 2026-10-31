@@ -18,6 +18,16 @@ env:
   AEMI_TYPECHECK_BUDGET_MS: "250"
 
 jobs:
+  analyzers-script:
+    # The family's analyzers script refuses an archive whose SHA-256 is not the lock's (analyzerkit roadmap 0031).
+    name: Analyzers script on fake releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - run: sh Scripts/tests/analyzers-test.sh
+
   release-note-lint:
     # swift-tool.yml's publish job refuses a release note without the fixed sections (analyzerkit roadmap 0030).
     name: Release-note lint on its fixtures

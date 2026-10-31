@@ -79,6 +79,7 @@ umbrella when an Apple application needs that whole group.
 | `AemiFileSystem` | A parallel directory walker on `readdir` and `d_type`: no stat per regular file, directories opened by root-relative path with no link followed, policies for names, links, pruning and limits, a sorted result or batches while it runs. |
 | `AemiInterner` | UTF-8 keys as dense `UInt32` symbols without making a `String`: a chunked arena, an open-addressing table hashed with wyhash, a frozen form for readers on any thread, a parallel merge whose symbols equal sequential interning, and a compact serialised form. |
 | `AemiMetrics` | Process metrics. |
+| `AemiLexers` | Syntax lexers for 20 languages over borrowed UTF-8: a whole text, or a line at a time from each line's entry state, with the roles and line tokens a highlighter needs. Standard library only; from the 26 releases on. |
 | `AemiRuntime` | Task/clock interfaces, resource and scratch pools, and blocking-work offloading. |
 | `AemiFoundation` | Runtime umbrella for the kernel, text, IO, metrics, and concurrency products. |
 | `AemiMacroSupport` | SwiftSyntax helpers for compiler plugins. Select this only in macro targets. |

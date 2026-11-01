@@ -72,8 +72,8 @@ int adf_crypto_equal(const uint8_t *a, const uint8_t *b, size_t length);
 /// Zeroes `length` bytes at `bytes` in a way the compiler may not remove as a dead store.
 void adf_crypto_wipe(void *bytes, size_t length);
 
-/// `blocks` blocks of 1024 bytes aligned to a cache line, or NULL when the memory is not there. Freed by
-/// `adf_argon2_release`, which wipes them first.
+/// `blocks` blocks of 1024 bytes, mapped (page-aligned) so that freeing returns them to the system at once, or NULL when the memory is
+/// not there. Freed by `adf_argon2_release`, which wipes them first.
 uint64_t *adf_argon2_allocate(size_t blocks);
 void adf_argon2_release(uint64_t *memory, size_t blocks);
 

@@ -1,14 +1,14 @@
 ---
 status: accepted
 date: 2026-10-18
-supersedes: the performance sections of 0008 and the figures in commit 3e64286
+supersedes: the performance sections of 0008 and the figures in commit aff9ca5
 ---
 
 # 0011 — The C kernel measurements, redone with a harness that can fail
 
 ## Context
 
-ADR-0008 and commit `3e64286` reported kernel speedups from ad-hoc probes that later proved flawed:
+ADR-0008 and commit `aff9ca5` reported kernel speedups from ad-hoc probes that later proved flawed:
 an inlined scalar reference had its stores deleted, minima were reported as medians, synchronization
 used non-atomic `volatile`, and the probe could read out of bounds. Both also assumed Aemi compiles
 its C at `-O2`.
@@ -21,7 +21,7 @@ its C at `-O2`.
   for `adf_fold.c`, plus `strictCSettings` parsed from `Package.swift`.
 - Each variant lives in its own translation unit behind a function pointer; outputs are consumed.
 - Baselines are the scalar references at `-Os`, `-O2`, and `-O2 -fno-vectorize -fno-slp-vectorize`;
-  the previous NEON fold is rebuilt from `3e64286^`.
+  the previous NEON fold is rebuilt from `aff9ca5^`.
 - `--check` runs every variant against the scalar reference under AddressSanitizer and UBSan over
   lengths 0–300 at 64 alignments with exact-size allocations: 0 mismatches. Control: mutating the
   previous kernel to read past its buffer is caught as a 16-byte heap-buffer-overflow.
@@ -35,7 +35,7 @@ except at 8 MiB, where p10 falls to 15–24 GB/s.
 | fold_ascii | GB/s |
 |---|---|
 | shipped NEON | 49–52 |
-| previous NEON (`3e64286^`) | 34–36 |
+| previous NEON (`aff9ca5^`) | 34–36 |
 | scalar at `-O2` (auto-vectorized) | 50–52 |
 | scalar at `-O2`, no vectorization | 3.6–3.8 |
 | **scalar at `-Os`, as shipped** | **1.9** |

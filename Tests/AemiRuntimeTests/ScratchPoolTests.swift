@@ -36,11 +36,9 @@ struct ScratchPoolTests {
     }
 
     @Test func `concurrent users each get their own value, and no more are made than were in use at once`() async {
-        let made = Atomic(0)
-        let inUse = Atomic(0)
-        let peak = Atomic(0)
+        let counts = Counts()
         let pool = ScratchPool<Int> {
-            made.add(1, ordering: .relaxed)
+            counts.made.add(1, ordering: .relaxed)
             return 0
         }
         await withTaskGroup(of: Void.self) { group in
@@ -49,8 +47,8 @@ struct ScratchPoolTests {
                     // Counted around the call, not inside the body: the pool holds a value from taking it to giving it back,
                     // a window the body does not cover. Counted inside, a user between its body and its return made the next
                     // user's new value look unneeded (26 runs in 30 failed so).
-                    let now = inUse.add(1, ordering: .relaxed).newValue
-                    _ = peak.max(now, ordering: .relaxed)
+                    let now = counts.inUse.add(1, ordering: .relaxed).newValue
+                    _ = counts.peak.max(now, ordering: .relaxed)
                     pool.withScratch { value in
                         // A value is someone else's only if two users hold it: each increments and checks its own count.
                         value += 1
@@ -58,10 +56,18 @@ struct ScratchPoolTests {
                         for _ in 0 ..< 1_000 { _ = mine }
                         #expect(value == mine, "another user changed this value")
                     }
-                    inUse.subtract(1, ordering: .relaxed)
+                    counts.inUse.subtract(1, ordering: .relaxed)
                 }
             }
         }
-        #expect(made.load(ordering: .relaxed) <= peak.load(ordering: .relaxed))
+        #expect(counts.made.load(ordering: .relaxed) <= counts.peak.load(ordering: .relaxed))
     }
+}
+
+/// The counters of one test, in a class so the tasks share them: an `Atomic` is noncopyable, and Swift 6.3 does not let a task
+/// group's closure capture one.
+private final class Counts: Sendable {
+    let made = Atomic(0)
+    let inUse = Atomic(0)
+    let peak = Atomic(0)
 }

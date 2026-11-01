@@ -5,8 +5,8 @@
 //  What this CPU can do, asked once per process and cached, for every C kernel of the family to dispatch on: a set of
 //  features rather than a single tier, since kernels need different combinations (a CRC wants CRC32 and PMULL, Argon2
 //  wants SHA3's `xar`). Darwin asks `sysctl`, Linux `getauxval`, x86-64 CPUID through `__builtin_cpu_supports`, which
-//  also checks that the OS saves the wide registers. Under Rosetta 2 every feature from AVX up is withheld: Rosetta
-//  traps AVX whatever CPUID says.
+//  also checks that the OS saves the wide registers. Under Rosetta 2, CPUID reports what Rosetta runs: AVX2 and BMI2
+//  only when the process starts with ROSETTA_ADVERTISE_AVX=1, AVX-512 never.
 //
 //  `ADF_CPU_HAS(SHA3)` is a constant where the compilation target guarantees the feature (`__ARM_FEATURE_SHA3` on any
 //  Apple silicon target), so the check and the fallback vanish there; elsewhere it reads the cached set.

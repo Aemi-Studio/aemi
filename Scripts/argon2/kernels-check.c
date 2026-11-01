@@ -81,16 +81,7 @@ int main(int argc, char **argv) {
         check_fills(backend);
         printf("  %-10s %d checks, %d failures\n", adf_crypto_backend_name(backend), checks - counted, failures - before);
     }
-#if defined(__x86_64__)
-    // Whether AVX2 runs at all here, though the dispatcher withholds it (Rosetta).
-    if (argc > 1 && strcmp(argv[1], "--force-avx2") == 0) {
-        const int before = failures, counted = checks;
-        check_blocks(ADF_CRYPTO_AVX2, adf_argon2_block_avx2);
-        printf("  avx2 (called directly) %d checks, %d failures\n", checks - counted, failures - before);
-    }
-#else
     (void)argc;
     (void)argv;
-#endif
     return failures == 0 ? 0 : 1;
 }

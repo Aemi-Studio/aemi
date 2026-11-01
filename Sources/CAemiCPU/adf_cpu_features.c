@@ -129,10 +129,11 @@ static uint64_t adf_x86_features(void) {
     ADF_CPUID("avx512vl", ADF_CPU_AVX512VL)
 #undef ADF_CPUID
 #if defined(__APPLE__)
-    // `sysctl.proc_translated` is absent (so 0) in a native process.
+    // `sysctl.proc_translated` is absent (so 0) in a native process. Rosetta's CPUID is trusted: it reports AVX, AVX2,
+    // BMI2 and FMA only when it runs them (macOS 15 on, when the process is started with ROSETTA_ADVERTISE_AVX=1), and
+    // never AVX-512 (measured 2026-11-01, macOS 27; aemi ADR 0024).
     if (adf_sysctl_flag("sysctl.proc_translated")) {
         features |= ADF_CPU_TRANSLATED;
-        features &= ~(ADF_CPU_AVX | ADF_CPU_AVX2 | ADF_CPU_BMI2 | ADF_CPU_AVX512F | ADF_CPU_AVX512BW | ADF_CPU_AVX512VL);
     }
 #endif
     return features;

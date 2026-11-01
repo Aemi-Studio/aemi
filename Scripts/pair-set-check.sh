@@ -18,5 +18,7 @@ echo "host ($(uname -m)), ASan+UBSan:"; "$OUT/check-host"
 if [ "$(uname -s)-$(uname -m)" = "Darwin-arm64" ]; then
     # shellcheck disable=SC2086
     "$CC" $CHECK -arch x86_64 -o "$OUT/check-x86" $FILES
-    echo "x86_64 under Rosetta (SSSE3):"; arch -x86_64 "$OUT/check-x86"
+    echo "x86_64 under Rosetta:"; arch -x86_64 "$OUT/check-x86"
+    # Rosetta runs AVX2 only when asked to advertise it.
+    echo "x86_64 under Rosetta, AVX2 advertised:"; ROSETTA_ADVERTISE_AVX=1 arch -x86_64 "$OUT/check-x86"
 fi

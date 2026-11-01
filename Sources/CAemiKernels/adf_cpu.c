@@ -12,7 +12,7 @@
 
 int adf_kernels_isa(void) {
 #if defined(__x86_64__)
-    // Under Rosetta 2, CAemiCPU withholds AVX and up, so the tier stops at SSE4.2 there.
+    // Under Rosetta 2 the tier is SSE4.2, or AVX2 when Rosetta advertises it (ROSETTA_ADVERTISE_AVX=1).
     if (adf_cpu_has(ADF_CPU_AVX512F | ADF_CPU_AVX512BW)) {
         return ADF_ISA_X86_AVX512;
     }

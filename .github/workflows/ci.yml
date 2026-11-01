@@ -116,6 +116,14 @@ jobs:
         run: |
           go run Scripts/unicode/gen.go > /tmp/UnicodeDataTables.swift
           diff -u Sources/AemiUnicode/Generated/UnicodeDataTables.swift /tmp/UnicodeDataTables.swift
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - name: Regenerate the tokenizer-parity tables and compare
+        # Line 4 names the engine's version, which is not data.
+        run: |
+          bun Scripts/unicode/gen-unicode-tables.mjs > /tmp/GeneratedUnicodeTables.swift
+          diff -u <(sed 4d Sources/AemiUnicode/GeneratedUnicodeTables.swift) <(sed 4d /tmp/GeneratedUnicodeTables.swift)
 
   embedded:
     # AemiKernels and AemiKernel as Embedded Swift for arm64 and x86_64 macOS, needing libc only: WineKit links them into
@@ -138,8 +146,9 @@ jobs:
 
   c-kernels:
     # The C kernels against their scalar references with AddressSanitizer and UndefinedBehaviorSanitizer: every fold and scan variant,
-    # and the pair-set (Teddy) kernel on arm64 and, under Rosetta, its x86-64 SSSE3 path. The Swift tests run only the host's own
-    # backend. AVX2 and AVX-512 run nowhere yet: Rosetta reports SSE4.2 at most (docs/research/c-kernels-and-rust-2026-10.md).
+    # and the pair-set (Teddy) kernel on arm64 and, under Rosetta, its x86-64 paths: SSE4.2 and SSSE3, then AVX2 with
+    # ROSETTA_ADVERTISE_AVX=1, without which Rosetta runs AVX2 but does not report it (ADR 0024). The Swift tests run only the
+    # host's own backend. AVX-512 runs nowhere: Rosetta never reports it.
     name: C kernels, differential under sanitizers
     runs-on: macos-26
     timeout-minutes: 15

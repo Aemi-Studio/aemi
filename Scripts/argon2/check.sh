@@ -1,6 +1,6 @@
 #!/bin/sh
 # The Argon2 kernels against their scalar references (kernels-check.c) with ASan and UBSan, natively and, on Apple silicon,
-# as x86-64 under Rosetta (SSSE3; AVX2 is also called directly, as Rosetta's support decides whether it runs).
+# as x86-64 under Rosetta (SSSE3, then AVX2 with ROSETTA_ADVERTISE_AVX=1).
 # `--timing` runs timing-check.c instead, `--bench` bench.c. Exit 0 when every check agrees.
 set -eu
 cd "$(dirname "$0")"
@@ -44,5 +44,7 @@ echo "host ($(uname -m))${SANITIZE:+, ASan+UBSan}:"; "$OUT/check-host"
 if [ "$(uname -s)-$(uname -m)" = "Darwin-arm64" ]; then
     # shellcheck disable=SC2086
     "$CC" $FLAGS -arch x86_64 -fsanitize=address,undefined -fno-sanitize-recover=all -o "$OUT/check-x86" kernels-check.c $FILES
-    echo "x86_64 under Rosetta, ASan+UBSan:"; arch -x86_64 "$OUT/check-x86" --force-avx2
+    echo "x86_64 under Rosetta, ASan+UBSan:"; arch -x86_64 "$OUT/check-x86"
+    # Rosetta runs AVX2 only when asked to advertise it.
+    echo "x86_64 under Rosetta, AVX2 advertised:"; ROSETTA_ADVERTISE_AVX=1 arch -x86_64 "$OUT/check-x86"
 fi

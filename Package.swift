@@ -172,6 +172,7 @@ let package = Package(
         .library(name: "AemiMetrics", targets: ["AemiMetrics"]),
         // Syntax lexers, whole text or a line at a time; not in the AemiFoundation umbrella.
         .library(name: "AemiLexers", targets: ["AemiLexers"]),
+        .library(name: "AemiDiff", targets: ["AemiDiff"]),
         // Concurrency seams + pools (formerly ADConcurrency).
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
         // Shared swift-syntax helpers for macro compiler plugins. Never re-exported by an umbrella.
@@ -229,7 +230,7 @@ let package = Package(
             name: "AemiUnicode", dependencies: ["AemiKernel"], swiftSettings: strictSettings,
             plugins: libraryBuildPlugins),
         .target(
-            name: "AemiText", dependencies: ["AemiKernel", "AemiUnicode"],
+            name: "AemiText", dependencies: ["AemiKernel", "AemiKernels", "AemiUnicode"],
             swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         .target(
             name: "AemiIO", dependencies: ["AemiKernel"], swiftSettings: kernelSettings,
@@ -246,6 +247,12 @@ let package = Package(
         // AemiLexers — hand-written scanners over borrowed UTF-8 bytes for 20 languages, whole text or a line at a time
         // from each line's entry state. Standard library only. Moved from Atelier's AtelierLexers.
         .target(name: "AemiLexers", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+        // AemiDiff — line diffs (Myers, histogram) over interned lines, their refiners, intraline emphasis, moved
+        // blocks, hunk layout, unified patches and gutter change marks. Standard library only. Moved from Atelier's
+        // AtelierDiff.
+        .target(
+            name: "AemiDiff", dependencies: ["AemiKernel", "AemiText", "AemiLexers"], swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins),
         // AemiRuntime — zero-dep production seams (TaskProvider/Clock) + ResourcePool /
         // BlockingOffloadPool. Separate from AemiCore's app-level TaskProvider/TaskRole.
         .target(name: "AemiRuntime", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
@@ -326,6 +333,8 @@ let package = Package(
             name: "AemiMetricsTests", dependencies: ["AemiMetrics"], swiftSettings: testSettings),
         .testTarget(
             name: "AemiLexersTests", dependencies: ["AemiLexers", "AemiTestKit"], swiftSettings: testSettings),
+        .testTarget(
+            name: "AemiDiffTests", dependencies: ["AemiDiff", "AemiText", "AemiTestKit"], swiftSettings: testSettings),
         .testTarget(
             name: "AemiMacroSupportTests", dependencies: ["AemiMacroSupport"],
             swiftSettings: testSettings),

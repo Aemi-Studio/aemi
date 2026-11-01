@@ -6,7 +6,7 @@ import Testing
 /// escape written `\#`, stay inside it (perf-core L5: an inner `"""` flipped string and code for the rest of a file).
 struct RawStringTests {
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
-    private static func tokens(_ source: String) -> [Token] {
+    private static func tokens(_ source: String) -> [HighlightToken] {
         SyntaxHighlighter.tokens(utf8: Array(source.utf8), language: .swift)
     }
 
@@ -24,8 +24,8 @@ struct RawStringTests {
         let tokens = Self.tokens(source)
         let start = try Self.offset(after: "let x = ", in: source)
         let end = try Self.offset(after: "\"\"\"#", in: source)
-        #expect(tokens.first { $0.kind == .string }?.range == start ..< end)
-        #expect(tokens.last == Token(kind: .number, range: source.utf8.count - 1 ..< source.utf8.count))
+        #expect(tokens.first { $0.role == .string }?.byteRange == start ..< end)
+        #expect(tokens.last == lexical(.number, source.utf8.count - 1 ..< source.utf8.count))
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -39,14 +39,14 @@ struct RawStringTests {
         let source = line + "\nlet y = 1"
         let tokens = Self.tokens(source)
         let start = try Self.offset(after: "let x = ", in: source)
-        #expect(tokens.map(\.kind) == [.keyword, .string, .keyword, .number])
-        #expect(tokens.dropFirst().first?.range == start ..< line.utf8.count)
+        #expect(tokens.map(\.role) == [.keyword, .string, .keyword, .number])
+        #expect(tokens.dropFirst().first?.byteRange == start ..< line.utf8.count)
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     @Test
     func `a run of hashes without a quote leaves the code after it visible`() {
         let source = String(repeating: "#", count: 1_024) + "let value = 1"
-        #expect(Self.tokens(source).first == Token(kind: .keyword, range: 1_024 ..< 1_027))
+        #expect(Self.tokens(source).first == lexical(.keyword, 1_024 ..< 1_027))
     }
 }

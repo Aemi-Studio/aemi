@@ -28,16 +28,16 @@ struct LineLexerTests {
             .map { line in
                 // Tokens are ascending and disjoint: skip those ending before the line, take those overlapping it, and
                 // keep the last one for the next line when it runs on past this one.
-                while next < tokens.count, tokens[next].range.upperBound <= line.lowerBound { next += 1 }
+                while next < tokens.count, tokens[next].byteRange.upperBound <= line.lowerBound { next += 1 }
                 var cut: [LineToken] = []
                 var index = next
-                while index < tokens.count, tokens[index].range.lowerBound < line.upperBound {
-                    let range = tokens[index].range.clamped(to: line)
+                while index < tokens.count, tokens[index].byteRange.lowerBound < line.upperBound {
+                    let range = tokens[index].byteRange.clamped(to: line)
                     if !range.isEmpty {
                         cut.append(
                             LineToken(
                                 range: range.lowerBound - line.lowerBound ..< range.upperBound - line.lowerBound,
-                                role: tokens[index].kind.role))
+                                role: tokens[index].role))
                     }
                     index += 1
                 }

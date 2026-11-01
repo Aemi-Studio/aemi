@@ -24,15 +24,15 @@ struct LexerThroughputBenchmark {
         var checksum: UInt64 = 14_695_981_039_346_656_037
         for iteration in 0 ..< 23 {
             // Each result is released before the next timed call, so no call pays for freeing another's.
-            var tokens: [Token] = []
+            var tokens: [HighlightToken] = []
             let elapsed = ContinuousClock()
                 .measure { tokens = SyntaxHighlighter.tokens(utf8: bytes, language: language) }
             if iteration == 0 {
                 tokenCount = tokens.count
                 for token in tokens {
                     let fields = [
-                        UInt64(token.kind.role.rawValue), UInt64(token.range.lowerBound),
-                        UInt64(token.range.upperBound)
+                        UInt64(token.role.rawValue), UInt64(token.byteRange.lowerBound),
+                        UInt64(token.byteRange.upperBound)
                     ]
                     for field in fields { checksum = (checksum ^ field) &* 1_099_511_628_211 }
                 }

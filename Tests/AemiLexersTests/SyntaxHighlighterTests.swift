@@ -8,9 +8,9 @@ struct SyntaxHighlighterTests {
     func `swift scanner classifies keywords strings comments numbers types and attributes`() {
         let source = "@MainActor func run() -> Int { /* a /* nested */ b */ let x = \"hi\\\"\" // done\n return 42 }"
         let tokens = SyntaxHighlighter.tokens(in: source, language: .swift)
-        let kinds = tokens.map(\.kind)
+        let kinds = tokens.map(\.role)
         #expect(kinds == [.attribute, .keyword, .type, .comment, .keyword, .string, .comment, .keyword, .number])
-        let text = tokens.map { String(source.utf16[$0.range]) }
+        let text = tokens.map { String(source.utf16[$0.byteRange]) }
         #expect(text[3] == "/* a /* nested */ b */")
         #expect(text[5] == "\"hi\\\"\"")
     }
@@ -19,10 +19,10 @@ struct SyntaxHighlighterTests {
     @Test
     func `html scanner classifies tags attributes strings comments and entities`() {
         let source = "<!DOCTYPE html><div class=\"a\">&amp;<!-- c --><script>if (a < b) {}</script></div>"
-        let kinds = SyntaxHighlighter.tokens(in: source, language: .html).map(\.kind)
+        let kinds = SyntaxHighlighter.tokens(in: source, language: .html).map(\.role)
         #expect(
             kinds == [
-                .keyword, .tag, .attributeName, .string, .tag, .entity, .comment, .tag, .tag, .tag, .tag, .tag, .tag
+                .keyword, .tag, .property, .string, .tag, .escape, .comment, .tag, .tag, .tag, .tag, .tag, .tag
             ])
     }
 
@@ -31,7 +31,7 @@ struct SyntaxHighlighterTests {
         (
             Language.kotlin,
             "@Composable fun Greet(name: String) { /* c */ val s = \"\"\"hi\nthere\"\"\" // x\n return 1 }",
-            [TokenKind.attribute, .keyword, .type, .type, .comment, .keyword, .string, .comment, .keyword, .number]
+            [HighlightRole.attribute, .keyword, .type, .type, .comment, .keyword, .string, .comment, .keyword, .number]
         ),
         (
             .java, "@Override public String name() { return \"n\" + 'c' + 0x1F; } // end",
@@ -67,27 +67,27 @@ struct SyntaxHighlighterTests {
         )
     ])
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
-    func `code scanners classify each language`(language: Language, source: String, expected: [TokenKind]) {
-        #expect(SyntaxHighlighter.tokens(in: source, language: language).map(\.kind) == expected)
+    func `code scanners classify each language`(language: Language, source: String, expected: [HighlightRole]) {
+        #expect(SyntaxHighlighter.tokens(in: source, language: language).map(\.role) == expected)
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     @Test
     func `json scanner tells keys from values and marks literals`() {
         let kinds = SyntaxHighlighter.tokens(in: "{\"a\": [1, -2.5, true, null], \"b\": \"x\"}", language: .json)
-            .map(\.kind)
-        #expect(kinds == [.attributeName, .number, .number, .keyword, .keyword, .attributeName, .string])
+            .map(\.role)
+        #expect(kinds == [.property, .number, .number, .keyword, .keyword, .property, .string])
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     @Test
     func `yaml scanner marks documents keys anchors comments and literals`() {
         let source = "---\n# c\nname: app # trailing\nlist:\n  - &a 1\n  - *a\n  - yes\nkey with spaces: \"v\"\n"
-        let kinds = SyntaxHighlighter.tokens(in: source, language: .yaml).map(\.kind)
+        let kinds = SyntaxHighlighter.tokens(in: source, language: .yaml).map(\.role)
         #expect(
             kinds == [
-                .keyword, .comment, .attributeName, .comment, .attributeName, .attribute, .number, .attribute, .keyword,
-                .attributeName, .string
+                .keyword, .comment, .property, .comment, .property, .attribute, .number, .attribute, .keyword,
+                .property, .string
             ])
     }
 
@@ -95,11 +95,11 @@ struct SyntaxHighlighterTests {
     @Test
     func `toml scanner marks tables keys strings numbers dates and literals`() {
         let source = "[server]\nhost = \"a\" # c\nport = 8080\n[[items]]\ndate = 1979-05-27T07:32:00Z\nok = true\n"
-        let kinds = SyntaxHighlighter.tokens(in: source, language: .toml).map(\.kind)
+        let kinds = SyntaxHighlighter.tokens(in: source, language: .toml).map(\.role)
         #expect(
             kinds == [
-                .tag, .attributeName, .string, .comment, .attributeName, .number, .tag, .attributeName, .number,
-                .attributeName, .keyword
+                .tag, .property, .string, .comment, .property, .number, .tag, .property, .number,
+                .property, .keyword
             ])
     }
 
@@ -107,10 +107,10 @@ struct SyntaxHighlighterTests {
     @Test
     func `css scanner marks selectors properties numbers colours at rules and importance`() {
         let source = "@media (min-width: 10px) { .card #id { color: #fff; margin: -1.5em !important; /* c */ } }"
-        let kinds = SyntaxHighlighter.tokens(in: source, language: .css).map(\.kind)
+        let kinds = SyntaxHighlighter.tokens(in: source, language: .css).map(\.role)
         #expect(
             kinds == [
-                .attribute, .number, .type, .type, .attributeName, .number, .attributeName, .number, .keyword, .comment
+                .attribute, .number, .type, .type, .property, .number, .property, .number, .keyword, .comment
             ])
     }
 
@@ -137,8 +137,8 @@ extension String.UTF16View {
 /// The languages added for the terminal editor's manifest: comment spelling, keywords and string quoting.
 struct AddedLanguageScannerTests {
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
-    private func kinds(_ source: String, _ language: Language) -> [TokenKind] {
-        SyntaxHighlighter.tokens(utf8: Array(source.utf8), language: language).map(\.kind)
+    private func kinds(_ source: String, _ language: Language) -> [HighlightRole] {
+        SyntaxHighlighter.tokens(utf8: Array(source.utf8), language: language).map(\.role)
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)

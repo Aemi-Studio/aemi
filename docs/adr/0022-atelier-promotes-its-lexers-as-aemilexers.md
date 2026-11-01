@@ -36,3 +36,16 @@ Atelier. The owner chose a module of aemi over a repository of its own (2026-10-
 - Atelier deletes its copies and consumes `AemiLexers` once its aemi pin moves past this change. Its engine then maps `Token` to its
   `HighlightToken`, one more array a scan; to be measured there.
 - The line tests no longer use TerminalKitText's `TextLines`: they cut lines themselves.
+
+## Amended (2026-10-31): the scanners build `HighlightToken`
+
+The owner: no conversion between the scanners and their clients. Mapping `Token` to Atelier's `HighlightToken` cost Atelier's
+whole-text path 6 to 17 % (median 10 %), one more array a scan. `HighlightToken` and `HighlightLayer` (standard library only) move
+here from Atelier's model, and every whole-text entry point returns `[HighlightToken]` built in place, in the `lexical` layer, through
+the same internal `ScannerToken` path as `LineToken`. The public `Token` is gone; `TokenKind` stays as the scanners' internal shorthand
+for a role.
+
+- Same tokens: the corpus checksums are unchanged, each kind keeping its number through its role (attribute name is `property`,
+  entity is `escape`).
+- Cost here: the token is wider (layer, modifiers, priority), so the scan writes more: 0.5 to 6 % slower, median 3 % (Swift 649 to
+  630 MB/s), against the 10 % the conversion cost Atelier.

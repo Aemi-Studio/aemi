@@ -1,6 +1,6 @@
+import AemiCore
 import Foundation
 import Testing
-import AemiCore
 
 private enum User {}
 private enum Sku {}
@@ -74,7 +74,7 @@ struct StringSurfaceTests {
         #expect(UserID("  alpha  ").trimmingCharacters(in: .whitespaces) == "alpha")
         #expect(UserID("\n\talpha\n").trimmingCharacters(in: .whitespacesAndNewlines) == "alpha")
         #expect(UserID("alpha-042").replacingOccurrences(of: "-", with: "_") == "alpha_042")
-        #expect(UserID("aaa").replacingOccurrences(of: "a", with: "") .isEmpty)
+        #expect(UserID("aaa").replacingOccurrences(of: "a", with: "").isEmpty)
         #expect(UserID("alpha").replacingOccurrences(of: "z", with: "_") == "alpha")
     }
 

@@ -31,8 +31,13 @@ public struct AsyncEventProbeTimeoutError: Error, Sendable, CustomStringConverti
     public let omittedEvents: Int
 
     init(
-        label: String, requested: Int, recorded: Int, creation: SourceLocation, isPredicateWait: Bool,
-        recentEvents: [String], omittedEvents: Int
+        label: String,
+        requested: Int,
+        recorded: Int,
+        creation: SourceLocation,
+        isPredicateWait: Bool,
+        recentEvents: [String],
+        omittedEvents: Int
     ) {
         self.label = label
         self.requested = requested
@@ -217,8 +222,12 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
         try Task.checkCancellation()
         if count <= 0 { return events }
         return try await race(
-            within: duration, clock: clock, requested: count, isPredicateWait: false,
-            work: { try await self.waitForThreshold(count).events })
+            within: duration,
+            clock: clock,
+            requested: count,
+            isPredicateWait: false,
+            work: { try await self.waitForThreshold(count).events }
+        )
     }
 
     /// Convenience over `ContinuousClock` with a default deadline of 30 seconds. Prefer
@@ -251,15 +260,20 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
     ) async throws -> [Event] {
         try Task.checkCancellation()
         return try await race(
-            within: duration, clock: clock, requested: 0, isPredicateWait: true,
-            work: { try await self.waitForCondition(condition) })
+            within: duration,
+            clock: clock,
+            requested: 0,
+            isPredicateWait: true,
+            work: { try await self.waitForCondition(condition) }
+        )
     }
 
     /// Convenience over `ContinuousClock` with a default deadline of 30 seconds (a hang guard; see
     /// ``wait(forAtLeast:timeout:)``).
     @discardableResult
     public func wait(
-        until condition: @escaping @Sendable ([Event]) -> Bool, timeout: Duration = .seconds(30)
+        until condition: @escaping @Sendable ([Event]) -> Bool,
+        timeout: Duration = .seconds(30)
     ) async throws -> [Event] {
         try await wait(until: condition, within: timeout, clock: ContinuousClock())
     }
@@ -295,8 +309,14 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
             return text.count > cut ? text.prefix(cut - 1) + "…" : text
         }
         return AsyncEventProbeTimeoutError(
-            label: label, requested: requested, recorded: count, creation: creation,
-            isPredicateWait: isPredicateWait, recentEvents: described, omittedEvents: count - described.count)
+            label: label,
+            requested: requested,
+            recorded: count,
+            creation: creation,
+            isPredicateWait: isPredicateWait,
+            recentEvents: described,
+            omittedEvents: count - described.count
+        )
     }
 
     /// The condition half: evaluates `condition` on the events so far and then on each next prefix.
@@ -324,7 +344,8 @@ public final class AsyncEventProbe<Event: Sendable>: Sendable {
                     if Task.isCancelled { return .cancelled }
                     if s.count >= count {
                         return .ready(
-                            exactPrefix ? s.prefixSnapshot(count) : Snapshot(count: s.count, events: s.events))
+                            exactPrefix ? s.prefixSnapshot(count) : Snapshot(count: s.count, events: s.events)
+                        )
                     }
                     s.waiters.park(id: id, key: count, continuation)
                     return .suspended

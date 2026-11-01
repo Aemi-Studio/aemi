@@ -20,7 +20,9 @@ struct DataScanner {
     /// - Returns: The state at the end of `units`: a string still open, or plain data.
     /// - Complexity: O(`units.count`)
     func scan<Output: ScannerToken>(
-        _ units: Span<UInt8>, from state: LexState, into tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from state: LexState,
+        into tokens: inout [Output]
     ) -> LexState {
         var index = 0
         if state.mode == .string {
@@ -97,7 +99,10 @@ struct DataScanner {
     }
 
     private func scanUntilNewline<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, kind: TokenKind, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        kind: TokenKind,
+        tokens: inout [Output]
     ) -> Int {
         var index = start
         while index < units.count, units[index] != ASCII.newline { index += 1 }
@@ -108,7 +113,10 @@ struct DataScanner {
     /// Scans the string whose quote is at `start`; returns where scanning resumes and, when the string runs on past
     /// the end of `units`, the state there.
     private func scanQuoted<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, quote: UInt8, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        quote: UInt8,
+        tokens: inout [Output]
     ) -> (Int, LexState?) {
         let isTriple =
             format == .toml && start + 2 < units.count && units[start + 1] == quote && units[start + 2] == quote
@@ -121,7 +129,10 @@ struct DataScanner {
     /// Where a string's body that resumes at `start` ends, and whether it is still open at the end of `units`: a TOML
     /// tripled string runs across lines, any other stops at its line's end, unless an escape takes the line break.
     private func quotedEnd(
-        _ units: Span<UInt8>, from start: Int, quote: UInt8, isTriple: Bool
+        _ units: Span<UInt8>,
+        from start: Int,
+        quote: UInt8,
+        isTriple: Bool
     ) -> (end: Int, isOpen: Bool) {
         var index = start
         while index < units.count {
@@ -146,7 +157,9 @@ struct DataScanner {
     }
 
     private func scanNumber<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        tokens: inout [Output]
     ) -> Int {
         var index = start + 1
         while index < units.count,
@@ -163,7 +176,9 @@ struct DataScanner {
     /// A bare word: a key before its separator, a literal such as `true` or `null`, or nothing. A YAML key may hold
     /// spaces when it starts its line, after the indentation and an optional `- `.
     private func scanBareWord<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        tokens: inout [Output]
     ) -> Int {
         let canContainSpaces = format == .yaml && isBareKeyLine(units, start)
         var index = start

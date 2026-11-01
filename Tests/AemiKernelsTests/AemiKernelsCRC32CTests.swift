@@ -63,7 +63,9 @@ struct AemiKernelsCRC32CTests {
                 let slice = data[start ..< (start + length)]
                 #expect(Self.crc(~0, slice, .fastest) == Self.reference(~0, slice), "length \(length) at \(start)")
                 #expect(
-                    Self.crc(0x0BAD_F00D, slice, .fastest) == Self.reference(0x0BAD_F00D, slice), "seeded, \(length)")
+                    Self.crc(0x0BAD_F00D, slice, .fastest) == Self.reference(0x0BAD_F00D, slice),
+                    "seeded, \(length)"
+                )
             }
         }
     }

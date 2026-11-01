@@ -9,18 +9,18 @@ import SwiftSyntax
 func accessModifier(from declaration: some DeclGroupSyntax) -> String {
     for modifier in declaration.modifiers {
         switch modifier.name.tokenKind {
-        case .keyword(.open), .keyword(.public):
-            return "public "
-        case .keyword(.package):
-            return "package "
-        case .keyword(.fileprivate):
-            return "fileprivate "
-        case .keyword(.private):
-            return "private "
-        case .keyword(.internal):
-            return ""
-        default:
-            continue
+            case .keyword(.open), .keyword(.public):
+                return "public "
+            case .keyword(.package):
+                return "package "
+            case .keyword(.fileprivate):
+                return "fileprivate "
+            case .keyword(.private):
+                return "private "
+            case .keyword(.internal):
+                return ""
+            default:
+                continue
         }
     }
     return ""

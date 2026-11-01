@@ -5,7 +5,6 @@
 //  Created by Gigi on 28/01/25.
 //
 
-
 import SwiftUI
 
 public struct ObservingCheckbox<T>: View {

@@ -111,7 +111,9 @@ struct Base64EncodingTests {
 
     @discardableResult
     private func encodeInto(
-        _ input: [UInt8], capacity: Int, _ options: Base64.Options
+        _ input: [UInt8],
+        capacity: Int,
+        _ options: Base64.Options
     ) throws(Base64.EncodeError) -> (written: Int, window: [UInt8]) {
         try Base64.encodeCanary(input, capacity: capacity, options: options)
     }
@@ -145,7 +147,8 @@ struct Base64EncodingTests {
         let input = bytes("foobar")
         #expect(
             try Base64.encodeCanary(NonContiguousBytes(storage: input), capacity: 8, options: .strict).window
-                == bytes("Zm9vYmFy"))
+                == bytes("Zm9vYmFy")
+        )
         var storage = [UInt8](repeating: 0, count: 8)
         let written = try SpanAccess.read(input) { (span) throws(Base64.EncodeError) in
             try SpanAccess.write(&storage) { (out) throws(Base64.EncodeError) in
@@ -167,7 +170,10 @@ struct Base64EncodingTests {
         let failure = storage.withUnsafeMutableBufferPointer { (out) -> Base64.EncodeError? in
             do throws(Base64.EncodeError) {
                 _ = try Base64.encode(
-                    bytes("foobar"), into: UnsafeMutableBufferPointer(rebasing: out[..<7]), options: .strict)
+                    bytes("foobar"),
+                    into: UnsafeMutableBufferPointer(rebasing: out[..<7]),
+                    options: .strict
+                )
                 return nil
             } catch {
                 return error

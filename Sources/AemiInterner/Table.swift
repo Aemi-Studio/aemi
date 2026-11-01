@@ -82,7 +82,9 @@
 
     /// A table over keys known to be distinct, in symbol order: no bytes are compared.
     init(
-        arenas: [Arena], starts: ContiguousArray<UnsafeRawPointer?>, lengths: ContiguousArray<UInt32>,
+        arenas: [Arena],
+        starts: ContiguousArray<UnsafeRawPointer?>,
+        lengths: ContiguousArray<UInt32>,
         hashes: ContiguousArray<UInt64>
     ) {
         self.arenas = arenas

@@ -54,7 +54,8 @@
     private func assertRegionWithinMapping(offset: Int, count: Int) {
         assert(
             offset >= 0 && count >= 0 && count <= capacity && offset <= capacity - count,
-            "RawFileMap.region(offset: \(offset), count: \(count)) escapes the \(capacity)-byte mapping")
+            "RawFileMap.region(offset: \(offset), count: \(count)) escapes the \(capacity)-byte mapping"
+        )
     }
 
     /// Borrowed, **lifetime-unchecked** view of `count` bytes at `offset`, as a raw pointer.
@@ -89,7 +90,9 @@
     /// can observe the file's current length.
     @inline(__always)
     public func withRegion<R>(
-        offset: Int, count: Int, _ body: (_ region: RawSpan) throws -> R
+        offset: Int,
+        count: Int,
+        _ body: (_ region: RawSpan) throws -> R
     ) rethrows -> R {
         assertRegionWithinMapping(offset: offset, count: count)
         let bytes = unsafe UnsafeRawBufferPointer(start: base + offset, count: count)

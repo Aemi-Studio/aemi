@@ -7,14 +7,13 @@ import Testing
 /// deterministic teardown, observation exclusion, and diagnostic timeouts.
 @Suite("TaskProviderSpy")
 struct TaskProviderSpyTests {
-
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 
     @Test func countsSpawnsAndCompletions() async throws {
         let spy = TaskProviderSpy()
-        spy.task { }
-        spy.task { }
-        spy.task { }
+        spy.task {}
+        spy.task {}
+        spy.task {}
         try await spy.waitForAllTasks()
         #expect(spy.spawnedTaskCount == 3)
         #expect(spy.completedTaskCount == 3)
@@ -25,7 +24,7 @@ struct TaskProviderSpyTests {
 
     @Test func detachedWorkIsTrackedLikeAttachedWork() async throws {
         let spy = TaskProviderSpy()
-        spy.detachedTask { }
+        spy.detachedTask {}
         try await spy.waitForAllTasks()
         #expect(spy.spawnedTaskCount == 1)
         #expect(spy.completedTaskCount == 1)
@@ -37,7 +36,7 @@ struct TaskProviderSpyTests {
     @Test func waitForAllTasksFollowsARespawnChain() async throws {
         let spy = TaskProviderSpy()
         spy.task {
-            spy.task { }
+            spy.task {}
         }
         try await spy.waitForAllTasks()
         #expect(spy.spawnedTaskCount == 2)
@@ -158,7 +157,7 @@ struct TaskProviderSpyTests {
     @Test func waitForSpawnedTasksObservesASpawnFromAnotherTask() async throws {
         let spy = TaskProviderSpy()
         Task.detached {
-            spy.task { }
+            spy.task {}
         }
         try await spy.waitForSpawnedTasks(atLeast: 1)
         #expect(spy.spawnedTaskCount == 1)

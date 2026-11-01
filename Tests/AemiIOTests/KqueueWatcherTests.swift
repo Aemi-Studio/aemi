@@ -175,7 +175,9 @@ import Testing
             let closed = try await withCheckedThrowingContinuation { (done: CheckedContinuation<Bool, any Error>) in
                 do {
                     let watcher = try KqueueWatcher(
-                        suppressionWindow: .seconds(1), stopped: { done.resume(returning: $0) })
+                        suppressionWindow: .seconds(1),
+                        stopped: { done.resume(returning: $0) }
+                    )
                     watcher.watchDirectory(NSTemporaryDirectory())
                     watcher.stop()
                 } catch {
@@ -202,10 +204,15 @@ import Testing
             for path in paths { try Data().write(to: URL(fileURLWithPath: path)) }
             let queue = try #require(KernelQueue())
             let (events, continuation) = AsyncStream.makeStream(
-                of: FileWatchEvent.self, bufferingPolicy: .bufferingNewest(2))
+                of: FileWatchEvent.self,
+                bufferingPolicy: .bufferingNewest(2)
+            )
             let loop = KqueueEventLoop(
-                queue: queue, continuation: continuation, suppression: SuppressionWindow(window: .seconds(1)),
-                stopped: nil)
+                queue: queue,
+                continuation: continuation,
+                suppression: SuppressionWindow(window: .seconds(1)),
+                stopped: nil
+            )
             loop.update { state, queue in for path in paths { state.watchFile(path, queue: queue) } }
 
             // Five changes into a buffer of two, with no one reading: the first three are dropped.

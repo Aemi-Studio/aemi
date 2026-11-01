@@ -65,44 +65,44 @@ extension Identifier where RawValue: StringProtocol {
 }
 
 #if canImport(Foundation)
-public import Foundation
+    public import Foundation
 
-extension Identifier where RawValue: StringProtocol {
-    /// - Complexity: O(n) in the raw value's length.
-    @inlinable
-    public func trimmingCharacters(in set: CharacterSet) -> String {
-        rawValue.trimmingCharacters(in: set)
-    }
+    extension Identifier where RawValue: StringProtocol {
+        /// - Complexity: O(n) in the raw value's length.
+        @inlinable
+        public func trimmingCharacters(in set: CharacterSet) -> String {
+            rawValue.trimmingCharacters(in: set)
+        }
 
-    /// - Complexity: O(n·m) for a raw value of length n and a target of length m.
-    @inlinable
-    public func replacingOccurrences(
-        of target: some StringProtocol,
-        with replacement: some StringProtocol
-    ) -> String {
-        rawValue.replacingOccurrences(of: target, with: replacement)
-    }
+        /// - Complexity: O(n·m) for a raw value of length n and a target of length m.
+        @inlinable
+        public func replacingOccurrences(
+            of target: some StringProtocol,
+            with replacement: some StringProtocol
+        ) -> String {
+            rawValue.replacingOccurrences(of: target, with: replacement)
+        }
 
-    /// - Returns: the range of the first occurrence, or `nil` if absent.
-    /// - Complexity: O(n·m) for a raw value of length n and a target of length m.
-    @inlinable
-    public func range(of target: some StringProtocol) -> Range<RawValue.Index>? {
-        rawValue.range(of: target)
-    }
+        /// - Returns: the range of the first occurrence, or `nil` if absent.
+        /// - Complexity: O(n·m) for a raw value of length n and a target of length m.
+        @inlinable
+        public func range(of target: some StringProtocol) -> Range<RawValue.Index>? {
+            rawValue.range(of: target)
+        }
 
-    /// - Complexity: O(n·m) for a raw value of length n and a target of length m.
-    @inlinable
-    public func contains(_ target: some StringProtocol) -> Bool {
-        rawValue.range(of: target) != nil
-    }
+        /// - Complexity: O(n·m) for a raw value of length n and a target of length m.
+        @inlinable
+        public func contains(_ target: some StringProtocol) -> Bool {
+            rawValue.range(of: target) != nil
+        }
 
-    /// Compares without regard to case, and without regard to locale.
-    ///
-    /// - Note: the localized variants are deliberately not forwarded. An
-    ///   identifier's ordering must not change with the user's locale.
-    @inlinable
-    public func caseInsensitiveCompare(_ other: some StringProtocol) -> ComparisonResult {
-        rawValue.caseInsensitiveCompare(other)
+        /// Compares without regard to case, and without regard to locale.
+        ///
+        /// - Note: the localized variants are deliberately not forwarded. An
+        ///   identifier's ordering must not change with the user's locale.
+        @inlinable
+        public func caseInsensitiveCompare(_ other: some StringProtocol) -> ComparisonResult {
+            rawValue.caseInsensitiveCompare(other)
+        }
     }
-}
 #endif

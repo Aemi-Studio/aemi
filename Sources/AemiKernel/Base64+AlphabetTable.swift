@@ -26,11 +26,13 @@ extension Base64 {
 
         /// RFC 4648 §4 (`A–Z a–z 0–9 + /`).
         public static let standard = AlphabetTable(
-            validSymbols: Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".utf8))
+            validSymbols: Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".utf8)
+        )
 
         /// RFC 4648 §5, the URL- and filename-safe form (`A–Z a–z 0–9 - _`).
         public static let urlSafe = AlphabetTable(
-            validSymbols: Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".utf8))
+            validSymbols: Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".utf8)
+        )
 
         /// The table for one of the two built-in ``Base64/Alphabet`` values.
         public init(_ alphabet: Alphabet) {

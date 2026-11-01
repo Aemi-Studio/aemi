@@ -74,7 +74,9 @@ extension LineDiff {
     /// - Throws: `CancellationError` when the calling task is cancelled.
     /// - Complexity: O(bytes) to intern, plus the line diff's own cost, which `limits.costLimit` bounds.
     public static func structure(
-        old: some LineSource, new: some LineSource, pipeline: DiffPipeline = DiffPipeline(),
+        old: some LineSource,
+        new: some LineSource,
+        pipeline: DiffPipeline = DiffPipeline(),
         limits: DiffLimits = DiffLimits()
     ) async throws(CancellationError) -> DiffStructure {
         try checkCancellation()
@@ -85,14 +87,20 @@ extension LineDiff {
 
     /// ``structure(old:new:pipeline:limits:)`` from synchronous code.
     static func makeStructure(
-        old: some LineSource, new: some LineSource, pipeline: DiffPipeline, limits: DiffLimits
+        old: some LineSource,
+        new: some LineSource,
+        pipeline: DiffPipeline,
+        limits: DiffLimits
     ) -> DiffStructure {
         var interner = LineInterner(whitespace: pipeline.whitespace)
         let oldLines = interner.intern(old)
         let newLines = interner.intern(new)
         let context = LineDiffContext(
-            old: oldLines.identifiers, new: newLines.identifiers, oldIndents: oldLines.indents,
-            newIndents: newLines.indents)
+            old: oldLines.identifiers,
+            new: newLines.identifiers,
+            oldIndents: oldLines.indents,
+            newIndents: newLines.indents
+        )
         let result = pipeline.lineDiff.diff(context.old, context.new, limits: limits)
         var edits = result.edits
         for refiner in pipeline.refiners {

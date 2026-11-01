@@ -15,8 +15,12 @@ public struct DiffHeuristics: Sendable, Equatable, Hashable, Codable {
     public var whitespace = WhitespaceMode.exact
 
     public init(
-        anchorsRareLines: Bool = false, slidesToIndentation: Bool = true, pairsSimilarLines: Bool = true,
-        cleansUpEmphasis: Bool = true, detectsMovedBlocks: Bool = true, whitespace: WhitespaceMode = .exact
+        anchorsRareLines: Bool = false,
+        slidesToIndentation: Bool = true,
+        pairsSimilarLines: Bool = true,
+        cleansUpEmphasis: Bool = true,
+        detectsMovedBlocks: Bool = true,
+        whitespace: WhitespaceMode = .exact
     ) {
         self.anchorsRareLines = anchorsRareLines
         self.slidesToIndentation = slidesToIndentation
@@ -28,7 +32,10 @@ public struct DiffHeuristics: Sendable, Equatable, Hashable, Codable {
 
     /// Every heuristic off: the plain shortest edit script with positional pairing.
     public static let none = DiffHeuristics(
-        anchorsRareLines: false, slidesToIndentation: false, pairsSimilarLines: false, cleansUpEmphasis: false,
+        anchorsRareLines: false,
+        slidesToIndentation: false,
+        pairsSimilarLines: false,
+        cleansUpEmphasis: false,
         detectsMovedBlocks: false
     )
 }

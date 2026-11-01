@@ -36,11 +36,16 @@
         /// - Throws: ``IOError`` when the system refuses the kqueue or the thread.
         init(suppressionWindow: Duration, stopped: (@Sendable (Bool) -> Void)?) throws(IOError) {
             let (events, continuation) = AsyncStream.makeStream(
-                of: FileWatchEvent.self, bufferingPolicy: .bufferingNewest(Self.eventBufferLimit))
+                of: FileWatchEvent.self,
+                bufferingPolicy: .bufferingNewest(Self.eventBufferLimit)
+            )
             guard let queue = KernelQueue() else { throw IOError.capturingErrno("kqueue") }
             let loop = KqueueEventLoop(
-                queue: queue, continuation: continuation, suppression: SuppressionWindow(window: suppressionWindow),
-                stopped: stopped)
+                queue: queue,
+                continuation: continuation,
+                suppression: SuppressionWindow(window: suppressionWindow),
+                stopped: stopped
+            )
             guard DetachedThread.start(stackBytes: 64 << 10, loop.run) else {
                 queue.close()
                 throw IOError.capturingErrno("pthread_create")
@@ -95,7 +100,9 @@
         private let stopped: (@Sendable (Bool) -> Void)?
 
         init(
-            queue: KernelQueue, continuation: AsyncStream<FileWatchEvent>.Continuation, suppression: SuppressionWindow,
+            queue: KernelQueue,
+            continuation: AsyncStream<FileWatchEvent>.Continuation,
+            suppression: SuppressionWindow,
             stopped: (@Sendable (Bool) -> Void)?
         ) {
             self.queue = queue

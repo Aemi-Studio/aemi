@@ -1,5 +1,3 @@
-
-
 /// The common surface of the read (``Snapshot``) and write (``Mutable``)
 /// projections. Refinements shared by both live in extensions of this
 /// protocol.

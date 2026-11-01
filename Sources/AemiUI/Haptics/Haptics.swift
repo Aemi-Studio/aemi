@@ -47,8 +47,8 @@ extension HapticEvent {
     /// double as accessibility cues for blocked / completed actions.
     var isOutcome: Bool {
         switch self {
-        case .warning, .error, .success: true
-        case .selectionChange, .boundaryReached, .toggleOn, .toggleOff, .commit: false
+            case .warning, .error, .success: true
+            case .selectionChange, .boundaryReached, .toggleOn, .toggleOff, .commit: false
         }
     }
 }
@@ -117,19 +117,20 @@ public struct HapticsConfiguration: Sendable, Equatable {
     func feedback(for event: HapticEvent) -> SensoryFeedback? {
         guard isEnabled else { return nil }
         if suppressUnderLowPower,
-           !event.isOutcome,
-           ProcessInfo.processInfo.isLowPowerModeEnabled {
+            !event.isOutcome,
+            ProcessInfo.processInfo.isLowPowerModeEnabled
+        {
             return nil
         }
         return switch event {
-        case .selectionChange: selectionChange
-        case .boundaryReached: boundaryReached
-        case .toggleOn: toggleOn
-        case .toggleOff: toggleOff
-        case .commit: commit
-        case .warning: warning
-        case .error: error
-        case .success: success
+            case .selectionChange: selectionChange
+            case .boundaryReached: boundaryReached
+            case .toggleOn: toggleOn
+            case .toggleOff: toggleOff
+            case .commit: commit
+            case .warning: warning
+            case .error: error
+            case .success: success
         }
     }
 }
@@ -141,16 +142,16 @@ extension EnvironmentValues {
     @Entry public var aemiHaptics: HapticsConfiguration = .standard
 }
 
-public extension View {
+extension View {
     /// Override the haptic vocabulary used in this subtree.
     /// Pass `.disabled` to silence haptics entirely.
-    func haptics(_ configuration: HapticsConfiguration) -> some View {
+    public func haptics(_ configuration: HapticsConfiguration) -> some View {
         environment(\.aemiHaptics, configuration)
     }
 
     /// Convenience: toggle haptics on or off without authoring a full
     /// configuration. Preserves any existing custom mapping when re-enabling.
-    func haptics(enabled: Bool) -> some View {
+    public func haptics(enabled: Bool) -> some View {
         transformEnvironment(\.aemiHaptics) { config in
             config.isEnabled = enabled
         }
@@ -158,7 +159,7 @@ public extension View {
 
     /// Plays the configured `SensoryFeedback` for `event` each time
     /// `trigger` changes, honoring the active ``HapticsConfiguration``.
-    func haptic<T: Equatable>(_ event: HapticEvent, trigger: T) -> some View {
+    public func haptic<T: Equatable>(_ event: HapticEvent, trigger: T) -> some View {
         modifier(HapticEmitter(event: event, trigger: trigger))
     }
 }
@@ -182,57 +183,57 @@ private struct HapticEmitter<T: Equatable>: ViewModifier {
 // MARK: - Imperative Engine (pre-warmed generators)
 
 #if os(iOS)
-import UIKit
+    import UIKit
 
-/// Imperative counterpart of the `.haptic(_:trigger:)` modifier, for call
-/// sites outside a view update (gesture callbacks, model layers).
-///
-/// Generators are created once and kept warm with `prepare()` so the first
-/// fire has no Taptic Engine spin-up latency. Call ``prepare(for:)`` shortly
-/// before an interaction begins (e.g. on drag start) for minimal latency.
-@MainActor
-public enum HapticEngine {
-    private static let selection = UISelectionFeedbackGenerator()
-    private static let notification = UINotificationFeedbackGenerator()
-    private static let lightImpact = UIImpactFeedbackGenerator(style: .light)
-    private static let mediumImpact = UIImpactFeedbackGenerator(style: .medium)
+    /// Imperative counterpart of the `.haptic(_:trigger:)` modifier, for call
+    /// sites outside a view update (gesture callbacks, model layers).
+    ///
+    /// Generators are created once and kept warm with `prepare()` so the first
+    /// fire has no Taptic Engine spin-up latency. Call ``prepare(for:)`` shortly
+    /// before an interaction begins (e.g. on drag start) for minimal latency.
+    @MainActor
+    public enum HapticEngine {
+        private static let selection = UISelectionFeedbackGenerator()
+        private static let notification = UINotificationFeedbackGenerator()
+        private static let lightImpact = UIImpactFeedbackGenerator(style: .light)
+        private static let mediumImpact = UIImpactFeedbackGenerator(style: .medium)
 
-    /// Pre-warms the Taptic Engine for the given event.
-    public static func prepare(for event: HapticEvent) {
-        generator(for: event).prepare()
-    }
+        /// Pre-warms the Taptic Engine for the given event.
+        public static func prepare(for event: HapticEvent) {
+            generator(for: event).prepare()
+        }
 
-    /// Plays the feedback for `event`, honoring `configuration`'s gates.
-    public static func play(
-        _ event: HapticEvent,
-        configuration: HapticsConfiguration = .standard
-    ) {
-        guard configuration.feedback(for: event) != nil else { return }
-        switch event {
-        case .selectionChange:
-            selection.selectionChanged()
-        case .boundaryReached:
-            lightImpact.impactOccurred(intensity: 0.6)
-        case .toggleOn, .toggleOff:
-            lightImpact.impactOccurred()
-        case .commit:
-            mediumImpact.impactOccurred(intensity: 0.7)
-        case .warning:
-            notification.notificationOccurred(.warning)
-        case .error:
-            notification.notificationOccurred(.error)
-        case .success:
-            notification.notificationOccurred(.success)
+        /// Plays the feedback for `event`, honoring `configuration`'s gates.
+        public static func play(
+            _ event: HapticEvent,
+            configuration: HapticsConfiguration = .standard
+        ) {
+            guard configuration.feedback(for: event) != nil else { return }
+            switch event {
+                case .selectionChange:
+                    selection.selectionChanged()
+                case .boundaryReached:
+                    lightImpact.impactOccurred(intensity: 0.6)
+                case .toggleOn, .toggleOff:
+                    lightImpact.impactOccurred()
+                case .commit:
+                    mediumImpact.impactOccurred(intensity: 0.7)
+                case .warning:
+                    notification.notificationOccurred(.warning)
+                case .error:
+                    notification.notificationOccurred(.error)
+                case .success:
+                    notification.notificationOccurred(.success)
+            }
+        }
+
+        private static func generator(for event: HapticEvent) -> UIFeedbackGenerator {
+            switch event {
+                case .selectionChange: selection
+                case .boundaryReached, .toggleOn, .toggleOff: lightImpact
+                case .commit: mediumImpact
+                case .warning, .error, .success: notification
+            }
         }
     }
-
-    private static func generator(for event: HapticEvent) -> UIFeedbackGenerator {
-        switch event {
-        case .selectionChange: selection
-        case .boundaryReached, .toggleOn, .toggleOff: lightImpact
-        case .commit: mediumImpact
-        case .warning, .error, .success: notification
-        }
-    }
-}
 #endif

@@ -13,7 +13,10 @@ extension AemiText {
         guard size > 0 else { return [] }
         guard
             var windowEnd = collection.index(
-                collection.startIndex, offsetBy: size, limitedBy: collection.endIndex)
+                collection.startIndex,
+                offsetBy: size,
+                limitedBy: collection.endIndex
+            )
         else { return [] }  // size exceeds the element count
         var start = collection.startIndex
         var result: [Range<C.Index>] = []
@@ -30,7 +33,8 @@ extension AemiText {
     /// `Sequence.split`: with `omittingEmptySubsequences` (the default) adjacent separators and
     /// leading/trailing separators produce no empty token; pass `false` to keep them.
     public static func split<C: Collection>(
-        _ collection: C, omittingEmptySubsequences: Bool = true,
+        _ collection: C,
+        omittingEmptySubsequences: Bool = true,
         where isSeparator: (C.Element) -> Bool
     ) -> [Range<C.Index>] {
         var result: [Range<C.Index>] = []

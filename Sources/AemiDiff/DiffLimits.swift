@@ -18,8 +18,10 @@ public struct DiffLimits: Sendable, Hashable {
     public var maximumMovedCandidates: Int
 
     public init(
-        costLimit: Int? = nil, discardsUnmatchedLines: Bool = true,
-        maximumIntralineUnits: Int = IntralineDiff.maximumLineLength, maximumPairs: Int = 40_000,
+        costLimit: Int? = nil,
+        discardsUnmatchedLines: Bool = true,
+        maximumIntralineUnits: Int = IntralineDiff.maximumLineLength,
+        maximumPairs: Int = 40_000,
         maximumMovedCandidates: Int = 64
     ) {
         self.costLimit = costLimit

@@ -30,7 +30,10 @@ struct LoadTests {
             var current = admitted.load(ordering: .relaxed)
             while current < limit {
                 let (exchanged, original) = admitted.compareExchange(
-                    expected: current, desired: current + 1, ordering: .relaxed)
+                    expected: current,
+                    desired: current + 1,
+                    ordering: .relaxed
+                )
                 if exchanged { return }  // admitted
                 current = original
             }
@@ -57,6 +60,7 @@ struct LoadTests {
             outcome.results.contains { result in
                 guard case .failure(let error) = result else { return false }
                 return error.typeName.contains("LoadWorkerTimedOut")
-            })
+            }
+        )
     }
 }

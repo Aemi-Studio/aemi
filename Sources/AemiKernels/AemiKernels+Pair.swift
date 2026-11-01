@@ -14,7 +14,10 @@ extension AemiKernels {
     /// The first index `i >= from` with `bytes[i] == first && bytes[i + 1] == second`, or `nil`.
     @inlinable
     public static func firstIndex(
-        ofPair first: UInt8, _ second: UInt8, in bytes: UnsafeBufferPointer<UInt8>, from: Int
+        ofPair first: UInt8,
+        _ second: UInt8,
+        in bytes: UnsafeBufferPointer<UInt8>,
+        from: Int
     ) -> Int? {
         guard from >= 0, from <= bytes.count, let base = bytes.baseAddress else { return nil }
         let count = bytes.count

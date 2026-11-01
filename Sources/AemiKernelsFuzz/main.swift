@@ -18,7 +18,9 @@ private func requireEqual(_ lhs: Int, _ rhs: Int, _ label: StaticString) {
 
 /// Assert the find-first invariants for one kernel result against its predicate.
 private func requireInvariants(
-    _ result: Int, _ buffer: UnsafeBufferPointer<UInt8>, _ label: StaticString,
+    _ result: Int,
+    _ buffer: UnsafeBufferPointer<UInt8>,
+    _ label: StaticString,
     _ predicate: (UInt8) -> Bool
 ) {
     precondition(result >= 0 && result <= buffer.count, "\(label): result \(result) out of range")
@@ -85,12 +87,24 @@ public func LLVMFuzzerTestOneInput(_ start: UnsafePointer<UInt8>?, _ count: Int)
 
     // indexOfStringStop — full backend fan-out (exposes sse2/avx2/neon).
     let stopScalar = AemiKernels.indexOfStringStop(
-        base: base, count: n, quote: quote, escape: escape, backend: .scalar)
+        base: base,
+        count: n,
+        quote: quote,
+        escape: escape,
+        backend: .scalar
+    )
     for backend in [AemiKernels.Backend.fastest, .sse2, .avx2, .neon] {
         requireEqual(
             AemiKernels.indexOfStringStop(
-                base: base, count: n, quote: quote, escape: escape, backend: backend),
-            stopScalar, "indexOfStringStop")
+                base: base,
+                count: n,
+                quote: quote,
+                escape: escape,
+                backend: backend
+            ),
+            stopScalar,
+            "indexOfStringStop"
+        )
     }
     requireInvariants(stopScalar, buffer, "indexOfStringStop") {
         $0 < 0x20 || $0 >= 0x80 || $0 == quote || $0 == escape
@@ -101,7 +115,9 @@ public func LLVMFuzzerTestOneInput(_ start: UnsafePointer<UInt8>?, _ count: Int)
     for backend in [AemiKernels.Backend.fastest, .sse2, .avx2, .neon] {
         requireEqual(
             AemiKernels.firstNonASCII(base: base, count: n, backend: backend),
-            nonAsciiScalar, "firstNonASCII")
+            nonAsciiScalar,
+            "firstNonASCII"
+        )
     }
     requireInvariants(nonAsciiScalar, buffer, "firstNonASCII") { $0 >= 0x80 }
 
@@ -109,35 +125,61 @@ public func LLVMFuzzerTestOneInput(_ start: UnsafePointer<UInt8>?, _ count: Int)
     let byteScalar = AemiKernels.firstIndexOfByte(base: base, count: n, needle: needle, backend: .scalar)
     requireEqual(
         AemiKernels.firstIndexOfByte(base: base, count: n, needle: needle, backend: .fastest),
-        byteScalar, "firstIndexOfByte")
+        byteScalar,
+        "firstIndexOfByte"
+    )
     requireInvariants(byteScalar, buffer, "firstIndexOfByte") { $0 == needle }
 
     // firstIndexOfAny.
     let anyScalar = AemiKernels.firstIndexOfAny(base: base, count: n, n0, n1, n2, n3, n4, backend: .scalar)
     requireEqual(
         AemiKernels.firstIndexOfAny(base: base, count: n, n0, n1, n2, n3, n4, backend: .fastest),
-        anyScalar, "firstIndexOfAny")
+        anyScalar,
+        "firstIndexOfAny"
+    )
     requireInvariants(anyScalar, buffer, "firstIndexOfAny") {
         $0 == n0 || $0 == n1 || $0 == n2 || $0 == n3 || $0 == n4
     }
 
     // indexOfControlOrAny.
     let ctrlAnyScalar = AemiKernels.indexOfControlOrAny(
-        base: base, count: n, n0, n1, n2, n3, n4, backend: .scalar)
+        base: base,
+        count: n,
+        n0,
+        n1,
+        n2,
+        n3,
+        n4,
+        backend: .scalar
+    )
     requireEqual(
         AemiKernels.indexOfControlOrAny(base: base, count: n, n0, n1, n2, n3, n4, backend: .fastest),
-        ctrlAnyScalar, "indexOfControlOrAny")
+        ctrlAnyScalar,
+        "indexOfControlOrAny"
+    )
     requireInvariants(ctrlAnyScalar, buffer, "indexOfControlOrAny") {
         $0 < 0x20 || $0 == n0 || $0 == n1 || $0 == n2 || $0 == n3 || $0 == n4
     }
 
     // firstDisallowedText.
     let textScalar = AemiKernels.firstDisallowedText(
-        base: base, count: n, minAllowed: minAllowed, allowTab: allowTab, backend: .scalar)
+        base: base,
+        count: n,
+        minAllowed: minAllowed,
+        allowTab: allowTab,
+        backend: .scalar
+    )
     requireEqual(
         AemiKernels.firstDisallowedText(
-            base: base, count: n, minAllowed: minAllowed, allowTab: allowTab, backend: .fastest),
-        textScalar, "firstDisallowedText")
+            base: base,
+            count: n,
+            minAllowed: minAllowed,
+            allowTab: allowTab,
+            backend: .fastest
+        ),
+        textScalar,
+        "firstDisallowedText"
+    )
     requireInvariants(textScalar, buffer, "firstDisallowedText") {
         $0 < 0x80 && ($0 == 0x7F || ($0 < minAllowed && !(allowTab && $0 == 0x09)))
     }
@@ -145,8 +187,10 @@ public func LLVMFuzzerTestOneInput(_ start: UnsafePointer<UInt8>?, _ count: Int)
     // firstInvalidUTF8 — SIMD (SSE/AVX2 on x86, NEON on arm64) vs scalar oracle, + range invariant.
     let utf8Scalar = AemiKernels.firstInvalidUTF8(base: base, count: n, backend: .scalar)
     requireEqual(
-        AemiKernels.firstInvalidUTF8(base: base, count: n, backend: .fastest), utf8Scalar,
-        "firstInvalidUTF8")
+        AemiKernels.firstInvalidUTF8(base: base, count: n, backend: .fastest),
+        utf8Scalar,
+        "firstInvalidUTF8"
+    )
     precondition(utf8Scalar >= 0 && utf8Scalar <= n, "firstInvalidUTF8: result out of range")
 
     // foldASCII (transform) — every backend must equal the scalar backend.
@@ -155,7 +199,8 @@ public func LLVMFuzzerTestOneInput(_ start: UnsafePointer<UInt8>?, _ count: Int)
     for backend in [AemiKernels.Backend.fastest, .sse2, .avx2, .neon] {
         precondition(
             AemiKernels.foldedASCII(bytes, backend: backend) == foldScalar,
-            "foldASCII backend divergence")
+            "foldASCII backend divergence"
+        )
     }
 
     return 0

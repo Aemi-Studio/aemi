@@ -22,88 +22,122 @@ struct TrickyLineTests {
 
     static let cases: [Case] = [
         Case(
-            .swift, ##"let s = #"a "quoted" \#(x)"# // done"##,
-            ["keyword=let", ##"string=#"a "quoted" \#(x)"#"##, "comment=// done"]),
+            .swift,
+            ##"let s = #"a "quoted" \#(x)"# // done"##,
+            ["keyword=let", ##"string=#"a "quoted" \#(x)"#"##, "comment=// done"]
+        ),
         Case(.swift, "let n = 1_000.5e-3 + 6.02E+23", ["keyword=let", "number=1_000.5e-3", "number=6.02E+23"]),
         Case(.swift, "let h = 0x1.8p-3", ["keyword=let", "number=0x1.8p-3"]),
         Case(
-            .swift, "@MainActor func f() async throws -> Int { 0x1F }",
+            .swift,
+            "@MainActor func f() async throws -> Int { 0x1F }",
             [
                 "attribute=@MainActor", "keyword=func", "keyword=async", "keyword=throws", "type=Int", "number=0x1F"
-            ]),
+            ]
+        ),
         Case(.swift, "\"\"\"\nline \"two\"\n\"\"\"", ["string=\"\"\"\nline \"two\"\n\"\"\""]),
         Case(.c, "x = 0x1e-3;", ["number=0x1e", "number=3"]),
         Case(.c, "#include <stdio.h>", ["attribute=#include"]),
         Case(.java, "double d = 1e+9 - 2e-9;", ["keyword=double", "number=1e+9", "number=2e-9"]),
         Case(
-            .java, "@Override public String toString() { return \"x\" + 1.0f; }",
-            ["attribute=@Override", "keyword=public", "type=String", "keyword=return", "string=\"x\"", "number=1.0f"]),
+            .java,
+            "@Override public String toString() { return \"x\" + 1.0f; }",
+            ["attribute=@Override", "keyword=public", "type=String", "keyword=return", "string=\"x\"", "number=1.0f"]
+        ),
         Case(.python, "def f(a: int = 0b101) -> None: ...", ["keyword=def", "number=0b101", "keyword=None"]),
         Case(
-            .python, "'''a\nb''' if True else None",
-            ["string='''a\nb'''", "keyword=if", "keyword=True", "keyword=else", "keyword=None"]),
+            .python,
+            "'''a\nb''' if True else None",
+            ["string='''a\nb'''", "keyword=if", "keyword=True", "keyword=else", "keyword=None"]
+        ),
         Case(
-            .rust, ##"let s = r#"raw "x""#; let c = 'a';"##,
-            ["keyword=let", ##"string=r#"raw "x""#"##, "keyword=let"]),
+            .rust,
+            ##"let s = r#"raw "x""#; let c = 'a';"##,
+            ["keyword=let", ##"string=r#"raw "x""#"##, "keyword=let"]
+        ),
         Case(
-            .rust, #"let p = r"C:\dir\"; let b = br"x";"#,
-            ["keyword=let", #"string=r"C:\dir\""#, "keyword=let", #"string=br"x""#]),
+            .rust,
+            #"let p = r"C:\dir\"; let b = br"x";"#,
+            ["keyword=let", #"string=r"C:\dir\""#, "keyword=let", #"string=br"x""#]
+        ),
         Case(.rust, "let r = 1; let r#type = 2;", ["keyword=let", "number=1", "keyword=let", "number=2"]),
         Case(.rust, "let s = r##\"a\n\"# b\n\"##;", ["keyword=let", "string=r##\"a\n\"# b\n\"##"]),
         Case(
-            .rust, "/* outer /* nested */ still */ let x = 1u8;",
-            ["comment=/* outer /* nested */ still */", "keyword=let", "number=1u8"]),
+            .rust,
+            "/* outer /* nested */ still */ let x = 1u8;",
+            ["comment=/* outer /* nested */ still */", "keyword=let", "number=1u8"]
+        ),
         Case(.go, "s := `raw\nline`; var x int64 = 0x7f", ["string=`raw\nline`", "keyword=var", "number=0x7f"]),
         Case(
-            .kotlin, "val s = \"a ${b.c} $d\"; fun f() = 1L",
-            ["keyword=val", "string=\"a ${b.c} $d\"", "keyword=fun", "number=1L"]),
+            .kotlin,
+            "val s = \"a ${b.c} $d\"; fun f() = 1L",
+            ["keyword=val", "string=\"a ${b.c} $d\"", "keyword=fun", "number=1L"]
+        ),
         Case(
-            .objectiveC, "@interface Foo : NSObject @property (nonatomic) NSString *s; @end",
+            .objectiveC,
+            "@interface Foo : NSObject @property (nonatomic) NSString *s; @end",
             [
                 "attribute=@interface", "type=Foo", "type=NSObject", "attribute=@property", "type=NSString",
                 "attribute=@end"
-            ]),
+            ]
+        ),
         Case(
-            .ruby, "x = defined?(y) ? 1 : \"a #{b} c\" # c",
-            ["keyword=defined?", "number=1", "string=\"a #{b} c\"", "comment=# c"]),
+            .ruby,
+            "x = defined?(y) ? 1 : \"a #{b} c\" # c",
+            ["keyword=defined?", "number=1", "string=\"a #{b} c\"", "comment=# c"]
+        ),
         Case(
-            .lua, "local s = [[long\nstring]] .. [==[a]]b]==]",
-            ["keyword=local", "string=[[long\nstring]]", "string=[==[a]]b]==]"]),
+            .lua,
+            "local s = [[long\nstring]] .. [==[a]]b]==]",
+            ["keyword=local", "string=[[long\nstring]]", "string=[==[a]]b]==]"]
+        ),
         Case(.lua, "f[[x]] t[i] --[[ block ]] -- line", ["string=[[x]]", "comment=--[[ block ]]", "comment=-- line"]),
         Case(
-            .shell, "echo \"$HOME ${x:-y}\" 'single' # c && ls",
-            ["keyword=echo", "string=\"$HOME ${x:-y}\"", "string='single'", "comment=# c && ls"]),
+            .shell,
+            "echo \"$HOME ${x:-y}\" 'single' # c && ls",
+            ["keyword=echo", "string=\"$HOME ${x:-y}\"", "string='single'", "comment=# c && ls"]
+        ),
         Case(.fish, "set -l x (echo \"a $b\") # c", ["keyword=set", "keyword=echo", "string=\"a $b\"", "comment=# c"]),
         Case(
-            .html, "<a href=\"x\" data-y='z'>&amp; <!-- c --> text</a>",
+            .html,
+            "<a href=\"x\" data-y='z'>&amp; <!-- c --> text</a>",
             [
                 "tag=<a", "property=href", "string=\"x\"", "property=data-y", "string='z'", "tag=>",
                 "escape=&amp;", "comment=<!-- c -->", "tag=</a", "tag=>"
-            ]),
+            ]
+        ),
         Case(
-            .css, "@media (min-width: 10px) { .a > #b { color: #fff !important; } }",
+            .css,
+            "@media (min-width: 10px) { .a > #b { color: #fff !important; } }",
             [
                 "attribute=@media", "number=10px", "type=.a", "type=#b", "property=color", "number=#fff",
                 "keyword=!important"
-            ]),
+            ]
+        ),
         Case(
-            .json, #"{"key": [1, -2.5e3, true, null, "s\"q"], "k2": {}}"#,
+            .json,
+            #"{"key": [1, -2.5e3, true, null, "s\"q"], "k2": {}}"#,
             [
                 #"property="key""#, "number=1", "number=-2.5e3", "keyword=true", "keyword=null", #"string="s\"q""#,
                 #"property="k2""#
-            ]),
+            ]
+        ),
         Case(
-            .yaml, "key: value # c\nlist:\n  - \"a\"\n  - 1.5\nanchor: &a *b",
+            .yaml,
+            "key: value # c\nlist:\n  - \"a\"\n  - 1.5\nanchor: &a *b",
             [
                 "property=key", "comment=# c", "property=list", "string=\"a\"", "number=1.5",
                 "property=anchor", "attribute=&a", "attribute=*b"
-            ]),
+            ]
+        ),
         Case(
-            .toml, "[table]\nkey = \"v\" # c\n\"quoted key\" = 1979-05-27T07:32:00Z",
+            .toml,
+            "[table]\nkey = \"v\" # c\n\"quoted key\" = 1979-05-27T07:32:00Z",
             [
                 "tag=[table]", "property=key", "string=\"v\"", "comment=# c", "property=\"quoted key\"",
                 "number=1979-05-27T07:32:00Z"
-            ])
+            ]
+        )
     ]
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -120,6 +154,7 @@ struct TrickyLineTests {
     func `a line scan agrees with the whole-text scan`(_ tricky: Case) {
         #expect(
             LineLexerTests.lineScan(tricky.text, language: tricky.language)
-                == LineLexerTests.wholeScan(tricky.text, language: tricky.language))
+                == LineLexerTests.wholeScan(tricky.text, language: tricky.language)
+        )
     }
 }

@@ -37,7 +37,11 @@
         let deadline = clock.now.advanced(by: timeout)
         while !condition() {
             let changed = CountProbe(
-                label: label.isEmpty ? "observed state change" : label, file: file, function: function, line: line)
+                label: label.isEmpty ? "observed state change" : label,
+                file: file,
+                function: function,
+                line: line
+            )
             withObservationTracking {
                 _ = condition()
             } onChange: {
@@ -60,7 +64,13 @@
         _ condition: @MainActor () -> Bool
     ) async throws {
         try await waitForObservedState(
-            within: timeout, clock: ContinuousClock(), label: label, file: file, function: function, line: line,
-            condition)
+            within: timeout,
+            clock: ContinuousClock(),
+            label: label,
+            file: file,
+            function: function,
+            line: line,
+            condition
+        )
     }
 #endif

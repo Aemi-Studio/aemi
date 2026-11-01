@@ -31,15 +31,24 @@ public enum IntralineDiff {
     ) -> (old: [Range<Int>], new: [Range<Int>])? {
         guard old.utf16.count <= maximumUnits, new.utf16.count <= maximumUnits else { return nil }
         return emphasis(
-            oldUnits: Array(old.utf16), newUnits: Array(new.utf16), granularity: granularity, oldTokens: oldTokens,
-            newTokens: newTokens, refiners: refiners)
+            oldUnits: Array(old.utf16),
+            newUnits: Array(new.utf16),
+            granularity: granularity,
+            oldTokens: oldTokens,
+            newTokens: newTokens,
+            refiners: refiners
+        )
     }
 
     /// ``emphasis(old:new:granularity:oldTokens:newTokens:refiners:maximumUnits:)`` over the lines' UTF-16 units,
     /// whose length the caller has checked.
     static func emphasis(
-        oldUnits: [UInt16], newUnits: [UInt16], granularity: IntralineGranularity, oldTokens: [Range<Int>]?,
-        newTokens: [Range<Int>]?, refiners: [any IntralineRefining]
+        oldUnits: [UInt16],
+        newUnits: [UInt16],
+        granularity: IntralineGranularity,
+        oldTokens: [Range<Int>]?,
+        newTokens: [Range<Int>]?,
+        refiners: [any IntralineRefining]
     ) -> (old: [Range<Int>], new: [Range<Int>])? {
         // Indentation is never the change worth pointing at: compare past it and shift the ranges back.
         let oldLead = oldUnits.prefix { $0 == 32 || $0 == 9 }.count

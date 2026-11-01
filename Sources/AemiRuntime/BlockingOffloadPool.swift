@@ -133,7 +133,8 @@ public final class BlockingOffloadPool: Sendable {
                 let job = Job(
                     id: id,
                     work: { continuation.resume(with: Result { try body() }) },
-                    cancel: { continuation.resume(throwing: CancellationError()) })
+                    cancel: { continuation.resume(throwing: CancellationError()) }
+                )
                 // A refused job never enters the queue, so `onCancel` can never find it: this branch
                 // owns the (single) resume with no race against the removal path.
                 if let refusal = submit(job) {

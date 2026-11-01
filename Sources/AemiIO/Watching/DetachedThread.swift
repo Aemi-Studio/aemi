@@ -17,12 +17,15 @@
             let box = unsafe Unmanaged.passRetained(Box(work))
             var thread: pthread_t?
             let status = unsafe pthread_create(
-                &thread, &attributes,
+                &thread,
+                &attributes,
                 { raw in
                     let box = unsafe Unmanaged<Box>.fromOpaque(raw).takeRetainedValue()
                     box.work()
                     return nil
-                }, unsafe box.toOpaque())
+                },
+                unsafe box.toOpaque()
+            )
             if status != 0 { unsafe box.release() }
             return status == 0
         }

@@ -26,5 +26,6 @@ public func measureRate(units: Double, rounds: Int = 5, _ body: () async throws 
     }
     return Rate(
         perSecond: units / max(fastest, 1e-9),
-        instructionsPerUnit: fewest == 0 || fewest == .max ? nil : Double(fewest) / units)
+        instructionsPerUnit: fewest == 0 || fewest == .max ? nil : Double(fewest) / units
+    )
 }

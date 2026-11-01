@@ -19,7 +19,9 @@ public enum GuardedBytes {
     /// Runs `body` with a copy of `bytes` against an inaccessible page at `edge`. The pointer is valid, and writable, for
     /// `bytes.count` bytes during `body` only.
     public static func with<Result>(
-        _ bytes: [UInt8], against edge: Edge = .end, _ body: (UnsafeMutablePointer<UInt8>) throws -> Result
+        _ bytes: [UInt8],
+        against edge: Edge = .end,
+        _ body: (UnsafeMutablePointer<UInt8>) throws -> Result
     ) rethrows -> Result {
         // [guard | data pages | guard]: both guards PROT_NONE, the bytes flush against the one `edge` names.
         let page = Int(getpagesize())

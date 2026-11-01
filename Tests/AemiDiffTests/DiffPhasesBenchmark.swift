@@ -73,15 +73,25 @@ struct DiffPhasesBenchmark {
         let screen = Array(structure.changes.indices.prefix(10))
         let screenCPU = try await Self.measureAsync("phased emphasis, one screen of 10 changes") {
             try await IntralineEmphasis.emphasis(
-                for: screen, in: structure, pairs: pairs, old: old, new: new, granularity: .word,
+                for: screen,
+                in: structure,
+                pairs: pairs,
+                old: old,
+                new: new,
+                granularity: .word,
                 refiners: pipeline.intralineRefiners
             )
             .count
         }
         let everyCPU = try await Self.measureAsync("phased emphasis, every change") {
             try await IntralineEmphasis.emphasis(
-                for: Array(structure.changes.indices), in: structure, pairs: pairs, old: old, new: new,
-                granularity: .word, refiners: pipeline.intralineRefiners
+                for: Array(structure.changes.indices),
+                in: structure,
+                pairs: pairs,
+                old: old,
+                new: new,
+                granularity: .word,
+                refiners: pipeline.intralineRefiners
             )
             .count
         }
@@ -107,11 +117,16 @@ struct DiffPhasesBenchmark {
         Self.measure("histogram 50k pair") {
             Self.checksum(
                 LineDiff.diffLines(
-                    oldLines, newLines, pipeline: DiffPipeline(heuristics: DiffHeuristics(anchorsRareLines: true))))
+                    oldLines,
+                    newLines,
+                    pipeline: DiffPipeline(heuristics: DiffHeuristics(anchorsRareLines: true))
+                )
+            )
         }
         Self.measure("model word 50k pair") {
             Self.checksum(
-                DiffModel(oldText: oldText, newText: newText, granularity: .word, tokenRanges: CodeTokenRanges()))
+                DiffModel(oldText: oldText, newText: newText, granularity: .word, tokenRanges: CodeTokenRanges())
+            )
         }
 
         var random = UInt64(0x5EED)
@@ -131,7 +146,8 @@ struct DiffPhasesBenchmark {
         let longNew = longEdited.joined(separator: "\n")
         Self.measure("model long lines") {
             Self.checksum(
-                DiffModel(oldText: longOld, newText: longNew, granularity: .character, tokenRanges: CodeTokenRanges()))
+                DiffModel(oldText: longOld, newText: longNew, granularity: .character, tokenRanges: CodeTokenRanges())
+            )
         }
         let dissimilar = (0 ..< 20).map { _ in (Substring(line(2_000)), Substring(line(2_000))) }
         Self.measure("intraline dissimilar") {
@@ -190,8 +206,14 @@ struct DiffPhasesBenchmark {
         let pick = { (fraction: Double) in sorted[Int((Double(sorted.count - 1) * fraction).rounded())] }
         print(
             String(
-                format: "BENCH diff-phases %@: median %.3f ms CPU (p10 %.3f, p90 %.3f), checksum %ld", name, pick(0.5),
-                pick(0.1), pick(0.9), checksum))
+                format: "BENCH diff-phases %@: median %.3f ms CPU (p10 %.3f, p90 %.3f), checksum %ld",
+                name,
+                pick(0.5),
+                pick(0.1),
+                pick(0.9),
+                checksum
+            )
+        )
         return pick(0.5)
     }
 

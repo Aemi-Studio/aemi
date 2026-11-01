@@ -1,5 +1,3 @@
-
-
 /// An immutable, render-side projection of a model.
 ///
 /// Key-path dynamic member lookup (SE-0252) forwards the model's members

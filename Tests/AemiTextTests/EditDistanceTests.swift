@@ -1,5 +1,5 @@
-import AemiText
 import AemiTestKit
+import AemiText
 import Testing
 
 // The randomized cross-checks use the shared `AemiTestKit.SeededRNG` (its `int(_:)` has the
@@ -93,7 +93,8 @@ struct EditDistanceTests {
             #expect(AemiText.editDistance(a, b) == AemiText.editDistance(b, a))
             for k in [0, 1, 3, 10] {
                 #expect(
-                    AemiText.editDistance(a, b, maxDistance: k) == AemiText.editDistance(b, a, maxDistance: k))
+                    AemiText.editDistance(a, b, maxDistance: k) == AemiText.editDistance(b, a, maxDistance: k)
+                )
             }
         }
     }

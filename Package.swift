@@ -116,10 +116,12 @@ var packageDependencies: [Package.Dependency] = [
 ]
 if isDev {
     packageDependencies.append(
-        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.5.0"))
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.5.0")
+    )
     // ordo-one benchmark suite (`AEMI_DEV=1 swift package benchmark`).
     packageDependencies.append(
-        .package(url: "https://github.com/ordo-one/benchmark", from: "1.38.0"))
+        .package(url: "https://github.com/ordo-one/benchmark", from: "1.38.0")
+    )
 }
 
 // The in-package LintBuild plugin runs `swift format lint --strict` as a prebuild step on the
@@ -213,36 +215,60 @@ let package = Package(
         // AemiKernels for the shared runtime-dispatched SIMD scans. Acyclic: AemiKernels →
         // CAemiKernels only.
         .target(
-            name: "AemiKernel", dependencies: ["AemiKernels"], swiftSettings: kernelSettings,
-            plugins: libraryBuildPlugins),
+            name: "AemiKernel",
+            dependencies: ["AemiKernels"],
+            swiftSettings: kernelSettings,
+            plugins: libraryBuildPlugins
+        ),
         // CAemiKernels — runtime-dispatched SIMD byte kernels in C (per-function
         // `__attribute__((target))` + `pthread_once` feature probe).
         .target(name: "CAemiKernels", cSettings: strictCSettings),
         // AemiKernels — the pure-Swift facade over CAemiKernels; strict-memory-safe like AemiKernel.
         .target(
-            name: "AemiKernels", dependencies: ["CAemiKernels"], swiftSettings: kernelSettings,
-            plugins: libraryBuildPlugins),
+            name: "AemiKernels",
+            dependencies: ["CAemiKernels"],
+            swiftSettings: kernelSettings,
+            plugins: libraryBuildPlugins
+        ),
         // AemiKernelsProbe — standalone differential check (kernels vs scalar reference) + ISA-tier
         // printer (`swift run --arch x86_64 AemiKernelsProbe` under Rosetta).
         .executableTarget(
-            name: "AemiKernelsProbe", dependencies: ["AemiKernels"], swiftSettings: strictSettings),
+            name: "AemiKernelsProbe",
+            dependencies: ["AemiKernels"],
+            swiftSettings: strictSettings
+        ),
         .target(
-            name: "AemiUnicode", dependencies: ["AemiKernel"], swiftSettings: strictSettings,
-            plugins: libraryBuildPlugins),
+            name: "AemiUnicode",
+            dependencies: ["AemiKernel"],
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
         .target(
-            name: "AemiText", dependencies: ["AemiKernel", "AemiKernels", "AemiUnicode"],
-            swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+            name: "AemiText",
+            dependencies: ["AemiKernel", "AemiKernels", "AemiUnicode"],
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
         .target(
-            name: "AemiIO", dependencies: ["AemiKernel"], swiftSettings: kernelSettings,
-            plugins: libraryBuildPlugins),
+            name: "AemiIO",
+            dependencies: ["AemiKernel"],
+            swiftSettings: kernelSettings,
+            plugins: libraryBuildPlugins
+        ),
         // AemiFileSystem — a parallel directory walker on readdir and d_type (ADR 0017).
         .target(
-            name: "AemiFileSystem", dependencies: ["AemiIO"], swiftSettings: kernelSettings,
-            plugins: libraryBuildPlugins),
+            name: "AemiFileSystem",
+            dependencies: ["AemiIO"],
+            swiftSettings: kernelSettings,
+            plugins: libraryBuildPlugins
+        ),
         // AemiInterner — UTF-8 keys as dense symbols: a chunked arena, wyhash, a deterministic sharded merge (ADR 0019).
         .target(
-            name: "AemiInterner", dependencies: ["AemiKernel"], swiftSettings: kernelSettings,
-            plugins: libraryBuildPlugins),
+            name: "AemiInterner",
+            dependencies: ["AemiKernel"],
+            swiftSettings: kernelSettings,
+            plugins: libraryBuildPlugins
+        ),
         .target(name: "AemiMetrics", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         // AemiLexers — hand-written scanners over borrowed UTF-8 bytes for 20 languages, whole text or a line at a time
         // from each line's entry state. Standard library only. Moved from Atelier's AtelierLexers.
@@ -251,8 +277,11 @@ let package = Package(
         // blocks, hunk layout, unified patches and gutter change marks. Standard library only. Moved from Atelier's
         // AtelierDiff.
         .target(
-            name: "AemiDiff", dependencies: ["AemiKernel", "AemiText", "AemiLexers"], swiftSettings: strictSettings,
-            plugins: libraryBuildPlugins),
+            name: "AemiDiff",
+            dependencies: ["AemiKernel", "AemiText", "AemiLexers"],
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
         // AemiRuntime — zero-dep production seams (TaskProvider/Clock) + ResourcePool /
         // BlockingOffloadPool. Separate from AemiCore's app-level TaskProvider/TaskRole.
         .target(name: "AemiRuntime", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
@@ -264,7 +293,9 @@ let package = Package(
                 "AemiKernel", "AemiKernels", "AemiIO", "AemiText", "AemiUnicode", "AemiMetrics",
                 "AemiRuntime"
             ],
-            swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
 
         // ── Macro support (the one swift-syntax kernel tier) ──
         .target(
@@ -274,80 +305,124 @@ let package = Package(
                 .product(name: "SwiftDiagnostics", package: "swift-syntax")
             ],
             swiftSettings: strictSettings,
-            plugins: libraryBuildPlugins),
+            plugins: libraryBuildPlugins
+        ),
 
         // ── Kernel test tooling ──
         // CAemiTestKitMalloc — C shim counting the heap allocations of the thread that measures.
         .target(name: "CAemiTestKitMalloc", cSettings: strictCSettings),
         // AemiTestKitSeams — stable re-export of the AemiRuntime seams.
         .target(
-            name: "AemiTestKitSeams", dependencies: ["AemiRuntime"],
-            swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+            name: "AemiTestKitSeams",
+            dependencies: ["AemiRuntime"],
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
         // AemiTestKit — the deterministic-testing kit (Testing-backed asserts, SeededRNG, Fuzz,
         // oracles, TestClock/AsyncProbe, gates).
         .target(
             name: "AemiTestKit",
             dependencies: ["AemiTestKitSeams", "CAemiTestKitMalloc", heapModule, systemPackage],
-            swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
 
         // ── Pre-existing app-level tests ──
         .testTarget(
-            name: "AemiCoreTests", dependencies: ["AemiCore"], swiftSettings: appSettings),
+            name: "AemiCoreTests",
+            dependencies: ["AemiCore"],
+            swiftSettings: appSettings
+        ),
         .testTarget(
-            name: "AemiTestingTests", dependencies: ["AemiCore", "AemiTesting"],
-            swiftSettings: appSettings),
+            name: "AemiTestingTests",
+            dependencies: ["AemiCore", "AemiTesting"],
+            swiftSettings: appSettings
+        ),
         .testTarget(
             name: "InternedStringsTests",
             dependencies: [
                 "InternedStrings", "AemiMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax")
             ],
-            swiftSettings: appSettings),
+            swiftSettings: appSettings
+        ),
         .testTarget(
             name: "LoggableTests",
             dependencies: [
                 "Loggable", "AemiMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax")
             ],
-            swiftSettings: appSettings),
+            swiftSettings: appSettings
+        ),
 
         // ── Kernel tests (ported from ADFoundation) ──
         .testTarget(
-            name: "AemiKernelTests", dependencies: ["AemiKernel", "AemiTestKit"],
-            swiftSettings: testSettings),
+            name: "AemiKernelTests",
+            dependencies: ["AemiKernel", "AemiTestKit"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
-            name: "AemiKernelsTests", dependencies: ["AemiKernels", "AemiTestKit"],
-            swiftSettings: testSettings),
+            name: "AemiKernelsTests",
+            dependencies: ["AemiKernels", "AemiTestKit"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
-            name: "AemiUnicodeTests", dependencies: ["AemiUnicode"], swiftSettings: testSettings),
+            name: "AemiUnicodeTests",
+            dependencies: ["AemiUnicode"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
-            name: "AemiTextTests", dependencies: ["AemiText", "AemiTestKit"],
-            swiftSettings: testSettings),
+            name: "AemiTextTests",
+            dependencies: ["AemiText", "AemiTestKit"],
+            swiftSettings: testSettings
+        ),
         .testTarget(name: "AemiIOTests", dependencies: ["AemiIO"], swiftSettings: testSettings),
         .testTarget(
-            name: "AemiFileSystemTests", dependencies: ["AemiFileSystem", "AemiIO"], swiftSettings: testSettings),
+            name: "AemiFileSystemTests",
+            dependencies: ["AemiFileSystem", "AemiIO"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
-            name: "AemiInternerTests", dependencies: ["AemiInterner", "AemiKernel", "AemiTestKit"],
-            swiftSettings: testSettings),
+            name: "AemiInternerTests",
+            dependencies: ["AemiInterner", "AemiKernel", "AemiTestKit"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
-            name: "AemiMetricsTests", dependencies: ["AemiMetrics"], swiftSettings: testSettings),
+            name: "AemiMetricsTests",
+            dependencies: ["AemiMetrics"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
-            name: "AemiLexersTests", dependencies: ["AemiLexers", "AemiTestKit"], swiftSettings: testSettings),
+            name: "AemiLexersTests",
+            dependencies: ["AemiLexers", "AemiTestKit"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
-            name: "AemiDiffTests", dependencies: ["AemiDiff", "AemiText", "AemiTestKit"], swiftSettings: testSettings),
+            name: "AemiDiffTests",
+            dependencies: ["AemiDiff", "AemiText", "AemiTestKit"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
-            name: "AemiMacroSupportTests", dependencies: ["AemiMacroSupport"],
-            swiftSettings: testSettings),
+            name: "AemiMacroSupportTests",
+            dependencies: ["AemiMacroSupport"],
+            swiftSettings: testSettings
+        ),
         // Folded suites keep their origin settings (no aggressive type-check timing gate).
         .testTarget(
-            name: "AemiRuntimeTests", dependencies: ["AemiRuntime", "AemiTestKit"],
-            swiftSettings: strictSettings),
+            name: "AemiRuntimeTests",
+            dependencies: ["AemiRuntime", "AemiTestKit"],
+            swiftSettings: strictSettings
+        ),
         .testTarget(
-            name: "AemiFoundationTests", dependencies: ["AemiFoundation"],
-            swiftSettings: strictSettings),
+            name: "AemiFoundationTests",
+            dependencies: ["AemiFoundation"],
+            swiftSettings: strictSettings
+        ),
         .testTarget(
-            name: "AemiTestKitTests", dependencies: ["AemiTestKit", "AemiTestKitSeams"],
-            swiftSettings: strictSettings)
+            name: "AemiTestKitTests",
+            dependencies: ["AemiTestKit", "AemiTestKitSeams"],
+            swiftSettings: strictSettings
+        )
     ]
 )
 
@@ -365,12 +440,18 @@ package.targets.append(contentsOf: [
             intent: .custom(verb: "format", description: "Format Swift sources with swift-format"),
             permissions: [
                 .writeToPackageDirectory(reason: "Format Swift sources with swift-format")
-            ])),
+            ]
+        )
+    ),
     .plugin(
         name: "Lint",
         capability: .command(
             intent: .custom(
-                verb: "lint", description: "Check formatting and shipped-library discipline"))),
+                verb: "lint",
+                description: "Check formatting and shipped-library discipline"
+            )
+        )
+    ),
     .plugin(name: "LintBuild", capability: .buildTool())
 ])
 
@@ -382,7 +463,9 @@ if isFuzz {
             dependencies: ["AemiKernels"],
             swiftSettings: strictSettings + [
                 .unsafeFlags(["-parse-as-library", "-sanitize=fuzzer"])
-            ]))
+            ]
+        )
+    )
     package.products.append(.executable(name: "AemiKernelsFuzz", targets: ["AemiKernelsFuzz"]))
 }
 
@@ -397,5 +480,7 @@ if isDev {
             ],
             path: "Benchmarks/AemiFoundationSuite",
             swiftSettings: strictSettings,
-            plugins: [.plugin(name: "BenchmarkPlugin", package: "benchmark")]))
+            plugins: [.plugin(name: "BenchmarkPlugin", package: "benchmark")]
+        )
+    )
 }

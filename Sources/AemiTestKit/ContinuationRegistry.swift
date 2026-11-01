@@ -71,7 +71,10 @@ struct ContinuationRegistry<Key: Comparable, Value> {
     /// A continuation parked with `counted: false` is woken like any other but is left out of ``count``
     /// and ``maxKey``: it belongs to the test harness, not to the code under test.
     mutating func park(
-        id: UInt64, key: Key, _ continuation: CheckedContinuation<Value, any Error>, counted: Bool = true
+        id: UInt64,
+        key: Key,
+        _ continuation: CheckedContinuation<Value, any Error>,
+        counted: Bool = true
     ) {
         live[id] = Parked(key: key, continuation: continuation, counted: counted)
         if !counted { uncounted += 1 }

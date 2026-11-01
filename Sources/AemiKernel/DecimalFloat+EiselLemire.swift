@@ -33,7 +33,9 @@ extension DecimalFloat {
     /// 128-bit arithmetic into every number-scan call site would bloat them. Callers try
     /// ``double(significand:exponent:negative:)`` (Clinger) first, then this, then the stdlib parser.
     public static func eiselLemire(
-        significand: UInt64, exponent exp10: Int, negative neg: Bool
+        significand: UInt64,
+        exponent exp10: Int,
+        negative neg: Bool
     ) -> Double? {
         var man = significand
 

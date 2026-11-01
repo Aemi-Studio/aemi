@@ -1,8 +1,8 @@
+import AemiCore
 import Foundation
 import Observation
 import Synchronization
 import Testing
-import AemiCore
 
 /// Guards the per-instance key-path hoist in ``Mutable``.
 ///
@@ -30,7 +30,6 @@ private struct Model: Equatable {
 
 @Suite("Mutable access cost")
 struct MutableAccessCostTests {
-
     @Test
     func genericReadIsNotSlowerThanConcreteRead() {
         let iterations = 200_000
@@ -41,18 +40,19 @@ struct MutableAccessCostTests {
         // Warm both paths so first-touch metadata work is not attributed to
         // either measurement.
         var warm = 0
-        for _ in 0..<10_000 { warm &+= generic.value &+ concrete.value }
+        for _ in 0 ..< 10_000 { warm &+= generic.value &+ concrete.value }
         #expect(warm == 20_000)
 
         func best(_ body: () -> Int) -> Double {
             var fastest = Double.infinity
-            for _ in 0..<5 {
+            for _ in 0 ..< 5 {
                 var sink = 0
                 let elapsed = clock.measure {
-                    for _ in 0..<iterations { sink &+= body() }
+                    for _ in 0 ..< iterations { sink &+= body() }
                 }
                 #expect(sink == iterations)
-                let total = Double(elapsed.components.seconds) * 1e9
+                let total =
+                    Double(elapsed.components.seconds) * 1e9
                     + Double(elapsed.components.attoseconds) / 1e9
                 fastest = min(fastest, total / Double(iterations))
             }
@@ -62,10 +62,12 @@ struct MutableAccessCostTests {
         let genericNS = best { generic.value }
         let concreteNS = best { concrete.value }
 
-        print("""
-        [mutable-access] generic Mutable<Model>.wrappedValue: \(genericNS.formatted(.number.precision(.fractionLength(1)))) ns/read
-        [mutable-access] concrete @Observable control:        \(concreteNS.formatted(.number.precision(.fractionLength(1)))) ns/read
-        """)
+        print(
+            """
+            [mutable-access] generic Mutable<Model>.wrappedValue: \(genericNS.formatted(.number.precision(.fractionLength(1)))) ns/read
+            [mutable-access] concrete @Observable control:        \(concreteNS.formatted(.number.precision(.fractionLength(1)))) ns/read
+            """
+        )
 
         // Without the hoist the generic path is ~50x the concrete one; with it
         // this runs ~2.8x in a debug build (~1x optimised). An 8x ceiling

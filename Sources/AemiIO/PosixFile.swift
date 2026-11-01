@@ -66,10 +66,18 @@ public final class PosixFile: Sendable {
             // `pread` method; the module name is the only thing that differs by platform.
             #if canImport(Darwin)
                 let n = unsafe Darwin.pread(
-                    fileDescriptor, base + done, buffer.count - done, off_t(offset + done))
+                    fileDescriptor,
+                    base + done,
+                    buffer.count - done,
+                    off_t(offset + done)
+                )
             #else
                 let n = unsafe Glibc.pread(
-                    fileDescriptor, base + done, buffer.count - done, off_t(offset + done))
+                    fileDescriptor,
+                    base + done,
+                    buffer.count - done,
+                    off_t(offset + done)
+                )
             #endif
             if n < 0 {
                 if errno == EINTR { continue }
@@ -86,10 +94,18 @@ public final class PosixFile: Sendable {
         while done < buffer.count {
             #if canImport(Darwin)
                 let n = unsafe Darwin.pwrite(
-                    fileDescriptor, base + done, buffer.count - done, off_t(offset + done))
+                    fileDescriptor,
+                    base + done,
+                    buffer.count - done,
+                    off_t(offset + done)
+                )
             #else
                 let n = unsafe Glibc.pwrite(
-                    fileDescriptor, base + done, buffer.count - done, off_t(offset + done))
+                    fileDescriptor,
+                    base + done,
+                    buffer.count - done,
+                    off_t(offset + done)
+                )
             #endif
             if n < 0 {
                 if errno == EINTR { continue }
@@ -124,7 +140,9 @@ public final class PosixFile: Sendable {
                         at: k,
                         to: iovec(
                             iov_base: UnsafeMutableRawPointer(mutating: buf.baseAddress),
-                            iov_len: buf.count))
+                            iov_len: buf.count
+                        )
+                    )
                 }
                 #if canImport(Darwin)
                     return unsafe Darwin.pwritev(fileDescriptor, iov.baseAddress, Int32(count), off_t(at))
@@ -200,7 +218,8 @@ public final class PosixFile: Sendable {
                 fst_posmode: F_PEOFPOSMODE,
                 fst_offset: 0,
                 fst_length: off_t(minimumSize - current),
-                fst_bytesalloc: 0)
+                fst_bytesalloc: 0
+            )
             if unsafe fcntl(fileDescriptor, F_PREALLOCATE, &store) == -1 {
                 store.fst_flags = UInt32(F_ALLOCATEALL)
                 // Best effort: a failed preallocation only costs contiguity, not correctness.
@@ -234,7 +253,11 @@ public final class PosixFile: Sendable {
             // (e.g. ENOSYS on exotic filesystems) is ignored, exactly like the Darwin
             // `fcntl` whose result is discarded.
             _ = posix_fadvise(
-                fileDescriptor, 0, 0, enabled ? POSIX_FADV_DONTNEED : POSIX_FADV_NORMAL)
+                fileDescriptor,
+                0,
+                0,
+                enabled ? POSIX_FADV_DONTNEED : POSIX_FADV_NORMAL
+            )
         #endif
     }
 

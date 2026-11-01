@@ -65,7 +65,8 @@ func report(_ label: String, bytes: Int, scalarNanos: Double, fastestNanos: Doub
     let speedup = Double(Int((scalarNanos / fastestNanos) * 100)) / 100
     print(
         "bench \(label) n=\(bytes): scalar=\(Int(scalarNanos))ns (\(scalarMBs) MB/s)  "
-            + "fastest=\(Int(fastestNanos))ns (\(fastestMBs) MB/s)  speedup=\(speedup)x")
+            + "fastest=\(Int(fastestNanos))ns (\(fastestMBs) MB/s)  speedup=\(speedup)x"
+    )
 }
 
 func runBench() {
@@ -86,16 +87,31 @@ func runBench() {
             guard let out = dst.baseAddress else { return }
             for _ in 0 ..< 300 {  // warmup
                 sink &+= AemiKernels.indexOfStringStop(
-                    base: base, count: n, quote: quote, escape: escape, backend: .fastest)
+                    base: base,
+                    count: n,
+                    quote: quote,
+                    escape: escape,
+                    backend: .fastest
+                )
                 AemiKernels.foldASCII(into: out, from: base, count: n, backend: .fastest)
             }
             let stopScalar = timeNanosPerOp(iterations) {
                 sink &+= AemiKernels.indexOfStringStop(
-                    base: base, count: n, quote: quote, escape: escape, backend: .scalar)
+                    base: base,
+                    count: n,
+                    quote: quote,
+                    escape: escape,
+                    backend: .scalar
+                )
             }
             let stopFastest = timeNanosPerOp(iterations) {
                 sink &+= AemiKernels.indexOfStringStop(
-                    base: base, count: n, quote: quote, escape: escape, backend: .fastest)
+                    base: base,
+                    count: n,
+                    quote: quote,
+                    escape: escape,
+                    backend: .fastest
+                )
             }
             report("string-stop", bytes: n, scalarNanos: stopScalar, fastestNanos: stopFastest)
             let foldScalar = timeNanosPerOp(iterations) {

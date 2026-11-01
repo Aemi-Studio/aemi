@@ -46,7 +46,9 @@ extension InternedMacro {
                         nonLiteralMessage: "@Interned requires a string literal (as argument or initializer)",
                         interpolationMessage: "@Interned does not support string interpolation"
                     )
-                }, node: attribute)
+                },
+                node: attribute
+            )
         }
 
         if let initializer = binding.initializer?.value {
@@ -57,7 +59,9 @@ extension InternedMacro {
                         nonLiteralMessage: "@Interned requires a string literal (as argument or initializer)",
                         interpolationMessage: "@Interned does not support string interpolation"
                     )
-                }, node: attribute)
+                },
+                node: attribute
+            )
         }
 
         throw error(attribute, "@Interned requires a string literal (as argument or initializer)")
@@ -94,7 +98,9 @@ extension InternedMacro {
                     nonLiteralMessage: "\(macroName) requires a string literal or array literal of strings",
                     interpolationMessage: "\(macroName) does not support string interpolation"
                 )
-            }, node: node)
+            },
+            node: node
+        )
 
         return InternedExpressionInput(
             expressionSource: InternedObfuscation.make(for: value, strategy: strategy, backend: backend)
@@ -146,7 +152,9 @@ extension InternedMacro {
                         nonLiteralMessage: "\(macroName) array elements must all be string literals",
                         interpolationMessage: "\(macroName) array elements do not support string interpolation"
                     )
-                }, node: node)
+                },
+                node: node
+            )
         }
     }
 

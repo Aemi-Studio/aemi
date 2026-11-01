@@ -56,7 +56,9 @@ struct LanguageSyntax: Sendable {
             "lazy", "weak", "unowned", "override", "final", "mutating", "nonmutating", "indirect", "convenience",
             "required", "optional", "dynamic", "willSet", "didSet", "get", "set", "each"
         ],
-        nestsBlockComments: true, tripleQuotes: [ASCII.quote], hasAnnotations: true
+        nestsBlockComments: true,
+        tripleQuotes: [ASCII.quote],
+        hasAnnotations: true
     )
 
     static let cKeywords: Set<String> = [
@@ -73,7 +75,9 @@ struct LanguageSyntax: Sendable {
             "inout", "bycopy", "byref", "oneway", "nonnull", "nullable", "__weak", "__strong", "__block", "__bridge",
             "__kindof", "NS_ENUM", "NS_OPTIONS", "NSInteger", "NSUInteger", "CGFloat"
         ]),
-        quotes: [ASCII.quote, ASCII.apostrophe], hasPreprocessor: true, hasAnnotations: true
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        hasPreprocessor: true,
+        hasAnnotations: true
     )
 
     static let c = LanguageSyntax(keywords: cKeywords, quotes: [ASCII.quote, ASCII.apostrophe], hasPreprocessor: true)
@@ -87,7 +91,8 @@ struct LanguageSyntax: Sendable {
             "reinterpret_cast", "requires", "static_assert", "static_cast", "template", "this", "thread_local", "throw",
             "try", "typeid", "typename", "using", "virtual", "wchar_t", "xor", "xor_eq", "override", "final"
         ]),
-        quotes: [ASCII.quote, ASCII.apostrophe], hasPreprocessor: true
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        hasPreprocessor: true
     )
 
     static let java = LanguageSyntax(
@@ -100,7 +105,9 @@ struct LanguageSyntax: Sendable {
             "record",
             "sealed", "permits", "yield", "non-sealed"
         ],
-        quotes: [ASCII.quote, ASCII.apostrophe], tripleQuotes: [ASCII.quote], hasAnnotations: true
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        tripleQuotes: [ASCII.quote],
+        hasAnnotations: true
     )
 
     static let kotlin = LanguageSyntax(
@@ -114,8 +121,11 @@ struct LanguageSyntax: Sendable {
             "infix", "inline", "inner", "internal", "lateinit", "noinline", "open", "operator", "out", "override",
             "private", "protected", "public", "reified", "sealed", "suspend", "tailrec", "vararg", "it"
         ],
-        nestsBlockComments: true, quotes: [ASCII.quote, ASCII.apostrophe], tripleQuotes: [ASCII.quote],
-        hasAnnotations: true, hasVariables: true
+        nestsBlockComments: true,
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        tripleQuotes: [ASCII.quote],
+        hasAnnotations: true,
+        hasVariables: true
     )
 
     static let javascriptKeywords: Set<String> = [
@@ -126,8 +136,10 @@ struct LanguageSyntax: Sendable {
     ]
 
     static let javascript = LanguageSyntax(
-        keywords: javascriptKeywords, quotes: [ASCII.quote, ASCII.apostrophe, ASCII.backtick],
-        multilineQuotes: [ASCII.backtick], hasAnnotations: true
+        keywords: javascriptKeywords,
+        quotes: [ASCII.quote, ASCII.apostrophe, ASCII.backtick],
+        multilineQuotes: [ASCII.backtick],
+        hasAnnotations: true
     )
 
     static let typescript = LanguageSyntax(
@@ -136,7 +148,9 @@ struct LanguageSyntax: Sendable {
             "is", "keyof", "module", "namespace", "never", "number", "object", "override", "private", "protected",
             "public", "readonly", "satisfies", "string", "symbol", "type", "unique", "unknown"
         ]),
-        quotes: [ASCII.quote, ASCII.apostrophe, ASCII.backtick], multilineQuotes: [ASCII.backtick], hasAnnotations: true
+        quotes: [ASCII.quote, ASCII.apostrophe, ASCII.backtick],
+        multilineQuotes: [ASCII.backtick],
+        hasAnnotations: true
     )
 
     static let python = LanguageSyntax(
@@ -146,8 +160,11 @@ struct LanguageSyntax: Sendable {
             "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda",
             "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield", "match", "case", "self"
         ],
-        lineComments: [Array("#".utf8)], blockComment: nil, quotes: [ASCII.quote, ASCII.apostrophe],
-        tripleQuotes: [ASCII.quote, ASCII.apostrophe], hasAnnotations: true
+        lineComments: [Array("#".utf8)],
+        blockComment: nil,
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        tripleQuotes: [ASCII.quote, ASCII.apostrophe],
+        hasAnnotations: true
     )
 
     static let shell = LanguageSyntax(
@@ -157,7 +174,10 @@ struct LanguageSyntax: Sendable {
             "alias", "eval", "exec", "set", "trap", "true", "false", "break", "continue", "echo", "printf", "read",
             "test"
         ],
-        lineComments: [Array("#".utf8)], blockComment: nil, quotes: [ASCII.quote, ASCII.apostrophe], hasVariables: true
+        lineComments: [Array("#".utf8)],
+        blockComment: nil,
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        hasVariables: true
     )
 
     static let fish = LanguageSyntax(
@@ -167,7 +187,10 @@ struct LanguageSyntax: Sendable {
             "printf", "read", "string", "math", "argparse", "status", "exit", "abbr", "alias", "block", "contains",
             "count", "functions", "type", "eval", "exec"
         ],
-        lineComments: [Array("#".utf8)], blockComment: nil, quotes: [ASCII.quote, ASCII.apostrophe], hasVariables: true
+        lineComments: [Array("#".utf8)],
+        blockComment: nil,
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        hasVariables: true
     )
 
     static let rust = LanguageSyntax(
@@ -188,7 +211,8 @@ struct LanguageSyntax: Sendable {
             "switch", "type", "var", "true", "false", "nil", "iota", "make", "new", "len", "cap", "append", "panic",
             "recover"
         ],
-        quotes: [ASCII.quote, ASCII.apostrophe, ASCII.backtick], multilineQuotes: [ASCII.backtick]
+        quotes: [ASCII.quote, ASCII.apostrophe, ASCII.backtick],
+        multilineQuotes: [ASCII.backtick]
     )
 
     static let ruby = LanguageSyntax(
@@ -199,8 +223,10 @@ struct LanguageSyntax: Sendable {
             "require", "require_relative", "include", "extend", "attr_reader", "attr_writer", "attr_accessor",
             "private", "protected", "public", "raise", "lambda", "proc", "puts", "print"
         ],
-        lineComments: [Array("#".utf8)], blockComment: (Array("=begin".utf8), Array("=end".utf8)),
-        quotes: [ASCII.quote, ASCII.apostrophe], hasVariables: true
+        lineComments: [Array("#".utf8)],
+        blockComment: (Array("=begin".utf8), Array("=end".utf8)),
+        quotes: [ASCII.quote, ASCII.apostrophe],
+        hasVariables: true
     )
 
     static let lua = LanguageSyntax(
@@ -209,7 +235,8 @@ struct LanguageSyntax: Sendable {
             "nil", "not", "or", "repeat", "return", "then", "true", "until", "while", "self", "require", "print",
             "pairs", "ipairs", "type", "tostring", "tonumber", "setmetatable", "getmetatable", "error", "pcall"
         ],
-        lineComments: [Array("--".utf8)], blockComment: (Array("--[[".utf8), Array("]]".utf8)),
+        lineComments: [Array("--".utf8)],
+        blockComment: (Array("--[[".utf8), Array("]]".utf8)),
         quotes: [ASCII.quote, ASCII.apostrophe],
         hasLongStrings: true
     )

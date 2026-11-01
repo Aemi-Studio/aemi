@@ -24,8 +24,11 @@
         private var isInvalidated = false
 
         init(
-            latency: Double, continuation: AsyncStream<FileWatchEvent>.Continuation, suppression: SuppressionWindow,
-            epoch: ContinuousClock.Instant, onFailure: @escaping @Sendable (String) -> Void
+            latency: Double,
+            continuation: AsyncStream<FileWatchEvent>.Continuation,
+            suppression: SuppressionWindow,
+            epoch: ContinuousClock.Instant,
+            onFailure: @escaping @Sendable (String) -> Void
         ) {
             self.latency = latency
             self.continuation = continuation
@@ -108,7 +111,8 @@
 
         private func makeStream(over roots: [String], since: FSEventStreamEventId) -> FSEventStreamRef? {
             var context = unsafe FSEventStreamContext(
-                version: 0, info: Unmanaged.passUnretained(self).toOpaque(),
+                version: 0,
+                info: Unmanaged.passUnretained(self).toOpaque(),
                 retain: { info in
                     guard let info = unsafe info else { return nil }
                     _ = unsafe Unmanaged<FSEventStreamController>.fromOpaque(info).retain()
@@ -118,7 +122,8 @@
                     guard let info = unsafe info else { return }
                     unsafe Unmanaged<FSEventStreamController>.fromOpaque(info).release()
                 },
-                copyDescription: nil)
+                copyDescription: nil
+            )
             return unsafe FSEventStreamCreate(
                 nil,
                 { _, info, count, eventPaths, eventFlags, eventIds in
@@ -166,8 +171,11 @@
             }
             for index in 0 ..< min(paths.count, flags.count, ids.count) {
                 let route = table.route(
-                    path: paths[index], flags: flags[index], id: ids[index],
-                    isSuppressed: { suppression.isSuppressed($0, now: now) })
+                    path: paths[index],
+                    flags: flags[index],
+                    id: ids[index],
+                    isSuppressed: { suppression.isSuppressed($0, now: now) }
+                )
                 switch route {
                     case .skip: continue
                     case .files(let registered): for path in registered { report(.fileChanged(path)) }

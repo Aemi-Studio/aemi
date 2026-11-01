@@ -32,7 +32,9 @@ extension AemiKernels {
         /// The C result is checked before it is used: a position below `from` or without a following byte would let a caller index
         /// out of bounds, so it stops the program instead.
         public func firstCandidate(
-            in bytes: UnsafeBufferPointer<UInt8>, from: Int, backend: Backend = .fastest
+            in bytes: UnsafeBufferPointer<UInt8>,
+            from: Int,
+            backend: Backend = .fastest
         ) -> Int? {
             guard from >= 0, from <= bytes.count, let base = bytes.baseAddress else { return nil }
             let found = table.withUnsafeBufferPointer { table in
@@ -45,7 +47,8 @@ extension AemiKernels {
             if found == -1 { return nil }
             precondition(
                 found >= from && found + 1 < bytes.count,
-                "the pair-set kernel returned \(found) for from \(from), count \(bytes.count)")
+                "the pair-set kernel returned \(found) for from \(from), count \(bytes.count)"
+            )
             return found
         }
 
@@ -55,7 +58,9 @@ extension AemiKernels {
         /// The count and the resume position are checked: the C side writes only inside `out`, but a wrong count would let a caller
         /// read stale entries, so a violated invariant stops the program.
         public func candidates(
-            in bytes: UnsafeBufferPointer<UInt8>, from: Int, into out: UnsafeMutableBufferPointer<Int>
+            in bytes: UnsafeBufferPointer<UInt8>,
+            from: Int,
+            into out: UnsafeMutableBufferPointer<Int>
         ) -> (count: Int, resume: Int) {
             precondition(out.count >= 1, "the pair-set batch needs room for at least one candidate")
             guard from >= 0, from < bytes.count, let base = bytes.baseAddress, let target = out.baseAddress else {

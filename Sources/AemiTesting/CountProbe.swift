@@ -270,8 +270,15 @@ public final class CountProbe<Event: Sendable>: Sendable {
     func timeoutError(expected count: Int, isConditionWait: Bool = false) -> CountProbeTimeoutError<Event> {
         state.withLock { state in
             CountProbeTimeoutError(
-                label: label, expected: count, recordedCount: state.count, recorded: state.events,
-                isConditionWait: isConditionWait, file: file, function: function, line: line)
+                label: label,
+                expected: count,
+                recordedCount: state.count,
+                recorded: state.events,
+                isConditionWait: isConditionWait,
+                file: file,
+                function: function,
+                line: line
+            )
         }
     }
 
@@ -328,7 +335,8 @@ public final class CountProbe<Event: Sendable>: Sendable {
                     if state.count >= count {
                         return .ready(
                             exactPrefix
-                                ? state.prefixSnapshot(count) : Snapshot(count: state.count, events: state.events))
+                                ? state.prefixSnapshot(count) : Snapshot(count: state.count, events: state.events)
+                        )
                     }
                     state.insert(Waiter(id: id, target: count, continuation: continuation))
                     return .suspended
@@ -419,8 +427,14 @@ public struct CountProbeTimeoutError<Event: Sendable>: Error, Sendable, CustomSt
     public let line: UInt
 
     init(
-        label: String, expected: Int, recordedCount: Int, recorded: [Event], isConditionWait: Bool = false,
-        file: StaticString, function: String, line: UInt
+        label: String,
+        expected: Int,
+        recordedCount: Int,
+        recorded: [Event],
+        isConditionWait: Bool = false,
+        file: StaticString,
+        function: String,
+        line: UInt
     ) {
         self.label = label
         self.expected = expected

@@ -7,7 +7,6 @@ import Testing
 /// `next` resumes deterministically.
 @Suite("AsyncProbe")
 struct AsyncProbeTests {
-
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 
     @Test func nextReturnsBufferedSend() async throws {
@@ -50,8 +49,8 @@ struct AsyncProbeTests {
 
     @Test func sendDeliversFIFOAcrossMultipleNexts() async throws {
         let probe = AsyncProbe<Int>()
-        for i in 0..<5 { probe.send(i) }
-        for i in 0..<5 {
+        for i in 0 ..< 5 { probe.send(i) }
+        for i in 0 ..< 5 {
             let received = try await probe.next()
             #expect(received == i)
         }

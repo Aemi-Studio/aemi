@@ -136,7 +136,8 @@ enum Base64Generators {
 
 enum SpanAccess {
     static func read<R, E: Error>(
-        _ array: [UInt8], _ body: (Span<UInt8>) throws(E) -> R
+        _ array: [UInt8],
+        _ body: (Span<UInt8>) throws(E) -> R
     ) throws(E) -> R {
         try array.withUnsafeBufferPointer { (buffer) throws(E) in
             try body(Span(_unsafeElements: buffer))
@@ -145,7 +146,9 @@ enum SpanAccess {
 
     /// Hands `body` a `MutableSpan` over the first `count` elements of `array` (all of them by default).
     static func write<R, E: Error>(
-        _ array: inout [UInt8], first count: Int? = nil, _ body: (inout MutableSpan<UInt8>) throws(E) -> R
+        _ array: inout [UInt8],
+        first count: Int? = nil,
+        _ body: (inout MutableSpan<UInt8>) throws(E) -> R
     ) throws(E) -> R {
         let window = count ?? array.count
         return try array.withUnsafeMutableBufferPointer { (buffer) throws(E) in
@@ -162,7 +165,9 @@ extension Base64 {
     /// window was touched, whether or not the decode succeeded.
     @discardableResult
     static func decodeCanary(
-        _ input: some Collection<UInt8>, capacity: Int, options: Options
+        _ input: some Collection<UInt8>,
+        capacity: Int,
+        options: Options
     ) throws(DecodeError) -> (written: Int, window: [UInt8]) {
         var storage = [UInt8](repeating: canaryByte, count: capacity + 16)
         do {

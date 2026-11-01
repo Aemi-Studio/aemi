@@ -37,7 +37,8 @@ public func expectEqual<T: Equatable>(
     guard actual.count == expected.count else {
         Issue.record(
             "\(prefix)count \(actual.count) != \(expected.count)\n  actual:   \(actual)\n  expected: \(expected)",
-            sourceLocation: sourceLocation)
+            sourceLocation: sourceLocation
+        )
         return
     }
     let cap = 10
@@ -46,7 +47,8 @@ public func expectEqual<T: Equatable>(
         guard reported < cap else {
             Issue.record(
                 "\(prefix)… and more (showing the first \(cap) divergences)",
-                sourceLocation: sourceLocation)
+                sourceLocation: sourceLocation
+            )
             break
         }
         Issue.record("\(prefix)element[\(index)] \(a) != \(b)", sourceLocation: sourceLocation)
@@ -64,7 +66,9 @@ public func expectNotEqual<T: Equatable>(
     if actual == unexpected {
         let prefix = label.isEmpty ? "" : "\(label): "
         Issue.record(
-            "\(prefix)expected a value other than \(unexpected)", sourceLocation: sourceLocation)
+            "\(prefix)expected a value other than \(unexpected)",
+            sourceLocation: sourceLocation
+        )
     }
 }
 
@@ -124,7 +128,8 @@ public func expectCount<C: Collection>(
         let prefix = label.isEmpty ? "" : "\(label): "
         Issue.record(
             "\(prefix)expected \(expected) element(s), got \(collection.count)",
-            sourceLocation: sourceLocation)
+            sourceLocation: sourceLocation
+        )
     }
 }
 

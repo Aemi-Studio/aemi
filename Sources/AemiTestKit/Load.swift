@@ -117,7 +117,8 @@ public func expectAllConcurrent<R: Sendable>(
         if !complete {
             Issue.record(
                 "expectAllConcurrent: only \(settled)/\(count) workers settled within \(within)",
-                sourceLocation: sourceLocation)
+                sourceLocation: sourceLocation
+            )
         }
         let timeout = LoadError(LoadWorkerTimedOut())
         return LoadOutcome(results: slots.map { $0 ?? .failure(timeout) }, complete: complete)
@@ -138,12 +139,17 @@ public func expectExactlyKSucceed<R: Sendable>(
     perform body: @Sendable @escaping (_ worker: Int) async throws -> R
 ) async -> LoadOutcome<R> {
     let outcome = await expectAllConcurrent(
-        count: count, within: within, thunderingHerd: thunderingHerd, sourceLocation: sourceLocation,
-        perform: body)
+        count: count,
+        within: within,
+        thunderingHerd: thunderingHerd,
+        sourceLocation: sourceLocation,
+        perform: body
+    )
     if outcome.successCount != k {
         Issue.record(
             "expected exactly \(k) of \(count) workers to succeed, got \(outcome.successCount)",
-            sourceLocation: sourceLocation)
+            sourceLocation: sourceLocation
+        )
     }
     return outcome
 }

@@ -118,8 +118,10 @@ struct AemiKernelsPairSetTests {
                         let (count, next) = out.withUnsafeMutableBufferPointer { buffer in
                             bytes.withUnsafeBufferPointer {
                                 teddy.candidates(
-                                    in: $0, from: resume,
-                                    into: UnsafeMutableBufferPointer<Int>(rebasing: buffer[0 ..< capacity]))
+                                    in: $0,
+                                    from: resume,
+                                    into: UnsafeMutableBufferPointer<Int>(rebasing: buffer[0 ..< capacity])
+                                )
                             }
                         }
                         #expect(count <= capacity, "wrote more than the capacity")
@@ -129,7 +131,8 @@ struct AemiKernelsPairSetTests {
                         resume = next
                     }
                     #expect(
-                        collected == expected, "\(pairs.count) pairs, capacity \(capacity), from \(from), \(size) bytes"
+                        collected == expected,
+                        "\(pairs.count) pairs, capacity \(capacity), from \(from), \(size) bytes"
                     )
                 }
             }
@@ -167,8 +170,10 @@ struct AemiKernelsPairSetTests {
                 let (count, next) = out.withUnsafeMutableBufferPointer { buffer in
                     bytes.withUnsafeBufferPointer {
                         teddy.candidates(
-                            in: $0, from: resume,
-                            into: UnsafeMutableBufferPointer<Int>(rebasing: buffer[0 ..< capacity]))
+                            in: $0,
+                            from: resume,
+                            into: UnsafeMutableBufferPointer<Int>(rebasing: buffer[0 ..< capacity])
+                        )
                     }
                 }
                 #expect(count <= capacity, "capacity \(capacity): wrote \(count)")

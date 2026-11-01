@@ -22,7 +22,8 @@ struct OraclesTests {
             where: { (error: SampleError) in
                 if case .syntax(let message) = error { return message.contains("deeply") }
                 return false
-            })
+            }
+        )
         #expect(caught == .syntax("nested too deeply"))
     }
 
@@ -37,7 +38,8 @@ struct OraclesTests {
                     // Demand a syntax error; the runtime error must be rejected.
                     if case .syntax = error { return true }
                     return false
-                })
+                }
+            )
         }
     }
 
@@ -48,7 +50,9 @@ struct OraclesTests {
             expectThrows(
                 {
                     throw OtherError()
-                }, where: { (_: SampleError) in true })
+                },
+                where: { (_: SampleError) in true }
+            )
         }
     }
 
@@ -58,7 +62,9 @@ struct OraclesTests {
             expectThrows(
                 {
                     42
-                }, where: { (_: SampleError) in true })
+                },
+                where: { (_: SampleError) in true }
+            )
         }
     }
 
@@ -72,7 +78,8 @@ struct OraclesTests {
             where: { (error: SampleError) in
                 if case .runtime(let code) = error { return code == 9 }
                 return false
-            })
+            }
+        )
         #expect(caught == .runtime(code: 9))
     }
 
@@ -87,11 +94,21 @@ struct OraclesTests {
         // constraint system — the exact >100ms type-check the strict CI lane rejects.
         expectTrue(
             ReferenceComparison.rowsMatch(
-                ours, theirs, ordered: false, elementOrder: { $0 - $1 }))
+                ours,
+                theirs,
+                ordered: false,
+                elementOrder: { $0 - $1 }
+            )
+        )
         // Ordered comparison sees the difference.
         expectFalse(
             ReferenceComparison.rowsMatch(
-                ours, theirs, ordered: true, elementOrder: { $0 - $1 }))
+                ours,
+                theirs,
+                ordered: true,
+                elementOrder: { $0 - $1 }
+            )
+        )
     }
 
     @Test

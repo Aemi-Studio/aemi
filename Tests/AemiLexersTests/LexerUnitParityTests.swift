@@ -65,7 +65,9 @@ struct LexerUnitParityTests {
         #expect(from16.map(\.1) == from8.map(\.1))
         #expect(!from16.isEmpty)
         #expect(
-            from16.allSatisfy { $0.1.lowerBound >= 0 && $0.1.upperBound >= 0 }, "a token boundary fell inside a scalar")
+            from16.allSatisfy { $0.1.lowerBound >= 0 && $0.1.upperBound >= 0 },
+            "a token boundary fell inside a scalar"
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -74,6 +76,7 @@ struct LexerUnitParityTests {
         let text = "let x = \"é\" // c"
         #expect(
             SyntaxHighlighter.tokens(in: text, language: .swift)
-                == SyntaxHighlighter.tokens(utf16: Array(text.utf16), language: .swift))
+                == SyntaxHighlighter.tokens(utf16: Array(text.utf16), language: .swift)
+        )
     }
 }

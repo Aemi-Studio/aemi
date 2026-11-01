@@ -35,22 +35,22 @@ public enum Platform {
             .tv
         #else
             switch UIDevice.current.userInterfaceIdiom {
-            case .phone:
-                .phone
-            case .pad:
-                .pad
-            case .tv:
-                .tv
-            case .carPlay:
-                .car
-            case .mac:
-                .mac
-            case .vision:
-                .vision
-            case .unspecified:
-                .unknown
-            @unknown default:
-                .unknown
+                case .phone:
+                    .phone
+                case .pad:
+                    .pad
+                case .tv:
+                    .tv
+                case .carPlay:
+                    .car
+                case .mac:
+                    .mac
+                case .vision:
+                    .vision
+                case .unspecified:
+                    .unknown
+                @unknown default:
+                    .unknown
             }
         #endif
     }

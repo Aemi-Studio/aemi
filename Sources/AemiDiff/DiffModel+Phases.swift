@@ -17,11 +17,23 @@ extension DiffModel {
                 let added = unifiedStart + lines.old.count + new
                 let split = splitStart + offset
                 model.unifiedRows[removed] = DiffRow(
-                    kind: .removed, old: oldRef, new: nil, isMoved: model.unifiedRows[removed].isMoved)
+                    kind: .removed,
+                    old: oldRef,
+                    new: nil,
+                    isMoved: model.unifiedRows[removed].isMoved
+                )
                 model.unifiedRows[added] = DiffRow(
-                    kind: .added, old: nil, new: newRef, isMoved: model.unifiedRows[added].isMoved)
+                    kind: .added,
+                    old: nil,
+                    new: newRef,
+                    isMoved: model.unifiedRows[added].isMoved
+                )
                 model.splitRows[split] = DiffRow(
-                    kind: .modified, old: oldRef, new: newRef, isMoved: model.splitRows[split].isMoved)
+                    kind: .modified,
+                    old: oldRef,
+                    new: newRef,
+                    isMoved: model.splitRows[split].isMoved
+                )
             }
         }
         return model

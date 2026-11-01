@@ -38,7 +38,8 @@ struct ThreadGateTests {
             { openGate in
                 order.record("body")
                 openGate()
-            })
+            }
+        )
         // The holder can only resume after the body opened the gate, so its resume is
         // always the final recorded event regardless of how start/body interleave.
         #expect(order.count == 3)
@@ -57,7 +58,8 @@ struct ThreadGateTests {
                     gate.waitUntilOpen()
                     order.record("holder-resumed")
                 },
-                { _ in throw Failure() })
+                { _ in throw Failure() }
+            )
         }
         // The holder thread was released and joined before the error propagated, not left blocked.
         #expect(order.events.last == "holder-resumed")

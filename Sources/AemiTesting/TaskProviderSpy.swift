@@ -59,10 +59,16 @@ public final class TaskProviderSpy: TaskProvider {
         spawned = CountProbe(label: "\(label).spawned", file: file, function: function, line: line)
         completed = CountProbe(label: "\(label).completed", file: file, function: function, line: line)
         observationsSpawned = CountProbe(
-            label: "\(label).observationsSpawned", file: file, function: function, line: line
+            label: "\(label).observationsSpawned",
+            file: file,
+            function: function,
+            line: line
         )
         observationsFinished = CountProbe(
-            label: "\(label).observationsFinished", file: file, function: function, line: line
+            label: "\(label).observationsFinished",
+            file: file,
+            function: function,
+            line: line
         )
     }
 
@@ -182,7 +188,10 @@ public final class TaskProviderSpy: TaskProvider {
     /// See ``waitForAllTasks(within:clock:)`` for what is awaited.
     public func waitForAllTasks(timeout: Duration? = nil) async throws {
         try await TaskCompletionWait.wait(
-            spawned: spawned, completed: completed, timeout: timeout ?? defaultTimeout)
+            spawned: spawned,
+            completed: completed,
+            timeout: timeout ?? defaultTimeout
+        )
     }
 
     /// Suspends until every tracked observer has finished, racing a `clock`-driven deadline.
@@ -192,13 +201,20 @@ public final class TaskProviderSpy: TaskProvider {
     /// registered while waiting are awaited too; the deadline covers the whole wait.
     public func waitForObservationsToFinish<C: Clock>(within duration: C.Duration, clock: C) async throws {
         try await TaskCompletionWait.wait(
-            spawned: observationsSpawned, completed: observationsFinished, within: duration, clock: clock)
+            spawned: observationsSpawned,
+            completed: observationsFinished,
+            within: duration,
+            clock: clock
+        )
     }
 
     /// Suspends until every tracked observer has finished, or the timeout elapses on a `ContinuousClock`.
     public func waitForObservationsToFinish(timeout: Duration? = nil) async throws {
         try await TaskCompletionWait.wait(
-            spawned: observationsSpawned, completed: observationsFinished, timeout: timeout ?? defaultTimeout)
+            spawned: observationsSpawned,
+            completed: observationsFinished,
+            timeout: timeout ?? defaultTimeout
+        )
     }
 
     // MARK: - TaskProvider

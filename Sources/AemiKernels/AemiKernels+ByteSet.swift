@@ -49,7 +49,10 @@ extension AemiKernels {
     ///
     /// Owner/bounds: the caller owns `base[0..<count]` for the call.
     public static func firstIndex(
-        inSet set: ByteSet, base: UnsafePointer<UInt8>, count: Int, backend: Backend = .fastest
+        inSet set: ByteSet,
+        base: UnsafePointer<UInt8>,
+        count: Int,
+        backend: Backend = .fastest
     ) -> Int {
         guard count > 0 else { return 0 }
         var low = set.low

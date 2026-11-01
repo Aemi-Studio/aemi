@@ -79,13 +79,14 @@ struct UnifiedPatchTests {
         #expect(modified.old == "\n\nlet a = 1\nlet b = 2\nlet c = 4\n")
         #expect(modified.new == "\n\nlet a = 1\nlet b = 3\nlet c = 4\n")
         let added = patch.files[1].reconstructedTexts
-        #expect(added.old == nil)
+        #expect(added.old == Optional<String>.none)
         #expect(added.new == "line one\nline two\n")
         let deleted = patch.files[2].reconstructedTexts
         #expect(deleted.old == "gone\n")
-        #expect(deleted.new == nil)
-        #expect(
-            patch.files[3].reconstructedTexts.new?.split(separator: "\n", omittingEmptySubsequences: false).count == 12)
+        #expect(deleted.new == Optional<String>.none)
+        let renamed: String = patch.files[3].reconstructedTexts.new ?? ""
+        let renamedLines: Int = renamed.split(separator: "\n", omittingEmptySubsequences: false).count
+        #expect(renamedLines == 12)
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -116,13 +117,15 @@ struct UnifiedPatchTests {
     @Test
     func `blank lines inside a hunk are context and CRLF endings are stripped`() {
         let patch = UnifiedPatch(
-            parsing: "--- a/x.txt\r\n+++ b/x.txt\r\n@@ -1,3 +1,3 @@\r\n one\r\n\r\n-two\r\n+deux\r\n")
+            parsing: "--- a/x.txt\r\n+++ b/x.txt\r\n@@ -1,3 +1,3 @@\r\n one\r\n\r\n-two\r\n+deux\r\n"
+        )
 
         #expect(
             patch.files[0].hunks[0].lines == [
                 .init(kind: .context, text: "one"), .init(kind: .context, text: ""),
                 .init(kind: .removed, text: "two"), .init(kind: .added, text: "deux")
-            ])
+            ]
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -135,7 +138,8 @@ struct UnifiedPatchTests {
                 @@ -9223372036854775807,1 +99999999999,1 @@
                 -x
                 +y
-                """)
+                """
+        )
         let file = patch.files[0]
         #expect(file.hunks[0].oldStart == UnifiedPatch.maximumLineNumber)
         #expect(file.hunks[0].newStart == UnifiedPatch.maximumLineNumber)

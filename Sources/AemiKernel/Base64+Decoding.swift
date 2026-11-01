@@ -15,7 +15,8 @@ extension Base64 {
     /// - Throws: ``DecodeError`` describing the first problem found, in input order.
     /// - Complexity: O(n) in the input length.
     public static func decode(
-        _ input: some Collection<UInt8>, options: Options
+        _ input: some Collection<UInt8>,
+        options: Options
     ) throws(DecodeError) -> [UInt8] {
         let capacity = outputCapacity(forInputCount: input.count, options: options)
         do {
@@ -31,7 +32,8 @@ extension Base64 {
 
     /// Decodes the UTF-8 bytes of `string` under `options`. See ``decode(_:options:)``.
     public static func decode(
-        _ string: some StringProtocol, options: Options
+        _ string: some StringProtocol,
+        options: Options
     ) throws(DecodeError) -> [UInt8] {
         try decode(string.utf8, options: options)
     }
@@ -57,7 +59,9 @@ extension Base64 {
     ///   do not fit. Nothing is ever written past `output`. After a throw the contents of `output` are
     ///   unspecified; do not use them.
     public static func decode(
-        _ input: some Collection<UInt8>, into output: inout MutableSpan<UInt8>, options: Options
+        _ input: some Collection<UInt8>,
+        into output: inout MutableSpan<UInt8>,
+        options: Options
     ) throws(DecodeError) -> Int {
         try output.withUnsafeMutableBufferPointer { (buffer) throws(DecodeError) in
             try unsafe decode(input, into: buffer, options: options)
@@ -68,7 +72,9 @@ extension Base64 {
     /// pointer (`Array.withUnsafeMutableBufferPointer`) rather than a `MutableSpan`, which needs a newer
     /// OS to create from an array. The pointer is used only for this call.
     public static func decode(
-        _ input: some Collection<UInt8>, into output: UnsafeMutableBufferPointer<UInt8>, options: Options
+        _ input: some Collection<UInt8>,
+        into output: UnsafeMutableBufferPointer<UInt8>,
+        options: Options
     ) throws(DecodeError) -> Int {
         do {
             return try unsafe decodeCollection(input, into: output, options: options)
@@ -79,7 +85,9 @@ extension Base64 {
 
     /// Decodes `input` into the front of `output`. See ``decode(_:into:options:)``.
     public static func decode(
-        _ input: Span<UInt8>, into output: inout MutableSpan<UInt8>, options: Options
+        _ input: Span<UInt8>,
+        into output: inout MutableSpan<UInt8>,
+        options: Options
     ) throws(DecodeError) -> Int {
         do {
             return try output.withUnsafeMutableBufferPointer { (buffer) throws(DecodeError) in
@@ -103,7 +111,9 @@ extension Base64 {
     }
 
     private static func decodeCollection(
-        _ input: some Collection<UInt8>, into out: UnsafeMutableBufferPointer<UInt8>, options: Options
+        _ input: some Collection<UInt8>,
+        into out: UnsafeMutableBufferPointer<UInt8>,
+        options: Options
     ) throws(DecodeError) -> Int {
         // `withContiguousStorageIfAvailable` only `rethrows` untyped errors, so the typed result travels
         // out as a `Result` and is unwrapped here.
@@ -119,7 +129,9 @@ extension Base64 {
     }
 
     private static func decodeSpan(
-        _ input: Span<UInt8>, into out: UnsafeMutableBufferPointer<UInt8>, options: Options
+        _ input: Span<UInt8>,
+        into out: UnsafeMutableBufferPointer<UInt8>,
+        options: Options
     ) throws(DecodeError) -> Int {
         try input.withUnsafeBufferPointer { (bytes) throws(DecodeError) in
             try unsafe decodeContiguous(bytes, into: out, options: options)
@@ -127,7 +139,9 @@ extension Base64 {
     }
 
     private static func decodeContiguous(
-        _ input: UnsafeBufferPointer<UInt8>, into out: UnsafeMutableBufferPointer<UInt8>, options: Options
+        _ input: UnsafeBufferPointer<UInt8>,
+        into out: UnsafeMutableBufferPointer<UInt8>,
+        options: Options
     ) throws(DecodeError) -> Int {
         try options.alphabet.decodeTable.withUnsafeBufferPointer { (lut) throws(DecodeError) in
             var engine = unsafe DecodeEngine(lut: lut, out: out, options: options)
@@ -146,7 +160,9 @@ extension Base64 {
     }
 
     private static func decodeSequential(
-        _ input: some Collection<UInt8>, into out: UnsafeMutableBufferPointer<UInt8>, options: Options
+        _ input: some Collection<UInt8>,
+        into out: UnsafeMutableBufferPointer<UInt8>,
+        options: Options
     ) throws(DecodeError) -> Int {
         try options.alphabet.decodeTable.withUnsafeBufferPointer { (lut) throws(DecodeError) in
             var engine = unsafe DecodeEngine(lut: lut, out: out, options: options)

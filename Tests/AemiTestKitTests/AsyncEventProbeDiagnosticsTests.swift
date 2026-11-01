@@ -9,7 +9,8 @@ import Testing
 struct AsyncEventProbeDiagnosticsTests {
     /// Waits on `probe` under a test clock, advances past the timeout once it is armed, and returns the error.
     private func timeout<Event: Sendable>(
-        of probe: AsyncEventProbe<Event>, waiting body: @escaping @Sendable (TestClock) async throws -> Void
+        of probe: AsyncEventProbe<Event>,
+        waiting body: @escaping @Sendable (TestClock) async throws -> Void
     ) async throws -> AsyncEventProbeTimeoutError {
         let clock = TestClock()
         let waiter = Task { try await body(clock) }

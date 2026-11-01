@@ -19,7 +19,9 @@ struct TestClockRendezvousTests {
     }
 
     private func parkSleepers(
-        _ count: Int, on clock: TestClock, in group: inout ThrowingTaskGroup<Void, any Error>
+        _ count: Int,
+        on clock: TestClock,
+        in group: inout ThrowingTaskGroup<Void, any Error>
     ) {
         for _ in 0 ..< count {
             group.addTask { try? await clock.sleep(until: clock.now.advanced(by: .seconds(60))) }

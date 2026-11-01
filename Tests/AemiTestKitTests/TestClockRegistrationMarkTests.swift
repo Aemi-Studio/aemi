@@ -17,7 +17,9 @@ private final class ReleaseFlag: Sendable {
 @Suite(.tags(.concurrency), .timeLimit(.minutes(1)))
 struct TestClockRegistrationMarkTests {
     private func park(
-        _ count: Int, on clock: TestClock, in group: inout ThrowingTaskGroup<Void, any Error>
+        _ count: Int,
+        on clock: TestClock,
+        in group: inout ThrowingTaskGroup<Void, any Error>
     ) {
         for _ in 0 ..< count {
             group.addTask { try await clock.sleep(until: clock.now.advanced(by: .seconds(60))) }

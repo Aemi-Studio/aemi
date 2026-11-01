@@ -13,7 +13,9 @@ public enum UTF8Decode {
     /// guarantees `i < count`.
     @inlinable
     public static func scalar<C: RandomAccessCollection>(
-        _ bytes: C, at i: Int, count n: Int
+        _ bytes: C,
+        at i: Int,
+        count n: Int
     ) -> (value: UInt32, width: Int) where C.Element == UInt8, C.Index == Int {
         let b0 = bytes[i]
         if b0 < 0x80 { return (UInt32(b0), 1) }

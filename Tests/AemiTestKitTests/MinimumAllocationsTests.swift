@@ -21,7 +21,8 @@ struct MinimumAllocationsTests {
         let count = try #require(
             minimumAllocations(repeats: 3) {
                 for _ in 0 ..< 100 { sink.append(String(repeating: "x", count: 64)) }
-            })
+            }
+        )
         #expect(count >= 100, "expected at least one allocation per string, measured \(count)")
     }
 
@@ -39,7 +40,8 @@ struct MinimumAllocationsTests {
         let count = try #require(
             minimumAllocations(repeats: 3) {
                 for index in 0 ..< 10_000 { total &+= index }
-            })
+            }
+        )
         #expect(count == 0, "expected zero, measured \(count)")
         #expect(total > 0)
     }

@@ -16,15 +16,15 @@ public struct BooleanCheckbox: View {
 
     private func symbol(for status: Bool) -> CheckboxSymbol? {
         switch status {
-        case true: .checkmark
-        case false: nil
+            case true: .checkmark
+            case false: nil
         }
     }
 
     private func backgroundStyle(for status: Bool) -> any ShapeStyle {
         switch status {
-        case false: .gray.secondary
-        case true: tint ?? .green
+            case false: .gray.secondary
+            case true: tint ?? .green
         }
     }
 

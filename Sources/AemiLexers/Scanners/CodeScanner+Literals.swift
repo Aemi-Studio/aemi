@@ -16,7 +16,9 @@ extension CodeScanner {
     /// or identifier ends and the state at the end of `units` when the string runs past it; nil when the word starts
     /// neither. The kind is nil for an identifier, which takes no token.
     func prefixedRawString(
-        _ units: Span<UInt8>, wordStart: Int, wordEnd: Int
+        _ units: Span<UInt8>,
+        wordStart: Int,
+        wordEnd: Int
     ) -> (kind: TokenKind?, end: Int, open: LexState?)? {
         let length = wordEnd - wordStart
         let last = units[wordEnd - 1]
@@ -28,7 +30,13 @@ extension CodeScanner {
         guard quote < units.count else { return nil }
         if units[quote] == ASCII.quote {
             let (end, isOpen) = stringBody(
-                units, from: quote + 1, quote: ASCII.quote, isTriple: false, hashes: hashes, isRaw: true)
+                units,
+                from: quote + 1,
+                quote: ASCII.quote,
+                isTriple: false,
+                hashes: hashes,
+                isRaw: true
+            )
             return (
                 .string, end, isOpen ? LexState(mode: .string, quote: ASCII.quote, isRaw: true, count: hashes) : nil
             )

@@ -18,7 +18,8 @@ private final class ResumeLog: Sendable {
 struct CountProbeFamilyTests {
     /// Waits on `probe` under a test clock, advances past the timeout once it is armed, and returns the error.
     private func timeout<Event: Sendable>(
-        of probe: CountProbe<Event>, waiting body: @escaping @Sendable (TestClock) async throws -> Void
+        of probe: CountProbe<Event>,
+        waiting body: @escaping @Sendable (TestClock) async throws -> Void
     ) async throws -> CountProbeTimeoutError<Event> {
         let clock = TestClock()
         let waiter = Task { try await body(clock) }
@@ -152,7 +153,9 @@ struct CountProbeFamilyTests {
                 until: { events in
                     seen.withLock { $0.append(events.count) }
                     return events.last == "done"
-                }, timeout: .seconds(30))
+                },
+                timeout: .seconds(30)
+            )
         }
         while seen.withLock({ $0.count }) < 1 { await Task.yield() }
         for event in ["a", "b", "done"] {
@@ -171,7 +174,9 @@ struct CountProbeFamilyTests {
                 until: { events in
                     seen.withLock { $0.append(events.count) }
                     return events.contains(3)
-                }, timeout: .seconds(30))
+                },
+                timeout: .seconds(30)
+            )
         }
         while probe.waiterCount < 1 { await Task.yield() }
 

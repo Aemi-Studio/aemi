@@ -8,8 +8,7 @@
 import SwiftUI
 
 struct AutosizingSheetItemContentModifier<Item, SheetContent>: ViewModifier
-    where Item: Identifiable, SheetContent: View
-{
+where Item: Identifiable, SheetContent: View {
     @Binding private(set) var item: Item?
     private(set) var topPadding: CGFloat = 0
     private(set) var leadingPadding: CGFloat = 0
@@ -34,7 +33,10 @@ struct AutosizingSheetItemContentModifier<Item, SheetContent>: ViewModifier
                 sheetContent(item)
                     .padding(
                         EdgeInsets(
-                            top: topPadding, leading: leadingPadding, bottom: bottomPadding, trailing: trailingPadding
+                            top: topPadding,
+                            leading: leadingPadding,
+                            bottom: bottomPadding,
+                            trailing: trailingPadding
                         )
                     )
                     .update($size)

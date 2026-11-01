@@ -61,13 +61,17 @@ struct HistogramSolver {
                         work.append(
                             .ranges(
                                 (anchor.oldStart + anchor.length) ..< oldRange.upperBound,
-                                (anchor.newStart + anchor.length) ..< newRange.upperBound))
+                                (anchor.newStart + anchor.length) ..< newRange.upperBound
+                            )
+                        )
                         work.append(.equal(oldStart: anchor.oldStart, newStart: anchor.newStart, count: anchor.length))
                         work.append(
-                            .ranges(oldRange.lowerBound ..< anchor.oldStart, newRange.lowerBound ..< anchor.newStart))
+                            .ranges(oldRange.lowerBound ..< anchor.oldStart, newRange.lowerBound ..< anchor.newStart)
+                        )
                     } else {
                         outcome.merge(
-                            LineDiff.solveMatched(old, oldRange, new, newRange, limits: limits, into: &edits))
+                            LineDiff.solveMatched(old, oldRange, new, newRange, limits: limits, into: &edits)
+                        )
                     }
             }
         }
@@ -103,8 +107,12 @@ struct HistogramSolver {
             while oldIndex >= 0 {
                 if let current = best, candidates > current.occurrences { break }
                 let anchor = extend(
-                    oldIndex: oldIndex, newIndex: newIndex, candidates: candidates, old: oldRange,
-                    new: newRange)
+                    oldIndex: oldIndex,
+                    newIndex: newIndex,
+                    candidates: candidates,
+                    old: oldRange,
+                    new: newRange
+                )
                 if let current = best {
                     if anchor.occurrences < current.occurrences
                         || (anchor.occurrences == current.occurrences && anchor.length > current.length)
@@ -125,7 +133,11 @@ struct HistogramSolver {
     /// The run of common lines through `oldIndex` and `newIndex`, as far as it goes both ways within the ranges, with
     /// the highest occurrence count among its lines.
     private func extend(
-        oldIndex: Int, newIndex: Int, candidates: Int, old oldRange: Range<Int>, new newRange: Range<Int>
+        oldIndex: Int,
+        newIndex: Int,
+        candidates: Int,
+        old oldRange: Range<Int>,
+        new newRange: Range<Int>
     )
         -> Anchor
     {

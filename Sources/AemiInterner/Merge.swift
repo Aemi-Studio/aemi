@@ -97,7 +97,12 @@ enum Merge {
         }
         parallel(shardCount, workers: workers) { shard in
             findOwners(
-                shard: shard, inputs: inputs, buckets: buckets, ownerInput: ownerInput, ownerLocal: ownerLocal)
+                shard: shard,
+                inputs: inputs,
+                buckets: buckets,
+                ownerInput: ownerInput,
+                ownerLocal: ownerLocal
+            )
         }
         // 3. Number the owned keys input by input, then point every other local symbol at its owner's number.
         let globals = inputs.map { SharedBuffer<UInt32>(repeating: 0, count: $0.count) }
@@ -145,7 +150,11 @@ enum Merge {
         }
         // 4. The merged table, over every input's arenas, and each input's remap.
         let merged = unsafe Table(
-            arenas: inputs.flatMap(\.arenas), starts: starts.array(), lengths: lengths.array(), hashes: hashes.array())
+            arenas: inputs.flatMap(\.arenas),
+            starts: starts.array(),
+            lengths: lengths.array(),
+            hashes: hashes.array()
+        )
         let remaps: [[Symbol]] = inputs.indices.map { input in
             (0 ..< inputs[input].count).map { Symbol(rawValue: globals[input][$0]) }
         }
@@ -155,7 +164,10 @@ enum Merge {
     /// The owners of the keys of one shard: an open-addressing table of the keys seen so far, each with the first
     /// (input, local) that held it.
     private static func findOwners(
-        shard: Int, inputs: [Table], buckets: [[[UInt32]]], ownerInput: [SharedBuffer<UInt32>],
+        shard: Int,
+        inputs: [Table],
+        buckets: [[[UInt32]]],
+        ownerInput: [SharedBuffer<UInt32>],
         ownerLocal: [SharedBuffer<UInt32>]
     ) {
         var size = 0

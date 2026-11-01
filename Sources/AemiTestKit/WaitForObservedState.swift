@@ -35,7 +35,9 @@ public import Testing
         let deadline = clock.now.advanced(by: timeout)
         while !condition() {
             let changed = AsyncEventProbe(
-                label: label.isEmpty ? "observed state change" : label, sourceLocation: sourceLocation)
+                label: label.isEmpty ? "observed state change" : label,
+                sourceLocation: sourceLocation
+            )
             withObservationTracking {
                 _ = condition()
             } onChange: {
@@ -55,6 +57,11 @@ public import Testing
         _ condition: @MainActor () -> Bool
     ) async throws {
         try await waitForObservedState(
-            within: timeout, clock: ContinuousClock(), label: label, sourceLocation: sourceLocation, condition)
+            within: timeout,
+            clock: ContinuousClock(),
+            label: label,
+            sourceLocation: sourceLocation,
+            condition
+        )
     }
 #endif

@@ -100,7 +100,9 @@ public enum SyntaxHighlighter {
 
     /// The tokens of `bytes` in `language`, built as `Output`, ascending and disjoint, in byte offsets.
     static func scan<Output: ScannerToken>(
-        utf8 bytes: Span<UInt8>, language: Language, as: Output.Type
+        utf8 bytes: Span<UInt8>,
+        language: Language,
+        as: Output.Type
     ) -> [Output] {
         switch language {
             case .swift, .objectiveC, .kotlin, .java, .javascript, .typescript, .c, .cpp, .python, .shell, .fish,

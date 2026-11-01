@@ -46,7 +46,7 @@ typedef struct {
 static const fold_variant fold_variants[] = {
     {"shipped NEON (-Os)", adf_fold_ascii_neon},
     {"shipped dispatcher (-Os)", adf_fold_ascii},
-    {"previous NEON, 3e64286^ (-Os)", prev_fold_ascii_neon},
+    {"previous NEON, aff9ca5^ (-Os)", prev_fold_ascii_neon},
     {"scalar -Os (as shipped)", ref_fold_ascii_Os},
     {"scalar -O2", ref_fold_ascii_O2},
     {"scalar -O2, no vectorize", ref_fold_ascii_O2_novec},

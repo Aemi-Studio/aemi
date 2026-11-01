@@ -18,7 +18,8 @@ extension LexerCorpusTests {
                     #expect(
                         token.byteRange.lowerBound >= last && !token.byteRange.isEmpty
                             && token.byteRange.upperBound <= end,
-                        "\(language) prefix of \(end) bytes: \(token.byteRange)")
+                        "\(language) prefix of \(end) bytes: \(token.byteRange)"
+                    )
                     last = token.byteRange.upperBound
                 }
             }

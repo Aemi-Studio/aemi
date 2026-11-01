@@ -37,7 +37,9 @@ struct LineLexerTests {
                         cut.append(
                             LineToken(
                                 range: range.lowerBound - line.lowerBound ..< range.upperBound - line.lowerBound,
-                                role: tokens[index].role))
+                                role: tokens[index].role
+                            )
+                        )
                     }
                     index += 1
                 }
@@ -97,7 +99,8 @@ struct LineLexerTests {
 
             #expect(
                 Self.lineScan(text, language: language) == Self.wholeScan(text, language: language),
-                "\(text.debugDescription)")
+                "\(text.debugDescription)"
+            )
         }
     }
 

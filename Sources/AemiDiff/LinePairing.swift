@@ -59,7 +59,9 @@ public struct SimilarityPairing: LinePairing {
     public var maximumLineLength = IntralineDiff.maximumLineLength
 
     public init(
-        threshold: Double = 0.5, maximumPairs: Int = 40_000, maximumLineLength: Int = IntralineDiff.maximumLineLength
+        threshold: Double = 0.5,
+        maximumPairs: Int = 40_000,
+        maximumLineLength: Int = IntralineDiff.maximumLineLength
     ) {
         self.threshold = threshold
         self.maximumPairs = maximumPairs
@@ -72,8 +74,11 @@ public struct SimilarityPairing: LinePairing {
 
     public func pairs(removed: [Substring], added: [Substring], limits: DiffLimits) -> [LinePair] {
         pairs(
-            removed: removed, added: added, maximumPairs: min(maximumPairs, limits.maximumPairs),
-            maximumLineLength: min(maximumLineLength, limits.maximumIntralineUnits))
+            removed: removed,
+            added: added,
+            maximumPairs: min(maximumPairs, limits.maximumPairs),
+            maximumLineLength: min(maximumLineLength, limits.maximumIntralineUnits)
+        )
     }
 
     private func pairs(removed: [Substring], added: [Substring], maximumPairs: Int, maximumLineLength: Int)

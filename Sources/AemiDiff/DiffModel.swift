@@ -103,10 +103,19 @@ public struct DiffModel: Sendable {
         let changes = structure.changes
         let tokens = SyntaxTokenSource(provider: tokenRanges, language: language, oldText: oldText, newText: newText)
         let options = IntralineEmphasis.Options(
-            granularity: granularity, refiners: pipeline.intralineRefiners, tokens: tokens, limits: limits)
+            granularity: granularity,
+            refiners: pipeline.intralineRefiners,
+            tokens: tokens,
+            limits: limits
+        )
         let emphasis = IntralineEmphasis.emphasize(
-            Array(changes.indices), of: changes, pairs: changePairs, options: options,
-            isCancelled: { false }, units: { isOld, index in Array((isOld ? oldLines[index] : newLines[index]).utf16) })
+            Array(changes.indices),
+            of: changes,
+            pairs: changePairs,
+            options: options,
+            isCancelled: { false },
+            units: { isOld, index in Array((isOld ? oldLines[index] : newLines[index]).utf16) }
+        )
         if let emphasis { self = applying(emphasis) }
         if pipeline.detectsMovedBlocks { self = applying(MovedBlocks.detect(in: structure, limits: limits)) }
     }
@@ -119,7 +128,9 @@ public struct DiffModel: Sendable {
     ///   - pipeline: The stages the diff goes through; its pairing pairs each change's lines.
     ///   - limits: The bounds the line diff and the pairing keep to.
     public init(
-        structureOf oldText: String, newText: String, pipeline: DiffPipeline = DiffPipeline(),
+        structureOf oldText: String,
+        newText: String,
+        pipeline: DiffPipeline = DiffPipeline(),
         limits: DiffLimits = DiffLimits()
     ) {
         let old = TextLines(oldText)
@@ -129,12 +140,20 @@ public struct DiffModel: Sendable {
         let newLines = Self.substrings(of: new)
         let pairs = structure.changes.map { change in
             Self.pairs(
-                removed: Array(oldLines[change.old]), added: Array(newLines[change.new]), pairing: pipeline.pairing,
-                limits: limits)
+                removed: Array(oldLines[change.old]),
+                added: Array(newLines[change.new]),
+                pairing: pipeline.pairing,
+                limits: limits
+            )
         }
         self.init(
-            structure: structure, pairs: pairs, oldText: old.text, newText: new.text, oldLines: oldLines,
-            newLines: newLines)
+            structure: structure,
+            pairs: pairs,
+            oldText: old.text,
+            newText: new.text,
+            oldLines: oldLines,
+            newLines: newLines
+        )
     }
 
     /// The rows of `structure`, with each change's pairs in the split layout and no emphasis yet: what a text needs to
@@ -147,12 +166,21 @@ public struct DiffModel: Sendable {
     ///   - newText: The right side.
     public init(structure: DiffStructure, pairs: [[LinePair]], oldText: String, newText: String) {
         self.init(
-            structure: structure, pairs: pairs, oldText: oldText, newText: newText, oldLines: Self.lines(of: oldText),
-            newLines: Self.lines(of: newText))
+            structure: structure,
+            pairs: pairs,
+            oldText: oldText,
+            newText: newText,
+            oldLines: Self.lines(of: oldText),
+            newLines: Self.lines(of: newText)
+        )
     }
 
     private init(
-        structure: DiffStructure, pairs: [[LinePair]], oldText: String, newText: String, oldLines: [Substring],
+        structure: DiffStructure,
+        pairs: [[LinePair]],
+        oldText: String,
+        newText: String,
+        oldLines: [Substring],
         newLines: [Substring]
     ) {
         self.oldText = oldText
@@ -174,8 +202,11 @@ public struct DiffModel: Sendable {
                 if !inChange, next < structure.changes.count {
                     inChange = true
                     let ranges = Self.appendRows(
-                        of: structure.changes[next], pairs: next < pairs.count ? pairs[next] : [], unified: &unified,
-                        split: &split)
+                        of: structure.changes[next],
+                        pairs: next < pairs.count ? pairs[next] : [],
+                        unified: &unified,
+                        split: &split
+                    )
                     unifiedRanges.append(ranges.unified)
                     splitRanges.append(ranges.split)
                     next += 1
@@ -198,7 +229,10 @@ public struct DiffModel: Sendable {
     /// Appends one change's rows: in the unified layout its removed lines then its added ones, in the split layout one
     /// row per pair. Returns the rows it took in each.
     private static func appendRows(
-        of change: DiffChange, pairs: [LinePair], unified: inout [DiffRow], split: inout [DiffRow]
+        of change: DiffChange,
+        pairs: [LinePair],
+        unified: inout [DiffRow],
+        split: inout [DiffRow]
     ) -> (unified: Range<Int>, split: Range<Int>) {
         let unifiedStart = unified.count
         let splitStart = split.count

@@ -34,7 +34,9 @@ public enum SharedAtomicU64 {
     /// `UInt64` at `pointer`. Returns whether the exchange happened.
     @inlinable
     public static func compareExchangeAcqRel(
-        _ pointer: UnsafeMutableRawPointer, expected: UInt64, desired: UInt64
+        _ pointer: UnsafeMutableRawPointer,
+        expected: UInt64,
+        desired: UInt64
     ) -> Bool {
         assert(UInt(bitPattern: pointer) & 7 == 0, "SharedAtomicU64 requires an 8-byte-aligned pointer")
         return unsafe pointer.assumingMemoryBound(to: Atomic<UInt64>.self).pointee

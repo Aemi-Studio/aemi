@@ -44,7 +44,11 @@ extension DecimalFloat {
     /// vr / vp / vm for the three boundaries `4m` / `4m+2` / `4m-1-mmShift`, all multiply-shifted by `j`.
     @inline(__always)
     private static func mulShiftAll64(
-        _ m: UInt64, _ mulLo: UInt64, _ mulHi: UInt64, _ j: Int, _ mmShift: UInt64
+        _ m: UInt64,
+        _ mulLo: UInt64,
+        _ mulHi: UInt64,
+        _ j: Int,
+        _ mmShift: UInt64
     ) -> (vr: UInt64, vp: UInt64, vm: UInt64) {
         let vp = mulShift64(4 &* m &+ 2, mulLo, mulHi, j)
         let vm = mulShift64(4 &* m &- 1 &- mmShift, mulLo, mulHi, j)
@@ -84,7 +88,11 @@ extension DecimalFloat {
     /// the optimizer sees the same body it did before.
     @inline(__always)
     private static func decimalInterval(
-        m2: UInt64, e2: Int, mv: UInt64, mmShift: UInt64, acceptBounds: Bool
+        m2: UInt64,
+        e2: Int,
+        mv: UInt64,
+        mmShift: UInt64,
+        acceptBounds: Bool
     ) -> DecimalInterval {
         var vr: UInt64
         var vp: UInt64
@@ -128,8 +136,13 @@ extension DecimalFloat {
         }
 
         return DecimalInterval(
-            vr: vr, vp: vp, vm: vm, e10: e10,
-            vmIsTrailingZeros: vmIsTrailingZeros, vrIsTrailingZeros: vrIsTrailingZeros)
+            vr: vr,
+            vp: vp,
+            vm: vm,
+            e10: e10,
+            vmIsTrailingZeros: vmIsTrailingZeros,
+            vrIsTrailingZeros: vrIsTrailingZeros
+        )
     }
 
     /// Ryu step 3, exact branch: shorten `[vm, vp]` while either bound is known to have trailing
@@ -137,8 +150,11 @@ extension DecimalFloat {
     /// digits were removed.
     @inline(__always)
     private static func shortestWithTrailingZeros(
-        vr: inout UInt64, vp: inout UInt64, vm: inout UInt64,
-        vmIsTrailingZeros: inout Bool, vrIsTrailingZeros: inout Bool,
+        vr: inout UInt64,
+        vp: inout UInt64,
+        vm: inout UInt64,
+        vmIsTrailingZeros: inout Bool,
+        vrIsTrailingZeros: inout Bool,
         acceptBounds: Bool
     ) -> (output: UInt64, removed: Int) {
         var removed = 0
@@ -173,7 +189,9 @@ extension DecimalFloat {
     /// exactness tracking — two digits at a time first, then one.
     @inline(__always)
     private static func shortestFastPath(
-        vr: inout UInt64, vp: inout UInt64, vm: inout UInt64
+        vr: inout UInt64,
+        vp: inout UInt64,
+        vm: inout UInt64
     ) -> (output: UInt64, removed: Int) {
         var removed = 0
         var roundUp = false
@@ -221,7 +239,12 @@ extension DecimalFloat {
         let mmShift: UInt64 = (ieeeMantissa != 0 || ieeeExponent <= 1) ? 1 : 0
 
         let interval = decimalInterval(
-            m2: m2, e2: e2, mv: mv, mmShift: mmShift, acceptBounds: acceptBounds)
+            m2: m2,
+            e2: e2,
+            mv: mv,
+            mmShift: mmShift,
+            acceptBounds: acceptBounds
+        )
         var vr = interval.vr
         var vp = interval.vp
         var vm = interval.vm
@@ -234,9 +257,13 @@ extension DecimalFloat {
         let removed: Int
         if vmIsTrailingZeros || vrIsTrailingZeros {
             (output, removed) = shortestWithTrailingZeros(
-                vr: &vr, vp: &vp, vm: &vm,
-                vmIsTrailingZeros: &vmIsTrailingZeros, vrIsTrailingZeros: &vrIsTrailingZeros,
-                acceptBounds: acceptBounds)
+                vr: &vr,
+                vp: &vp,
+                vm: &vm,
+                vmIsTrailingZeros: &vmIsTrailingZeros,
+                vrIsTrailingZeros: &vrIsTrailingZeros,
+                acceptBounds: acceptBounds
+            )
         } else {
             (output, removed) = shortestFastPath(vr: &vr, vp: &vp, vm: &vm)
         }

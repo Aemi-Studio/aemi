@@ -1,5 +1,5 @@
-import Testing
 import AemiCore
+import Testing
 
 private enum Ticket {}
 private enum Part {}
@@ -60,10 +60,10 @@ struct StrideAndParsingTests {
 
     @Test
     func `a range of identifiers iterates in order`() {
-        let sut = Array(TicketID(1)..<TicketID(5))
+        let sut = Array(TicketID(1) ..< TicketID(5))
         #expect(sut == [TicketID(1), TicketID(2), TicketID(3), TicketID(4)])
-        #expect(Array(TicketID(1)...TicketID(3)).count == 3)
-        #expect(Array(TicketID(0)..<TicketID(0)).isEmpty)
+        #expect(Array(TicketID(1) ... TicketID(3)).count == 3)
+        #expect(Array(TicketID(0) ..< TicketID(0)).isEmpty)
     }
 
     @Test

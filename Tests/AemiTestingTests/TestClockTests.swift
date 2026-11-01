@@ -136,7 +136,8 @@ struct TestClockTests {
                 Task {
                     try await clock.sleep(for: .milliseconds(100))
                     probe.send(i)
-                })
+                }
+            )
         }
         defer { for sleeper in sleepers { sleeper.cancel() } }
         try await clock.waitForSleepers(count: 5)

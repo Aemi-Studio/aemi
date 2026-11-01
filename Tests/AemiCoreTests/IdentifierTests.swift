@@ -1,6 +1,6 @@
+import AemiCore
 import Foundation
 import Testing
-import AemiCore
 
 private enum Alpha {}
 private enum Beta {}
@@ -81,10 +81,11 @@ struct IdentifierTests {
     }
 
     @Test func codableHandlesOptionalNull() throws {
-        let decoded = try JSONDecoder().decode(
-            [Identifier<Alpha, String?>].self,
-            from: Data("[null, \"x\"]".utf8)
-        )
+        let decoded = try JSONDecoder()
+            .decode(
+                [Identifier<Alpha, String?>].self,
+                from: Data("[null, \"x\"]".utf8)
+            )
         #expect(decoded.count == 2)
         #expect(decoded[0].rawValue == nil)
         #expect(decoded[1].rawValue == "x")

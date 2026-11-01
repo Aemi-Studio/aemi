@@ -1,4 +1,3 @@
-
 public import Observation
 
 /// The observable write-side counterpart of ``Snapshot``: edits stay in a

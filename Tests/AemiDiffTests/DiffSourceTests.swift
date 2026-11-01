@@ -21,8 +21,11 @@ struct DiffSourceTests {
             }
         }
         let context = LineDiffContext(
-            old: intern(old), new: intern(new), oldIndents: old.map(LineDiff.indent(of:)),
-            newIndents: new.map(LineDiff.indent(of:)))
+            old: intern(old),
+            new: intern(new),
+            oldIndents: old.map(LineDiff.indent(of:)),
+            newIndents: new.map(LineDiff.indent(of:))
+        )
         var edits = pipeline.lineDiff.diff(context.old, context.new)
         for refiner in pipeline.refiners {
             edits = refiner.refine(edits, lines: context)
@@ -36,12 +39,14 @@ struct DiffSourceTests {
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     private static var old: [Substring] {
         DiffModel.lines(
-            of: "let a = 1\n  let b = 2  \n\tlet c = 3\r\nlet d = 4\n\nlet e = 5\nlet   f = 6\né = ✓\nlet a = 1\n")
+            of: "let a = 1\n  let b = 2  \n\tlet c = 3\r\nlet d = 4\n\nlet e = 5\nlet   f = 6\né = ✓\nlet a = 1\n"
+        )
     }
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     private static var new: [Substring] {
         DiffModel.lines(
-            of: "let a = 1\nlet b = 2\n    let c = 3\nlet d = 4\nlet e = 5\n\nlet f = 6\né = ✓\nlet g = 7\nlet a = 1\n")
+            of: "let a = 1\nlet b = 2\n    let c = 3\nlet d = 4\nlet e = 5\n\nlet f = 6\né = ✓\nlet g = 7\nlet a = 1\n"
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -68,7 +73,8 @@ struct DiffSourceTests {
         let pipeline = DiffPipeline(whitespace: .ignoreAll)
         #expect(
             LineDiff.diffLines(Self.old, Self.new, pipeline: pipeline)
-                == Self.oracle(Self.old, Self.new, pipeline: pipeline))
+                == Self.oracle(Self.old, Self.new, pipeline: pipeline)
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -107,10 +113,13 @@ struct DiffSourceTests {
                 let expected = Self.oracle(old, new, pipeline: pipeline)
                 #expect(
                     LineDiff.diffLines(old: SubstringLines(old), new: SubstringLines(new), pipeline: pipeline)
-                        == expected)
+                        == expected
+                )
                 let bytes = LineDiff.diffLines(
-                    old: ByteLines(old.map { Array($0.utf8) }), new: ByteLines(new.map { Array($0.utf8) }),
-                    pipeline: pipeline)
+                    old: ByteLines(old.map { Array($0.utf8) }),
+                    new: ByteLines(new.map { Array($0.utf8) }),
+                    pipeline: pipeline
+                )
                 #expect(bytes == expected)
             }
         }

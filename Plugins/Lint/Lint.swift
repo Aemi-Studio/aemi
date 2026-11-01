@@ -155,7 +155,8 @@ struct LintPlugin: CommandPlugin {
                 where line.contains("strtod(") && !line.contains("lint:allow") {
                     Diagnostics.error(
                         "\(file.lastPathComponent):\(offset + 1): locale-sensitive strtod is banned in shipped "
-                            + "library code (annotate a reviewed case with // lint:allow)")
+                            + "library code (annotate a reviewed case with // lint:allow)"
+                    )
                     found = true
                 }
             }
@@ -194,7 +195,8 @@ struct LintPlugin: CommandPlugin {
                 if settings.prngBan, line.contains("struct SplitMix64") || line.contains("struct LCG") {
                     Diagnostics.error(
                         "\(loc): inline PRNG re-roll is banned in tests — use ADTestKit.SeededRNG "
-                            + "(annotate a reviewed case with // lint:allow)")
+                            + "(annotate a reviewed case with // lint:allow)"
+                    )
                     found = true
                 }
                 if settings.untypedThrowsBan,
@@ -203,7 +205,8 @@ struct LintPlugin: CommandPlugin {
                 {
                     Diagnostics.error(
                         "\(loc): untyped #expect(throws:) is banned in tests — use "
-                            + "ADTestKit.expectThrows(_:where:) with a concrete error type (// lint:allow to opt out)")
+                            + "ADTestKit.expectThrows(_:where:) with a concrete error type (// lint:allow to opt out)"
+                    )
                     found = true
                 }
                 if settings.wallClockBan, line.contains("#expect(") || line.contains("#require("),
@@ -211,7 +214,8 @@ struct LintPlugin: CommandPlugin {
                 {
                     Diagnostics.error(
                         "\(loc): wall-clock assertion is banned in tests — assert allocations/op-counts or "
-                            + "quarantine with withKnownIssue(isIntermittent:) (// lint:allow to opt out)")
+                            + "quarantine with withKnownIssue(isIntermittent:) (// lint:allow to opt out)"
+                    )
                     found = true
                 }
             }

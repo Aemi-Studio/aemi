@@ -116,27 +116,46 @@ extension Base64 {
         /// RFC 4648 §4 with one canonical form per byte string: required padding (at most two `=`, only
         /// at the end), zero leftover bits, no whitespace, no bytes outside the alphabet.
         public static let strict = Options(
-            padding: .required, trailingBits: .canonical, whitespace: .reject)
+            padding: .required,
+            trailingBits: .canonical,
+            whitespace: .reject
+        )
 
         /// RFC 4648 §5 (URL-safe alphabet), otherwise as strict as ``strict``.
         public static let urlSafe = Options(
-            alphabet: .urlSafe, padding: .required, trailingBits: .canonical, whitespace: .reject)
+            alphabet: .urlSafe,
+            padding: .required,
+            trailingBits: .canonical,
+            whitespace: .reject
+        )
 
         /// RFC 4648 §5 without padding (JWT, URL tokens), otherwise as strict as ``strict``.
         public static let urlSafeNoPadding = Options(
-            alphabet: .urlSafe, padding: .forbidden, trailingBits: .canonical, whitespace: .reject)
+            alphabet: .urlSafe,
+            padding: .forbidden,
+            trailingBits: .canonical,
+            whitespace: .reject
+        )
 
         /// RFC 2045 MIME: 76-character lines separated by CRLF; decoding skips `LF` and `CR LF` and
         /// rejects longer lines. Otherwise canonical like ``strict``.
         public static let mime = Options(
-            padding: .required, trailingBits: .canonical, whitespace: .skipLineBreaks,
-            lineLength: 76, lineEnding: .crlf)
+            padding: .required,
+            trailingBits: .canonical,
+            whitespace: .skipLineBreaks,
+            lineLength: 76,
+            lineEnding: .crlf
+        )
 
         /// RFC 7468 PEM body: 64-character lines separated by LF; decoding skips `LF` and `CR LF` and
         /// rejects longer lines. Otherwise canonical like ``strict``.
         public static let pem = Options(
-            padding: .required, trailingBits: .canonical, whitespace: .skipLineBreaks,
-            lineLength: 64, lineEnding: .lf)
+            padding: .required,
+            trailingBits: .canonical,
+            whitespace: .skipLineBreaks,
+            lineLength: 64,
+            lineEnding: .lf
+        )
 
         /// The behavior of ``Base64/decode(_:alphabet:)``: any trailing `=` run, leftover bits and
         /// all, no whitespace. The default for source compatibility; do not use it for security-relevant

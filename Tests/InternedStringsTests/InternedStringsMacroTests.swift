@@ -165,17 +165,23 @@ struct MacroExpansionTests {
     /// Expands `@Interned` on the given single-property declaration and returns the generated
     /// getter's source text.
     private func expandInternedGetter(
-        _ source: String, sourceLocation: Testing.SourceLocation = #_sourceLocation
+        _ source: String,
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> String {
         let decl: DeclSyntax = "\(raw: source)"
         let varDecl = try #require(
-            decl.as(VariableDeclSyntax.self), sourceLocation: sourceLocation)
+            decl.as(VariableDeclSyntax.self),
+            sourceLocation: sourceLocation
+        )
         let attribute = try #require(
-            varDecl.attributes.first?.as(AttributeSyntax.self), sourceLocation: sourceLocation)
+            varDecl.attributes.first?.as(AttributeSyntax.self),
+            sourceLocation: sourceLocation
+        )
         let accessors = try InternedMacro.expansion(
             of: attribute,
             providingAccessorsOf: varDecl,
-            in: BasicMacroExpansionContext())
+            in: BasicMacroExpansionContext()
+        )
         #expect(accessors.count == 1, sourceLocation: sourceLocation)
         let getter = try #require(accessors.first, sourceLocation: sourceLocation).description
         #expect(getter.contains("get"), sourceLocation: sourceLocation)
@@ -186,7 +192,9 @@ struct MacroExpansionTests {
     /// Parses `SI.v([0x…, …], key)` out of the generated getter and checks that the runtime
     /// deobfuscator recovers the original literal.
     private func expectDecodes(
-        _ getter: String, to expected: String, sourceLocation: Testing.SourceLocation = #_sourceLocation
+        _ getter: String,
+        to expected: String,
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws {
         let open = try #require(getter.firstIndex(of: "["), sourceLocation: sourceLocation)
         let close = try #require(getter.firstIndex(of: "]"), sourceLocation: sourceLocation)
@@ -207,7 +215,8 @@ struct MacroExpansionTests {
             normalizedKey.hasPrefix("0x")
                 ? UInt64(normalizedKey.dropFirst(2), radix: 16)
                 : UInt64(normalizedKey),
-            sourceLocation: sourceLocation)
+            sourceLocation: sourceLocation
+        )
         #expect(SI.v(bytes, key) == expected, sourceLocation: sourceLocation)
     }
 }
@@ -227,7 +236,10 @@ struct DiagnosticTests {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@Interned requires a string literal (as argument or initializer)", line: 1, column: 1)
+                    message: "@Interned requires a string literal (as argument or initializer)",
+                    line: 1,
+                    column: 1
+                )
             ],
             macros: testMacros
         )
@@ -244,7 +256,9 @@ struct DiagnosticTests {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@Interned cannot be applied to properties with accessors or observers", line: 1, column: 1
+                    message: "@Interned cannot be applied to properties with accessors or observers",
+                    line: 1,
+                    column: 1
                 )
             ],
             macros: testMacros
@@ -312,7 +326,10 @@ struct DiagnosticTests {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "#Interned requires a string literal or array literal of strings", line: 2, column: 16)
+                    message: "#Interned requires a string literal or array literal of strings",
+                    line: 2,
+                    column: 16
+                )
             ],
             macros: testMacros
         )
@@ -329,7 +346,10 @@ struct DiagnosticTests {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "#Interned supports only .standard and .layered strategies", line: 1, column: 16)
+                    message: "#Interned supports only .standard and .layered strategies",
+                    line: 1,
+                    column: 16
+                )
             ],
             macros: testMacros
         )
@@ -364,7 +384,10 @@ struct DiagnosticTests {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "#InlinedInterned supports only .standard and .layered strategies", line: 1, column: 16)
+                    message: "#InlinedInterned supports only .standard and .layered strategies",
+                    line: 1,
+                    column: 16
+                )
             ],
             macros: testMacros
         )

@@ -42,7 +42,9 @@ public struct ByteMutator: Sendable {
     public var maxExtend: Int
 
     public init(
-        region: Range<Int>? = nil, allowedEdits: [Edit] = Edit.allCases, maxExtend: Int = 64
+        region: Range<Int>? = nil,
+        allowedEdits: [Edit] = Edit.allCases,
+        maxExtend: Int = 64
     ) {
         self.region = region
         self.allowedEdits = allowedEdits.isEmpty ? Edit.allCases : allowedEdits

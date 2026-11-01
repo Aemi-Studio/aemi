@@ -1,8 +1,7 @@
-import Synchronization
-import Testing
 import AemiCore
 import Observation
-
+import Synchronization
+import Testing
 
 private struct Gadget: Equatable, Hashable, Identifiable, Sendable {
     let id: Int
@@ -99,7 +98,7 @@ struct MutableTests {
 
         Probe.sharedStorageMutations.withLock { $0 = 0 }
         let mutable = Mutable(Bag())
-        for _ in 1...10 {
+        for _ in 1 ... 10 {
             mutable.probe.bump()
         }
 

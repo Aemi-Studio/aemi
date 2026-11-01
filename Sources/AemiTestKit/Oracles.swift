@@ -36,15 +36,20 @@ public enum ReferenceComparison {
         elementOrder: (E, E) -> Int
     ) -> Bool {
         rowsMatch(
-            ours, theirs, ordered: ordered,
+            ours,
+            theirs,
+            ordered: ordered,
             matches: { $0 == $1 },
-            precedes: { lexicographicallyPrecedes($0, $1, elementOrder: elementOrder) })
+            precedes: { lexicographicallyPrecedes($0, $1, elementOrder: elementOrder) }
+        )
     }
 
     /// A deterministic total order over rows from a per-element comparator returning
     /// negative / zero / positive — the generic form of the oracle's `lexLess`.
     public static func lexicographicallyPrecedes<E>(
-        _ a: [E], _ b: [E], elementOrder: (E, E) -> Int
+        _ a: [E],
+        _ b: [E],
+        elementOrder: (E, E) -> Int
     ) -> Bool {
         for i in 0 ..< min(a.count, b.count) {
             let c = elementOrder(a[i], b[i])
@@ -74,13 +79,16 @@ public func expectThrows<T, E: Error>(
     do {
         _ = try expression()
         Issue.record(
-            "expected to throw \(E.self), but returned normally", sourceLocation: sourceLocation)
+            "expected to throw \(E.self), but returned normally",
+            sourceLocation: sourceLocation
+        )
         return nil
     } catch let error as E {
         if predicate(error) { return error }
         Issue.record(
             "threw \(error) but its payload was rejected by the predicate",
-            sourceLocation: sourceLocation)
+            sourceLocation: sourceLocation
+        )
         return error
     } catch {
         Issue.record("threw \(error) — not the expected \(E.self)", sourceLocation: sourceLocation)
@@ -98,13 +106,16 @@ public func expectThrows<T, E: Error>(
     do {
         _ = try await expression()
         Issue.record(
-            "expected to throw \(E.self), but returned normally", sourceLocation: sourceLocation)
+            "expected to throw \(E.self), but returned normally",
+            sourceLocation: sourceLocation
+        )
         return nil
     } catch let error as E {
         if predicate(error) { return error }
         Issue.record(
             "threw \(error) but its payload was rejected by the predicate",
-            sourceLocation: sourceLocation)
+            sourceLocation: sourceLocation
+        )
         return error
     } catch {
         Issue.record("threw \(error) — not the expected \(E.self)", sourceLocation: sourceLocation)
@@ -124,7 +135,8 @@ public func expectRoundTripIdentity<V: Equatable>(
         let result = try roundTrip(value)
         if result != value {
             Issue.record(
-                "round trip changed the value: \(value) → \(result)", sourceLocation: sourceLocation
+                "round trip changed the value: \(value) → \(result)",
+                sourceLocation: sourceLocation
             )
         }
     } catch {
@@ -157,10 +169,15 @@ public func expectParity<E: Equatable>(
     sourceLocation: SourceLocation = #_sourceLocation
 ) {
     let match = ReferenceComparison.rowsMatch(
-        ours, theirs, ordered: ordered, elementOrder: elementOrder)
+        ours,
+        theirs,
+        ordered: ordered,
+        elementOrder: elementOrder
+    )
     if !match {
         Issue.record(
             "\(label) mismatch:\n  ours:   \(ours)\n  theirs: \(theirs)",
-            sourceLocation: sourceLocation)
+            sourceLocation: sourceLocation
+        )
     }
 }

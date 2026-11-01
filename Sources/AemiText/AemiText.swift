@@ -17,7 +17,9 @@ public enum AemiText {
     /// O(`a.count`·`maxDistance`) **banded** matrix is used; otherwise the O(`a.count`·`b.count`)
     /// **full** matrix (which also serves the unbounded case). Both honor the same early-exit contract.
     public static func editDistance<Element: Equatable>(
-        _ a: [Element], _ b: [Element], maxDistance: Int = .max
+        _ a: [Element],
+        _ b: [Element],
+        maxDistance: Int = .max
     ) -> Int {
         let m = a.count
         let n = b.count
@@ -40,7 +42,9 @@ public enum AemiText {
 
     /// Full two-row Levenshtein matrix with the early-exit bound. Exact when `maxDistance == .max`.
     public static func editDistanceFull<Element: Equatable>(
-        _ a: [Element], _ b: [Element], maxDistance: Int = .max
+        _ a: [Element],
+        _ b: [Element],
+        maxDistance: Int = .max
     ) -> Int {
         let m = a.count
         let n = b.count
@@ -62,7 +66,9 @@ public enum AemiText {
     /// typical sizes, heap for large), and every cell is reached through unchecked buffer subscripts,
     /// so the O(`rows.count`·`cols.count`) loop carries no per-cell bounds check and allocates no rows.
     private static func fullMatrix<Element: Equatable>(
-        rows: UnsafeBufferPointer<Element>, cols: UnsafeBufferPointer<Element>, maxDistance: Int
+        rows: UnsafeBufferPointer<Element>,
+        cols: UnsafeBufferPointer<Element>,
+        maxDistance: Int
     ) -> Int {
         let m = rows.count
         let n = cols.count
@@ -102,7 +108,9 @@ public enum AemiText {
     /// it can only hold distances `> maxDistance`). O(`a.count`·`maxDistance`). Returns the exact
     /// distance when it is `≤ maxDistance`, else `maxDistance + 1`.
     public static func editDistanceBanded<Element: Equatable>(
-        _ a: [Element], _ b: [Element], maxDistance k: Int
+        _ a: [Element],
+        _ b: [Element],
+        maxDistance k: Int
     ) -> Int {
         let m = a.count
         let n = b.count
@@ -122,7 +130,9 @@ public enum AemiText {
     /// initialized to `inf` up front: cells outside the band are never written in a given row, so a
     /// later read of one must see `inf` (unreachable) rather than uninitialized scratch memory.
     private static func bandedMatrix<Element: Equatable>(
-        a: UnsafeBufferPointer<Element>, b: UnsafeBufferPointer<Element>, maxDistance k: Int
+        a: UnsafeBufferPointer<Element>,
+        b: UnsafeBufferPointer<Element>,
+        maxDistance k: Int
     ) -> Int {
         let m = a.count
         let n = b.count

@@ -22,7 +22,14 @@ struct BenchmarkRecorderTests {
             setenv("AEMI_BENCH_OUTPUT", path, 1)
             recordBenchmark(
                 BenchmarkResult(
-                    name: "a.b", unit: "MiB/s", direction: .higher, value: 12.5, tolerance: 0.3, enforced: false))
+                    name: "a.b",
+                    unit: "MiB/s",
+                    direction: .higher,
+                    value: 12.5,
+                    tolerance: 0.3,
+                    enforced: false
+                )
+            )
             recordBenchmark(BenchmarkResult(name: "c", unit: "allocations", direction: .lower, value: 4))
         }
         let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n").map(String.init)
@@ -30,7 +37,8 @@ struct BenchmarkRecorderTests {
             lines == [
                 #"{"name":"a.b","unit":"MiB/s","direction":"higher","tolerance":0.3,"enforced":false,"value":12.5}"#,
                 #"{"name":"c","unit":"allocations","direction":"lower","tolerance":0.0,"enforced":true,"value":4.0}"#
-            ])
+            ]
+        )
     }
 
     @Test(.disabled(if: sanitizerRuntimeLoaded, "exit tests abort under a sanitizer"))
@@ -44,7 +52,8 @@ struct BenchmarkRecorderTests {
             precondition(BenchmarkOutput.path() == nil)
             recordBenchmark(
                 BenchmarkResult(name: "named", unit: "x", direction: .lower, value: 2),
-                environmentVariable: "MYPKG_BENCH_OUTPUT")
+                environmentVariable: "MYPKG_BENCH_OUTPUT"
+            )
             precondition(BenchmarkOutput.path(environmentVariable: "MYPKG_BENCH_OUTPUT") == path)
         }
         let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n").map(String.init)

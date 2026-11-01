@@ -17,7 +17,9 @@ struct CSSScanner {
     ///   string is open too.
     /// - Complexity: O(`units.count`)
     func scan<Output: ScannerToken>(
-        _ units: Span<UInt8>, from state: LexState, into tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from state: LexState,
+        into tokens: inout [Output]
     ) -> LexState {
         var depth = state.count
         let (resumed, isOpen) = resume(units, from: state, into: &tokens)
@@ -65,7 +67,9 @@ struct CSSScanner {
     /// Ends the comment or the string `state` holds open at the start of `units`, if any: where scanning resumes, and
     /// whether it is still open at the end of `units`.
     private func resume<Output: ScannerToken>(
-        _ units: Span<UInt8>, from state: LexState, into tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from state: LexState,
+        into tokens: inout [Output]
     ) -> (index: Int, isOpen: Bool) {
         let resumed: (end: Int, isOpen: Bool)
         let kind: TokenKind
@@ -107,7 +111,9 @@ struct CSSScanner {
     }
 
     private func scanUntilNewline<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        tokens: inout [Output]
     ) -> Int {
         var index = start
         while index < units.count, units[index] != ASCII.newline { index += 1 }
@@ -127,7 +133,10 @@ struct CSSScanner {
     }
 
     private func scanWord<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, kind: TokenKind, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        kind: TokenKind,
+        tokens: inout [Output]
     ) -> Int {
         var index = start + 1
         while index < units.count, ASCII.isIdentifier(units[index]) || units[index] == ASCII.hyphen { index += 1 }
@@ -136,7 +145,9 @@ struct CSSScanner {
     }
 
     private func scanNumber<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        tokens: inout [Output]
     ) -> Int {
         var index = start + 1
         while index < units.count,
@@ -148,7 +159,10 @@ struct CSSScanner {
 
     /// Inside a block an identifier followed by a colon is a property name; elsewhere plain words stay unstyled.
     private func scanIdentifier<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, depth: Int, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        depth: Int,
+        tokens: inout [Output]
     ) -> Int {
         var index = start
         while index < units.count, ASCII.isIdentifier(units[index]) || units[index] == ASCII.hyphen { index += 1 }

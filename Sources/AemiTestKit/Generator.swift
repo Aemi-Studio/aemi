@@ -43,7 +43,8 @@ extension Generator {
                 }
                 return last
             },
-            shrink: { value in self.shrink(value).filter(isIncluded) })
+            shrink: { value in self.shrink(value).filter(isIncluded) }
+        )
     }
 }
 
@@ -89,7 +90,8 @@ public enum Gen {
                     }
                 }
                 return candidates
-            })
+            }
+        )
     }
 
     /// A `Bool`; shrinks `true` toward `false`.
@@ -101,7 +103,8 @@ public enum Gen {
     public static var byte: AnyGenerator<UInt8> {
         AnyGenerator(
             generate: { rng in rng.byte() },
-            shrink: { value in value == 0 ? [] : [0, value / 2].filter { $0 != value } })
+            shrink: { value in value == 0 ? [] : [0, value / 2].filter { $0 != value } }
+        )
     }
 
     /// A uniformly chosen element of `items` (`items` must be non-empty); shrinks toward the first element.
@@ -138,7 +141,8 @@ public enum Gen {
                     candidates.append(without)
                 }
                 return candidates
-            })
+            }
+        )
     }
 
     /// Raw bytes (an `array(of: byte)`), capped at `maxCount`.
@@ -172,7 +176,8 @@ public enum Gen {
                     candidates.append(String(without))
                 }
                 return candidates
-            })
+            }
+        )
     }
 }
 
@@ -212,7 +217,8 @@ public func forAll<G: Generator>(
             property failed (iteration \(iteration), seed \(seed.rawValue)); \
             minimal counterexample: \(String(reflecting: minimal))
             """,
-            sourceLocation: sourceLocation)
+            sourceLocation: sourceLocation
+        )
         return minimal
     }
     return nil

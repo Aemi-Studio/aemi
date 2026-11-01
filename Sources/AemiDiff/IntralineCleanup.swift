@@ -84,10 +84,18 @@ public struct SemanticCleanup: IntralineRefining {
                         run = Run(edits: index ..< index + 1, deleted: units, inserted: units, isEqual: true)
                     case .delete(let old):
                         run = Run(
-                            edits: index ..< index + 1, deleted: oldRanges[old].count, inserted: 0, isEqual: false)
+                            edits: index ..< index + 1,
+                            deleted: oldRanges[old].count,
+                            inserted: 0,
+                            isEqual: false
+                        )
                     case .insert(let new):
                         run = Run(
-                            edits: index ..< index + 1, deleted: 0, inserted: newRanges[new].count, isEqual: false)
+                            edits: index ..< index + 1,
+                            deleted: 0,
+                            inserted: newRanges[new].count,
+                            isEqual: false
+                        )
                 }
                 append(run, to: &runs)
             }
@@ -109,8 +117,11 @@ public struct SemanticCleanup: IntralineRefining {
                 return
             }
             runs[runs.count - 1] = Run(
-                edits: last.edits.lowerBound ..< run.edits.upperBound, deleted: last.deleted + run.deleted,
-                inserted: last.inserted + run.inserted, isEqual: last.isEqual)
+                edits: last.edits.lowerBound ..< run.edits.upperBound,
+                deleted: last.deleted + run.deleted,
+                inserted: last.inserted + run.inserted,
+                isEqual: last.isEqual
+            )
         }
     }
 }

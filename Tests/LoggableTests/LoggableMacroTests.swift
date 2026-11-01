@@ -6,7 +6,7 @@ import Testing
 @testable import AemiMacros
 
 private let testMacros: [String: Macro.Type] = [
-    "Loggable": LoggableMacro.self,
+    "Loggable": LoggableMacro.self
 ]
 
 // MARK: - Expansion Tests
@@ -22,15 +22,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            public struct NetworkService {
+                public struct NetworkService {
 
-                public nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "NetworkService")
+                    public nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "NetworkService")
 
-                public nonisolated var logger: Logger {
-                    Self.logger
+                    public nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -45,15 +45,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            struct InternalService {
+                struct InternalService {
 
-                nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "InternalService")
+                    nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "InternalService")
 
-                nonisolated var logger: Logger {
-                    Self.logger
+                    nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -68,15 +68,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            private class PrivateHelper {
+                private class PrivateHelper {
 
-                private nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "PrivateHelper")
+                    private nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "PrivateHelper")
 
-                private nonisolated var logger: Logger {
-                    Self.logger
+                    private nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -91,15 +91,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            open class BaseService {
+                open class BaseService {
 
-                public nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "BaseService")
+                    public nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "BaseService")
 
-                public nonisolated var logger: Logger {
-                    Self.logger
+                    public nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -114,15 +114,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            actor DataStore {
+                actor DataStore {
 
-                nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "DataStore")
+                    nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "DataStore")
 
-                nonisolated var logger: Logger {
-                    Self.logger
+                    nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -137,15 +137,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            public actor PublicStore {
+                public actor PublicStore {
 
-                public nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "PublicStore")
+                    public nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "PublicStore")
 
-                public nonisolated var logger: Logger {
-                    Self.logger
+                    public nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -160,15 +160,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            enum Analytics {
+                enum Analytics {
 
-                nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "Analytics")
+                    nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "Analytics")
 
-                nonisolated var logger: Logger {
-                    Self.logger
+                    nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -183,15 +183,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            fileprivate struct Helper {
+                fileprivate struct Helper {
 
-                fileprivate nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "Helper")
+                    fileprivate nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "Helper")
 
-                fileprivate nonisolated var logger: Logger {
-                    Self.logger
+                    fileprivate nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -206,15 +206,15 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            package struct PackageService {
+                package struct PackageService {
 
-                package nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "PackageService")
+                    package nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "PackageService")
 
-                package nonisolated var logger: Logger {
-                    Self.logger
+                    package nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
@@ -230,31 +230,31 @@ struct MacroExpansionTests {
             }
             """,
             expandedSource: """
-            struct Service {
-                var name: String
+                struct Service {
+                    var name: String
 
-                nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "Service")
+                    nonisolated static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "", category: "Service")
 
-                nonisolated var logger: Logger {
-                    Self.logger
+                    nonisolated var logger: Logger {
+                        Self.logger
+                    }
                 }
-            }
-            """,
+                """,
             macros: testMacros,
             indentationWidth: .spaces(4)
         )
     }
 }
 
-    @Test("Generic struct emits computed static var")
-    func genericStruct() {
-        assertMacroExpansion(
-            """
-            @Loggable
-            struct Container<Value: Codable> {
-            }
-            """,
-            expandedSource: """
+@Test("Generic struct emits computed static var")
+func genericStruct() {
+    assertMacroExpansion(
+        """
+        @Loggable
+        struct Container<Value: Codable> {
+        }
+        """,
+        expandedSource: """
             struct Container<Value: Codable> {
 
                 nonisolated static var logger: Logger {
@@ -266,20 +266,20 @@ struct MacroExpansionTests {
                 }
             }
             """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
-    }
+        macros: testMacros,
+        indentationWidth: .spaces(4)
+    )
+}
 
-    @Test("Generic actor emits computed static var")
-    func genericActor() {
-        assertMacroExpansion(
-            """
-            @Loggable
-            public actor Store<T: Sendable> {
-            }
-            """,
-            expandedSource: """
+@Test("Generic actor emits computed static var")
+func genericActor() {
+    assertMacroExpansion(
+        """
+        @Loggable
+        public actor Store<T: Sendable> {
+        }
+        """,
+        expandedSource: """
             public actor Store<T: Sendable> {
 
                 public nonisolated static var logger: Logger {
@@ -291,10 +291,10 @@ struct MacroExpansionTests {
                 }
             }
             """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
-    }
+        macros: testMacros,
+        indentationWidth: .spaces(4)
+    )
+}
 
 // MARK: - Diagnostic Tests
 
@@ -309,11 +309,15 @@ struct DiagnosticTests {
             }
             """,
             expandedSource: """
-            protocol MyProtocol {
-            }
-            """,
+                protocol MyProtocol {
+                }
+                """,
             diagnostics: [
-                DiagnosticSpec(message: "@Loggable can only be applied to a struct, class, actor, or enum", line: 1, column: 1)
+                DiagnosticSpec(
+                    message: "@Loggable can only be applied to a struct, class, actor, or enum",
+                    line: 1,
+                    column: 1
+                )
             ],
             macros: testMacros
         )
@@ -328,11 +332,15 @@ struct DiagnosticTests {
             }
             """,
             expandedSource: """
-            extension String {
-            }
-            """,
+                extension String {
+                }
+                """,
             diagnostics: [
-                DiagnosticSpec(message: "@Loggable can only be applied to a struct, class, actor, or enum", line: 1, column: 1)
+                DiagnosticSpec(
+                    message: "@Loggable can only be applied to a struct, class, actor, or enum",
+                    line: 1,
+                    column: 1
+                )
             ],
             macros: testMacros
         )

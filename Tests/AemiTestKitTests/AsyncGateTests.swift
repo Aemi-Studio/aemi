@@ -88,7 +88,8 @@ struct AsyncGateTests {
             { openGate in
                 order.record("body")
                 openGate()
-            })
+            }
+        )
         #expect(order.count == 3)
         #expect(order.events.last == "holder-resumed")
         #expect(order.events.contains("body"))
@@ -105,7 +106,8 @@ struct AsyncGateTests {
                     try? await gate.waitUntilOpen()
                     order.record("holder-resumed")
                 },
-                { _ in throw Failure() })
+                { _ in throw Failure() }
+            )
         }
         // The holder was released and joined before the error propagated, not left suspended.
         #expect(order.events.last == "holder-resumed")

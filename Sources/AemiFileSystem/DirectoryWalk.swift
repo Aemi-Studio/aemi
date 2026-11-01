@@ -56,9 +56,15 @@ public enum DirectoryWalk {
         public var isCancelled: (@Sendable () -> Bool)?
 
         public init(
-            skippedNames: Set<String> = [], includesHidden: Bool = false, links: Links = .never,
-            accepts: (@Sendable (Candidate) -> Bool)? = nil, reportsDirectories: Bool = false, limit: Int? = nil,
-            maxDepth: Int? = nil, workers: Int = 4, isCancelled: (@Sendable () -> Bool)? = nil
+            skippedNames: Set<String> = [],
+            includesHidden: Bool = false,
+            links: Links = .never,
+            accepts: (@Sendable (Candidate) -> Bool)? = nil,
+            reportsDirectories: Bool = false,
+            limit: Int? = nil,
+            maxDepth: Int? = nil,
+            workers: Int = 4,
+            isCancelled: (@Sendable () -> Bool)? = nil
         ) {
             self.skippedNames = skippedNames
             self.includesHidden = includesHidden
@@ -136,7 +142,11 @@ public enum DirectoryWalk {
             let engine: WalkEngine
             do {
                 engine = try WalkEngine(
-                    root: root, policy: streamed, afterListing: nil, onBatch: { continuation.yield($0) })
+                    root: root,
+                    policy: streamed,
+                    afterListing: nil,
+                    onBatch: { continuation.yield($0) }
+                )
             } catch {
                 continuation.finish(throwing: error)
                 return

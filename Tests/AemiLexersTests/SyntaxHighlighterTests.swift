@@ -23,7 +23,8 @@ struct SyntaxHighlighterTests {
         #expect(
             kinds == [
                 .keyword, .tag, .property, .string, .tag, .escape, .comment, .tag, .tag, .tag, .tag, .tag, .tag
-            ])
+            ]
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -88,7 +89,8 @@ struct SyntaxHighlighterTests {
             kinds == [
                 .keyword, .comment, .property, .comment, .property, .attribute, .number, .attribute, .keyword,
                 .property, .string
-            ])
+            ]
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -100,7 +102,8 @@ struct SyntaxHighlighterTests {
             kinds == [
                 .tag, .property, .string, .comment, .property, .number, .tag, .property, .number,
                 .property, .keyword
-            ])
+            ]
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -111,7 +114,8 @@ struct SyntaxHighlighterTests {
         #expect(
             kinds == [
                 .attribute, .number, .type, .type, .property, .number, .property, .number, .keyword, .comment
-            ])
+            ]
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -122,7 +126,8 @@ struct SyntaxHighlighterTests {
         #expect(Language(fileExtension: "yml") == .yaml)
         #expect(Language(fileExtension: "unknown") == .plain)
         #expect(
-            Set(Language.byExtension.keys).isSuperset(of: ["py", "sh", "fish", "toml", "json", "css", "java", "cpp"]))
+            Set(Language.byExtension.keys).isSuperset(of: ["py", "sh", "fish", "toml", "json", "css", "java", "cpp"])
+        )
     }
 }
 

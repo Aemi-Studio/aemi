@@ -5,10 +5,10 @@
 //  Created by Gigi on 31/01/25.
 //
 
-
 import SwiftUI
 
-struct AutosizingPopoverItemContentModifier<Item, PopoverContent>: ViewModifier where Item: Identifiable, PopoverContent: View {
+struct AutosizingPopoverItemContentModifier<Item, PopoverContent>: ViewModifier
+where Item: Identifiable, PopoverContent: View {
     @Binding private(set) var item: Item?
     private(set) var attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds)
     private(set) var arrowEdge: Edge?

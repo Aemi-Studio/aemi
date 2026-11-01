@@ -302,7 +302,9 @@ struct Base64DecodingTests {
 
     @discardableResult
     private func decodeInto(
-        _ input: String, capacity: Int, _ options: Base64.Options
+        _ input: String,
+        capacity: Int,
+        _ options: Base64.Options
     ) throws(Base64.DecodeError) -> (written: Int, window: [UInt8]) {
         try Base64.decodeCanary(bytes(input), capacity: capacity, options: options)
     }
@@ -368,7 +370,10 @@ struct Base64DecodingTests {
         var storage = [UInt8](repeating: canaryByte, count: 10)
         let written = try storage.withUnsafeMutableBufferPointer { out in
             try Base64.decode(
-                bytes("Zm9vYmFy"), into: UnsafeMutableBufferPointer(rebasing: out[..<6]), options: .strict)
+                bytes("Zm9vYmFy"),
+                into: UnsafeMutableBufferPointer(rebasing: out[..<6]),
+                options: .strict
+            )
         }
         #expect(written == 6)
         #expect(Array(storage[..<6]) == bytes("foobar"))
@@ -376,7 +381,10 @@ struct Base64DecodingTests {
         let tooSmall = storage.withUnsafeMutableBufferPointer { (out) -> Base64.DecodeError? in
             do throws(Base64.DecodeError) {
                 _ = try Base64.decode(
-                    bytes("Zm9vYmFy"), into: UnsafeMutableBufferPointer(rebasing: out[..<5]), options: .strict)
+                    bytes("Zm9vYmFy"),
+                    into: UnsafeMutableBufferPointer(rebasing: out[..<5]),
+                    options: .strict
+                )
                 return nil
             } catch {
                 return error

@@ -114,7 +114,11 @@ struct AemiKernelsTests {
         var mismatches = 0
         for backend in Self.backends
         where AemiKernels.indexOfStringStop(
-            input, quote: UInt8(ascii: "="), escape: UInt8(ascii: ";"), backend: backend)
+            input,
+            quote: UInt8(ascii: "="),
+            escape: UInt8(ascii: ";"),
+            backend: backend
+        )
             != expected
         {
             mismatches += 1
@@ -179,8 +183,15 @@ struct AemiKernelsTests {
                     guard let base = buffer.baseAddress else { return }
                     for backend in [AemiKernels.Backend.fastest, .scalar] {
                         let index = AemiKernels.firstIndexOfAny(
-                            base: base, count: 40,
-                            needles[0], needles[1], needles[2], needles[3], needles[4], backend: backend)
+                            base: base,
+                            count: 40,
+                            needles[0],
+                            needles[1],
+                            needles[2],
+                            needles[3],
+                            needles[4],
+                            backend: backend
+                        )
                         if (index == 40 ? nil : index) != expected { mismatches += 1 }
                     }
                 }
@@ -222,8 +233,12 @@ struct AemiKernelsTests {
                         guard let base = buffer.baseAddress else { return }
                         for backend in [AemiKernels.Backend.fastest, .scalar] {
                             let index = AemiKernels.firstDisallowedText(
-                                base: base, count: 40, minAllowed: minAllowed, allowTab: allowTab,
-                                backend: backend)
+                                base: base,
+                                count: 40,
+                                minAllowed: minAllowed,
+                                allowTab: allowTab,
+                                backend: backend
+                            )
                             if (index == 40 ? nil : index) != expected { mismatches += 1 }
                         }
                     }
@@ -251,8 +266,12 @@ struct AemiKernelsTests {
                             let index = input.withUnsafeBufferPointer { buffer in
                                 guard let base = buffer.baseAddress else { return -1 }
                                 return AemiKernels.firstDisallowedText(
-                                    base: base, count: buffer.count, minAllowed: minAllowed,
-                                    allowTab: allowTab, backend: backend)
+                                    base: base,
+                                    count: buffer.count,
+                                    minAllowed: minAllowed,
+                                    allowTab: allowTab,
+                                    backend: backend
+                                )
                             }
                             if index != (legal ? input.count : offset) { mismatches += 1 }
                         }
@@ -278,8 +297,15 @@ struct AemiKernelsTests {
                     guard let base = buffer.baseAddress else { return }
                     for backend in [AemiKernels.Backend.fastest, .scalar] {
                         let index = AemiKernels.indexOfControlOrAny(
-                            base: base, count: 40,
-                            needles[0], needles[1], needles[2], needles[3], needles[4], backend: backend)
+                            base: base,
+                            count: 40,
+                            needles[0],
+                            needles[1],
+                            needles[2],
+                            needles[3],
+                            needles[4],
+                            backend: backend
+                        )
                         if (index == 40 ? nil : index) != expected { mismatches += 1 }
                     }
                 }

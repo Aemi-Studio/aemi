@@ -13,7 +13,8 @@ private struct DeadlineExceeded: Error {}
 /// Run `operation`, failing with `DeadlineExceeded` if it does not finish within `milliseconds` —
 /// so a lost-wakeup or never-resumed continuation surfaces as a failed assertion, not a wedged run.
 private func withDeadline<T: Sendable>(
-    _ milliseconds: Int, _ operation: @escaping @Sendable () async throws -> T
+    _ milliseconds: Int,
+    _ operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask { try await operation() }
@@ -188,7 +189,8 @@ private func withDeadline<T: Sendable>(
         let order = Mutex<[Int]>([])
         for index in 0 ..< 200 {
             let refusal = pool.submit(
-                .init(id: UInt64(1_000 + index), work: { order.withLock { $0.append(index) } }, cancel: nil))
+                .init(id: UInt64(1_000 + index), work: { order.withLock { $0.append(index) } }, cancel: nil)
+            )
             #expect(refusal == nil)
         }
         release.signal()

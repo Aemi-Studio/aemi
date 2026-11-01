@@ -33,14 +33,18 @@ public enum Base64 {
     /// input byte is encoded, so this never fails. For line wrapping or a custom alphabet, use
     /// ``encode(_:options:)``.
     public static func encode(
-        _ bytes: some Collection<UInt8>, alphabet: Alphabet = .standard, padding: Bool = true
+        _ bytes: some Collection<UInt8>,
+        alphabet: Alphabet = .standard,
+        padding: Bool = true
     ) -> [UInt8] {
         encode(bytes, options: Options(alphabet: AlphabetTable(alphabet), padding: padding ? .required : .forbidden))
     }
 
     /// Base64-encodes `bytes` and returns the result as a `String` (the encoding is always ASCII).
     public static func encodedString(
-        _ bytes: some Collection<UInt8>, alphabet: Alphabet = .standard, padding: Bool = true
+        _ bytes: some Collection<UInt8>,
+        alphabet: Alphabet = .standard,
+        padding: Bool = true
     ) -> String {
         String(decoding: encode(bytes, alphabet: alphabet, padding: padding), as: UTF8.self)
     }

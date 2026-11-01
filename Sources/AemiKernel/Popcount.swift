@@ -53,7 +53,9 @@ public enum Popcount {
     /// backend. Never reads past `count`. Endianness-agnostic — popcount is order-free over the XOR.
     @inlinable
     public static func hammingDistance(
-        _ a: UnsafeRawBufferPointer, _ b: UnsafeRawBufferPointer, count: Int
+        _ a: UnsafeRawBufferPointer,
+        _ b: UnsafeRawBufferPointer,
+        count: Int
     ) -> Int {
         // Owner/bounds: caller owns `a[0 ..< count]` and `b[0 ..< count]`; both are read-only, never
         // escape, and the kernel never reads past `count`.
@@ -65,7 +67,9 @@ public enum Popcount {
     /// only an internal import of `AemiKernels` is needed).
     @usableFromInline
     static func hammingDistanceKernel(
-        _ a: UnsafeRawBufferPointer, _ b: UnsafeRawBufferPointer, _ count: Int
+        _ a: UnsafeRawBufferPointer,
+        _ b: UnsafeRawBufferPointer,
+        _ count: Int
     ) -> Int {
         guard count > 0, let baseA = a.baseAddress, let baseB = b.baseAddress else { return 0 }
         let pointerA = unsafe baseA.assumingMemoryBound(to: UInt8.self)
@@ -77,7 +81,9 @@ public enum Popcount {
     /// readable mirror of the JS `hamming`. `Popcount.equivalent` proves it equals the SWAR path.
     @inlinable
     public static func hammingDistanceLUT(
-        _ a: UnsafeRawBufferPointer, _ b: UnsafeRawBufferPointer, count: Int
+        _ a: UnsafeRawBufferPointer,
+        _ b: UnsafeRawBufferPointer,
+        count: Int
     ) -> Int {
         assert(count >= 0, "Popcount.hammingDistanceLUT requires a non-negative count")
         var distance = 0
@@ -109,7 +115,9 @@ public enum Popcount {
     @inlinable
     @discardableResult
     public static func equivalent(
-        _ a: UnsafeRawBufferPointer, _ b: UnsafeRawBufferPointer, count: Int
+        _ a: UnsafeRawBufferPointer,
+        _ b: UnsafeRawBufferPointer,
+        count: Int
     ) -> Int {
         let swar = unsafe hammingDistance(a, b, count: count)
         let lut = unsafe hammingDistanceLUT(a, b, count: count)

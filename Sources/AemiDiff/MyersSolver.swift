@@ -88,18 +88,21 @@ struct MyersSolver<Element: Equatable> {
                             .solve(
                                 old: (oldRange.lowerBound + snake.u) ..< oldRange.upperBound,
                                 new: (newRange.lowerBound + snake.v) ..< newRange.upperBound
-                            ))
+                            )
+                        )
                         stack.append(
                             .equal(
                                 old: oldRange.lowerBound + snake.x,
                                 new: newRange.lowerBound + snake.y,
                                 count: snake.u - snake.x
-                            ))
+                            )
+                        )
                         stack.append(
                             .solve(
                                 old: oldRange.lowerBound ..< (oldRange.lowerBound + snake.x),
                                 new: newRange.lowerBound ..< (newRange.lowerBound + snake.y)
-                            ))
+                            )
+                        )
                     } else {
                         appendTrivial(old: oldRange, new: newRange, into: &edits)
                     }

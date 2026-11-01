@@ -19,7 +19,8 @@ struct LineDiffBenchmark {
         let repository = try Self.atelier()
         let older = Dictionary(
             try Self.swiftSources(at: Self.olderRevision, in: repository).map { ($0.path, $0.text) },
-            uniquingKeysWith: { first, _ in first })
+            uniquingKeysWith: { first, _ in first }
+        )
         let newer = try Self.swiftSources(at: Self.newerRevision, in: repository)
 
         // The files both revisions hold, in path order, until the newer side reaches the pair size.
@@ -60,7 +61,8 @@ struct LineDiffBenchmark {
                 """
                 BENCH myers \(name), \(old.count) against \(new.count) lines: D \(cost), \
                 median \(samples.median), fastest \(samples.fastest) over \(rounds) rounds
-                """)
+                """
+            )
         }
     }
 
@@ -76,7 +78,9 @@ struct LineDiffBenchmark {
     static func atelier() throws -> URL {
         guard let path = ProcessInfo.processInfo.environment["AEMI_DIFF_BENCH_REPO"] else {
             throw CocoaError(
-                .fileNoSuchFile, userInfo: [NSLocalizedDescriptionKey: "set AEMI_DIFF_BENCH_REPO to an Atelier clone"])
+                .fileNoSuchFile,
+                userInfo: [NSLocalizedDescriptionKey: "set AEMI_DIFF_BENCH_REPO to an Atelier clone"]
+            )
         }
         return URL(filePath: path, directoryHint: .isDirectory)
     }

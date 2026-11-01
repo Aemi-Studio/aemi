@@ -53,10 +53,14 @@
         ///   - suppressionWindow: How long ``suppressNotifications(for:)`` silences a path.
         ///   - onFailure: Told when FSEvents refuses a stream or its exclusions.
         init(
-            latency: Double, suppressionWindow: Duration, onFailure: @escaping @Sendable (String) -> Void = { _ in }
+            latency: Double,
+            suppressionWindow: Duration,
+            onFailure: @escaping @Sendable (String) -> Void = { _ in }
         ) {
             let (events, continuation) = AsyncStream.makeStream(
-                of: FileWatchEvent.self, bufferingPolicy: .bufferingNewest(Self.eventBufferLimit))
+                of: FileWatchEvent.self,
+                bufferingPolicy: .bufferingNewest(Self.eventBufferLimit)
+            )
             let epoch = ContinuousClock.now
             let suppression = SuppressionWindow(window: suppressionWindow)
             self.events = events
@@ -64,8 +68,12 @@
             self.epoch = epoch
             self.suppression = suppression
             self.stream = FSEventStreamController(
-                latency: latency, continuation: continuation, suppression: suppression, epoch: epoch,
-                onFailure: onFailure)
+                latency: latency,
+                continuation: continuation,
+                suppression: suppression,
+                epoch: epoch,
+                onFailure: onFailure
+            )
         }
 
         /// Reports every later change below `path`. Several directories share one stream, restarted over their union

@@ -49,7 +49,8 @@ public enum UnicodeSets {
                 hi = mid - 1
             } else {
                 return UnicodeTables.nfdPayload[
-                    Int(UnicodeTables.nfdOffsets[mid]) ..< Int(UnicodeTables.nfdOffsets[mid + 1])]
+                    Int(UnicodeTables.nfdOffsets[mid]) ..< Int(UnicodeTables.nfdOffsets[mid + 1])
+                ]
             }
         }
         return nil

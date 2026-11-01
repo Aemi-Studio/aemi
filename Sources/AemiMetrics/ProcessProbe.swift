@@ -70,7 +70,8 @@ public enum ProcessProbe {
             residentBytes: resident,
             footprintBytes: footprint,
             instructions: instructions,
-            cycles: cycles)
+            cycles: cycles
+        )
     }
 
     /// The change from `a` to `b`. Counter fields use wrapping subtraction (monotonic, so the result
@@ -83,7 +84,8 @@ public enum ProcessProbe {
             residentBytesDelta: Int64(bitPattern: b.residentBytes &- a.residentBytes),
             footprintBytesDelta: Int64(bitPattern: b.footprintBytes &- a.footprintBytes),
             instructions: b.instructions &- a.instructions,
-            cycles: b.cycles &- a.cycles)
+            cycles: b.cycles &- a.cycles
+        )
     }
 
     /// Run `body`, returning its result alongside the CPU/memory cost of the call. The probe overhead
@@ -155,7 +157,8 @@ public enum ProcessProbe {
         public static func residentBytes() -> UInt64 {
             var info = mach_task_basic_info()
             var count = mach_msg_type_number_t(
-                MemoryLayout<mach_task_basic_info>.size / MemoryLayout<integer_t>.size)
+                MemoryLayout<mach_task_basic_info>.size / MemoryLayout<integer_t>.size
+            )
             let kr = withUnsafeMutablePointer(to: &info) { ptr in
                 ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
                     task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
@@ -170,7 +173,8 @@ public enum ProcessProbe {
         public static func footprintBytes() -> UInt64 {
             var info = task_vm_info_data_t()
             var count = mach_msg_type_number_t(
-                MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+                MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size
+            )
             let kr = withUnsafeMutablePointer(to: &info) { ptr in
                 ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
                     task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)

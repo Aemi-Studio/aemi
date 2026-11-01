@@ -190,7 +190,8 @@ public final class TestClock: Clock, Sendable, CustomStringConvertible {
                     if Task.isCancelled { return (.cancelled, []) }
                     if current.now >= deadline { return (.deadlineAlreadyPast, []) }
                     current.sleepers.append(
-                        Sleeper(id: sleeperID, deadline: deadline, counted: counted, continuation: cont))
+                        Sleeper(id: sleeperID, deadline: deadline, counted: counted, continuation: cont)
+                    )
                     if counted { current.registrations &+= 1 }
                     return (.suspended, current.takeSatisfiedWaiters())
                 }

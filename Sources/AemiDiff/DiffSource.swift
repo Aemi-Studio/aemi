@@ -143,8 +143,10 @@ struct LineInterner {
         return arena.withUnsafeBytes { bytes in
             guard let base = bytes.baseAddress, let other = normalized.baseAddress else { return range.isEmpty }
             return ByteCompare.equal(
-                base.assumingMemoryBound(to: UInt8.self) + range.lowerBound, other.assumingMemoryBound(to: UInt8.self),
-                range.count)
+                base.assumingMemoryBound(to: UInt8.self) + range.lowerBound,
+                other.assumingMemoryBound(to: UInt8.self),
+                range.count
+            )
         }
     }
 }

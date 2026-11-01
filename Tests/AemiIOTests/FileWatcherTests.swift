@@ -166,7 +166,8 @@ import Testing
                 !reader.seen.contains { event in
                     guard case .directoryChanged(let path) = event else { return false }
                     return path != canonicalExcluded && CanonicalPath.isInside(path, canonicalExcluded)
-                })
+                }
+            )
             await watcher.stop()
         }
 
@@ -246,7 +247,9 @@ import Testing
 
         @Test func `the stream covers each directory once, nested ones and watched files inside their parents`() {
             let table = Self.table(
-                directories: ["/a", "/a/b", "/a-b"], files: [("/x/f", ["/a/b/f"]), ("/d/e/g", ["/d/e/g"])])
+                directories: ["/a", "/a/b", "/a-b"],
+                files: [("/x/f", ["/a/b/f"]), ("/d/e/g", ["/d/e/g"])]
+            )
             #expect(table.roots == ["/a", "/a-b", "/d/e"])
         }
 
@@ -259,7 +262,8 @@ import Testing
         @Test func `any other event reports its canonical path as a directory change`() {
             let table = Self.table(directories: ["/w"], files: [("/w/f", ["/w/f"])])
             #expect(
-                table.route(path: "/w/g", flags: 0, id: 101, isSuppressed: Self.noSuppression) == .directory("/w/g"))
+                table.route(path: "/w/g", flags: 0, id: 101, isSuppressed: Self.noSuppression) == .directory("/w/g")
+            )
         }
 
         @Test func `a suppressed path reports nothing, as a file or as a directory`() {
@@ -292,7 +296,8 @@ import Testing
             let table = Self.table(directories: ["/w"], files: [("/w/sub/f", ["/w/sub/f"]), ("/w/g", ["/w/g"])])
             let flags = FSEventStreamEventFlags(kFSEventStreamEventFlagMustScanSubDirs)
             #expect(
-                table.route(path: "/w/sub", flags: flags, id: 1, isSuppressed: Self.noSuppression) == .rescan("/w/sub"))
+                table.route(path: "/w/sub", flags: flags, id: 1, isSuppressed: Self.noSuppression) == .rescan("/w/sub")
+            )
             #expect(table.rescanEvents(below: "/w/sub") == [.fileChanged("/w/sub/f"), .directoryChanged("/w/sub")])
         }
 
@@ -301,7 +306,8 @@ import Testing
             #expect(
                 table.rescanEvents(below: "/") == [
                     .fileChanged("/link/f"), .directoryChanged("/a"), .directoryChanged("/b")
-                ])
+                ]
+            )
         }
 
         @Test func `unwatching one of two paths registered for a key keeps reporting the other`() {

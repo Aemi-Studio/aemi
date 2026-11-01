@@ -19,7 +19,8 @@ struct LintBuildPlugin: BuildToolPlugin {
                 displayName: "swift format lint (\(target.name))",
                 executable: swift.url,
                 arguments: ["format", "lint", "--strict"] + swiftFiles,
-                outputFilesDirectory: context.pluginWorkDirectoryURL)
+                outputFilesDirectory: context.pluginWorkDirectoryURL
+            )
         ]
     }
 }

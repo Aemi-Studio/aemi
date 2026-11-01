@@ -91,8 +91,13 @@ struct Base64DifferentialTests {
                         for lineLength in [nil, 4, 7, 64] as [Int?] {
                             for ending in [Base64.LineEnding.lf, .crlf] {
                                 let options = Base64.Options(
-                                    alphabet: alphabet, padding: padding, trailingBits: bits,
-                                    whitespace: whitespace, lineLength: lineLength, lineEnding: ending)
+                                    alphabet: alphabet,
+                                    padding: padding,
+                                    trailingBits: bits,
+                                    whitespace: whitespace,
+                                    lineLength: lineLength,
+                                    lineEnding: ending
+                                )
                                 combinations += 1
                                 try checkRoundTrip(options, rng: &rng)
                             }
@@ -181,7 +186,8 @@ struct Base64DifferentialTests {
                     #expect(attempt(mutated, options) == expected)
                     #expect((try? Base64.decode(NonContiguousBytes(storage: mutated), options: options)) == expected)
                     _ = try? Base64.decodeCanary(mutated, capacity: 5, options: options)  // must not overflow
-                })
+                }
+            )
             #expect(report.iterations == 1_500)
         }
     }

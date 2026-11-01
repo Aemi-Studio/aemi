@@ -44,7 +44,11 @@ extension LexState {
 
     // Bits 0-3: the mode; 4-11: the quote; 12: tripled; 13-14: the element kind; 15: raw; 16-31: the count.
     init(
-        mode: Mode, quote: UInt8 = 0, isTriple: Bool = false, kind: ElementKind = .other, isRaw: Bool = false,
+        mode: Mode,
+        quote: UInt8 = 0,
+        isTriple: Bool = false,
+        kind: ElementKind = .other,
+        isRaw: Bool = false,
         count: Int = 0
     ) {
         let saturated = UInt32(min(max(count, 0), 0xFFFF))

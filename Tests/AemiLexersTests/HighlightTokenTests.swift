@@ -14,7 +14,8 @@ struct HighlightTokenTests {
                 HighlightToken(byteRange: 0 ..< 3, role: .keyword, layer: .lexical),
                 HighlightToken(byteRange: 8 ..< 9, role: .number, layer: .lexical),
                 HighlightToken(byteRange: 10 ..< 14, role: .comment, layer: .lexical)
-            ])
+            ]
+        )
         #expect(tokens.allSatisfy { $0.modifiers.isEmpty && $0.priority == 0 })
     }
 
@@ -27,7 +28,8 @@ struct HighlightTokenTests {
             tokens == [
                 HighlightToken(byteRange: 0 ..< 3, role: .string, layer: .lexical),
                 HighlightToken(byteRange: 4 ..< 7, role: .keyword, layer: .lexical)
-            ])
+            ]
+        )
     }
 
     @Test

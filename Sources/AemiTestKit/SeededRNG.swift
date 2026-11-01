@@ -55,7 +55,8 @@ public struct SeededRNG: RandomNumberGenerator, Sendable {
     /// exactly one `next()`, so a pinned fuzz corpus is unchanged.
     public mutating func int(in range: ClosedRange<Int>) -> Int {
         let span = UInt64(
-            bitPattern: Int64(truncatingIfNeeded: range.upperBound &- range.lowerBound))
+            bitPattern: Int64(truncatingIfNeeded: range.upperBound &- range.lowerBound)
+        )
         if span == .max { return Int(truncatingIfNeeded: next()) }  // the full Int range
         let offset = next() % (span &+ 1)
         return range.lowerBound &+ Int(truncatingIfNeeded: offset)

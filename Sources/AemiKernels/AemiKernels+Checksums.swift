@@ -30,7 +30,9 @@ extension AemiKernels {
     /// How many of the `units` UTF-16LE code units at `utf16LE` are below 0x80 before the first that is not, each copied
     /// as one byte to `ascii` (room for `units` bytes). `.scalar` forces the reference.
     public static func asciiPrefix(
-        utf16LE base: UnsafePointer<UInt8>, units: Int, into ascii: UnsafeMutablePointer<UInt8>,
+        utf16LE base: UnsafePointer<UInt8>,
+        units: Int,
+        into ascii: UnsafeMutablePointer<UInt8>,
         backend: Backend = .fastest
     ) -> Int {
         guard units > 0 else { return 0 }

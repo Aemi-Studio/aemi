@@ -35,7 +35,9 @@ final class WalkEngine: @unchecked Sendable {
     private var cancelled = false
 
     init(
-        root: String, policy: DirectoryWalk.Policy, afterListing: (@Sendable (String) -> Void)?,
+        root: String,
+        policy: DirectoryWalk.Policy,
+        afterListing: (@Sendable (String) -> Void)?,
         onBatch: (@Sendable ([DirectoryWalk.Entry]) -> Void)?
     ) throws(IOError) {
         let descriptor = unsafe open(root, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
@@ -64,8 +66,13 @@ final class WalkEngine: @unchecked Sendable {
         while finishedWorkers < started { monitor.wait() }
         let sorted = entries.sorted { $0.relativePath < $1.relativePath }
         let result = DirectoryWalk.Result(
-            root: root, entries: sorted, failures: failures.sorted { $0.relativePath < $1.relativePath },
-            limited: limited, cancelled: cancelled, statistics: statistics)
+            root: root,
+            entries: sorted,
+            failures: failures.sorted { $0.relativePath < $1.relativePath },
+            limited: limited,
+            cancelled: cancelled,
+            statistics: statistics
+        )
         monitor.unlock()
         return result
     }
@@ -307,11 +314,14 @@ enum WorkerThread {
         #else
             var thread = pthread_t()
             let status = unsafe pthread_create(
-                &thread, &attributes,
+                &thread,
+                &attributes,
                 { context in
                     guard let context = unsafe context else { return nil }
                     return unsafe WorkerThread.start(context)
-                }, context)
+                },
+                context
+            )
         #endif
         if status != 0 {
             unsafe Unmanaged<Job>.fromOpaque(context).release()

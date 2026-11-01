@@ -43,7 +43,8 @@ extension Trait where Self == ConditionTrait {
     public static func benchmarksRequested(environmentVariable: String) -> Self {
         .enabled(
             if: BenchmarkOutput.path(environmentVariable: environmentVariable) != nil,
-            "benchmarks run only when \(environmentVariable) names a results file")
+            "benchmarks run only when \(environmentVariable) names a results file"
+        )
     }
 }
 
@@ -68,7 +69,12 @@ public struct BenchmarkResult: Sendable {
     public var enforced: Bool
 
     public init(
-        name: String, unit: String, direction: Direction, value: Double, tolerance: Double = 0, enforced: Bool = true
+        name: String,
+        unit: String,
+        direction: Direction,
+        value: Double,
+        tolerance: Double = 0,
+        enforced: Bool = true
     ) {
         self.name = name
         self.unit = unit
@@ -83,7 +89,8 @@ public struct BenchmarkResult: Sendable {
 /// `{"name":..,"unit":..,"direction":..,"tolerance":..,"enforced":..,"value":..}`. Does nothing when no file is
 /// named, so a benchmark can call it unconditionally.
 public func recordBenchmark(
-    _ result: BenchmarkResult, environmentVariable: String = BenchmarkOutput.defaultEnvironmentVariable
+    _ result: BenchmarkResult,
+    environmentVariable: String = BenchmarkOutput.defaultEnvironmentVariable
 ) {
     guard let path = BenchmarkOutput.path(environmentVariable: environmentVariable) else { return }
     for text in [result.name, result.unit] {

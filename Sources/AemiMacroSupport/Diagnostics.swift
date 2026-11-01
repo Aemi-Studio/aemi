@@ -24,12 +24,19 @@ public enum MacroDiagnostics {
     /// (e.g. `"ADJSON"`, `"ADSQLMacros.Table"`, `"URLBuilderMacros.URLQuery"`). Defaults to
     /// `.warning`, the severity macros use when they degrade gracefully rather than hard-erroring.
     public static func make(
-        _ node: some SyntaxProtocol, domain: String, id: String, _ message: String,
+        _ node: some SyntaxProtocol,
+        domain: String,
+        id: String,
+        _ message: String,
         severity: DiagnosticSeverity = .warning
     ) -> Diagnostic {
         Diagnostic(
             node: node,
             message: SimpleDiagnostic(
-                message: message, diagnosticID: MessageID(domain: domain, id: id), severity: severity))
+                message: message,
+                diagnosticID: MessageID(domain: domain, id: id),
+                severity: severity
+            )
+        )
     }
 }

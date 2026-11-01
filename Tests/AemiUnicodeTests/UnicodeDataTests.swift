@@ -7,7 +7,8 @@ import Testing
 struct UnicodeDataTests {
     private static let codes = Array(
         "Lu Ll Lt Lm Lo Mn Mc Me Nd Nl No Pc Pd Ps Pe Pi Pf Po Sm Sc Sk So Zs Zl Zp Cc Cf Cs Co Cn"
-            .split(separator: " ").map(String.init))
+            .split(separator: " ").map(String.init)
+    )
 
     private static func code(_ category: Unicode.GeneralCategory) -> String {
         switch category {
@@ -76,7 +77,8 @@ struct UnicodeDataTests {
             let expected = Self.code(scalar.properties.generalCategory)
             if Self.codes[Int(owner[value])] != expected, mismatches.count < 8 {
                 mismatches.append(
-                    "U+\(String(value, radix: 16)): table \(Self.codes[Int(owner[value])]), stdlib \(expected)")
+                    "U+\(String(value, radix: 16)): table \(Self.codes[Int(owner[value])]), stdlib \(expected)"
+                )
             }
         }
         #expect(compared > 140_000, "compared only \(compared) scalars")
@@ -117,7 +119,8 @@ struct UnicodeDataTests {
                 for value in range {
                     #expect(
                         owner[Int(value)] == -1,
-                        "U+\(String(value, radix: 16)) is in \(name) and \(names[Int(max(owner[Int(value)], 0))])")
+                        "U+\(String(value, radix: 16)) is in \(name) and \(names[Int(max(owner[Int(value)], 0))])"
+                    )
                     owner[Int(value)] = Int16(index)
                 }
             }
@@ -185,7 +188,8 @@ struct UnicodeDataTests {
     @Test func `folding a set adds the other members of every orbit it touches, and nothing else`() throws {
         #expect(
             UnicodeScalarSet(0x6B).simpleCaseClosure()
-                == UnicodeScalarSet(normalizing: [0x4B ... 0x4B, 0x6B ... 0x6B, 0x212A ... 0x212A]))
+                == UnicodeScalarSet(normalizing: [0x4B ... 0x4B, 0x6B ... 0x6B, 0x212A ... 0x212A])
+        )
         #expect(UnicodeScalarSet(0x3000).simpleCaseClosure() == UnicodeScalarSet(0x3000))
         let letters = UnicodeScalarSet(normalizing: [0x61 ... 0x7A])
         let folded = letters.simpleCaseClosure()

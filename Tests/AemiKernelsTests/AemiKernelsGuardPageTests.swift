@@ -25,11 +25,13 @@ struct AemiKernelsGuardPageTests {
                 AemiKernels.crc32c(7, base, count: count) == AemiKernels.crc32c(7, base, count: count, backend: .scalar)
             )
             #expect(
-                AemiKernels.bitCount(base, count: count) == AemiKernels.bitCount(base, count: count, backend: .scalar))
+                AemiKernels.bitCount(base, count: count) == AemiKernels.bitCount(base, count: count, backend: .scalar)
+            )
             GuardedBytes.with([UInt8](repeating: 0, count: count / 2)) { ascii in
                 #expect(
                     AemiKernels.asciiPrefix(utf16LE: base, units: count / 2, into: ascii)
-                        == AemiKernels.asciiPrefix(utf16LE: base, units: count / 2, into: ascii, backend: .scalar))
+                        == AemiKernels.asciiPrefix(utf16LE: base, units: count / 2, into: ascii, backend: .scalar)
+                )
             }
         }
     }
@@ -41,42 +43,78 @@ struct AemiKernelsGuardPageTests {
                 let escape = UInt8(ascii: "\\")
                 #expect(
                     AemiKernels.firstIndexOfByte(base: base, count: count, needle: quote)
-                        == AemiKernels.firstIndexOfByte(base: base, count: count, needle: quote, backend: .scalar))
+                        == AemiKernels.firstIndexOfByte(base: base, count: count, needle: quote, backend: .scalar)
+                )
                 #expect(
                     AemiKernels.firstIndexOfAny(base: base, count: count, quote, escape, 1, 2, 3)
                         == AemiKernels.firstIndexOfAny(
-                            base: base, count: count, quote, escape, 1, 2, 3, backend: .scalar))
+                            base: base,
+                            count: count,
+                            quote,
+                            escape,
+                            1,
+                            2,
+                            3,
+                            backend: .scalar
+                        )
+                )
                 #expect(
                     AemiKernels.indexOfStringStop(base: base, count: count, quote: quote, escape: escape)
                         == AemiKernels.indexOfStringStop(
-                            base: base, count: count, quote: quote, escape: escape, backend: .scalar))
+                            base: base,
+                            count: count,
+                            quote: quote,
+                            escape: escape,
+                            backend: .scalar
+                        )
+                )
                 #expect(
                     AemiKernels.indexOfControlOrAny(base: base, count: count, quote, escape, 1, 2, 3)
                         == AemiKernels.indexOfControlOrAny(
-                            base: base, count: count, quote, escape, 1, 2, 3, backend: .scalar))
+                            base: base,
+                            count: count,
+                            quote,
+                            escape,
+                            1,
+                            2,
+                            3,
+                            backend: .scalar
+                        )
+                )
                 #expect(
                     AemiKernels.firstDisallowedText(base: base, count: count, minAllowed: 0x20, allowTab: true)
                         == AemiKernels.firstDisallowedText(
-                            base: base, count: count, minAllowed: 0x20, allowTab: true, backend: .scalar))
+                            base: base,
+                            count: count,
+                            minAllowed: 0x20,
+                            allowTab: true,
+                            backend: .scalar
+                        )
+                )
                 #expect(
                     AemiKernels.firstInvalidUTF8(base: base, count: count)
-                        == AemiKernels.firstInvalidUTF8(base: base, count: count, backend: .scalar))
+                        == AemiKernels.firstInvalidUTF8(base: base, count: count, backend: .scalar)
+                )
                 #expect(
                     AemiKernels.firstNonASCII(base: base, count: count)
-                        == AemiKernels.firstNonASCII(base: base, count: count, backend: .scalar))
+                        == AemiKernels.firstNonASCII(base: base, count: count, backend: .scalar)
+                )
                 if let set = AemiKernels.ByteSet([quote, escape, 0x7B]) {
                     #expect(
                         AemiKernels.firstIndex(inSet: set, base: base, count: count)
-                            == AemiKernels.firstIndex(inSet: set, base: base, count: count, backend: .scalar))
+                            == AemiKernels.firstIndex(inSet: set, base: base, count: count, backend: .scalar)
+                    )
                 }
                 let buffer = UnsafeBufferPointer(start: base, count: count)
                 #expect(
                     AemiKernels.firstIndex(ofPair: UInt8(ascii: "a"), quote, in: buffer, from: 0)
-                        == (last == nil || count < 2 ? nil : count - 2))
+                        == (last == nil || count < 2 ? nil : count - 2)
+                )
                 let pairs = AemiKernels.PairSet([(first: UInt8(ascii: "a"), second: quote)])
                 #expect(
                     pairs.firstCandidate(in: buffer, from: 0)
-                        == pairs.firstCandidate(in: buffer, from: 0, backend: .scalar))
+                        == pairs.firstCandidate(in: buffer, from: 0, backend: .scalar)
+                )
                 if let small = AemiKernels.SmallByteSet([quote, escape]) {
                     #expect(small.firstIndex(in: buffer, from: 0) == (last == nil || count == 0 ? nil : count - 1))
                 }
@@ -98,7 +136,8 @@ struct AemiKernelsGuardPageTests {
             GuardedBytes.with([UInt8](repeating: 0xFF, count: count)) { b in
                 #expect(
                     AemiKernels.hammingDistance(a, b, count: count)
-                        == AemiKernels.hammingDistance(a, b, count: count, backend: .scalar))
+                        == AemiKernels.hammingDistance(a, b, count: count, backend: .scalar)
+                )
             }
             guard count > 0 else { return }
             GuardedBytes.with([UInt8](repeating: 0, count: 2 * count)) { corpus in

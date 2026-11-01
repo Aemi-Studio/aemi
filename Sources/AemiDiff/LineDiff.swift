@@ -111,7 +111,10 @@ public enum LineDiff {
 
     /// ``diff(_:_:anchoringRareLines:)`` with `costLimit`, when given, in place of every search's own limit.
     static func diff<Element: Hashable>(
-        _ old: [Element], _ new: [Element], anchoringRareLines: Bool, costLimit: Int?
+        _ old: [Element],
+        _ new: [Element],
+        anchoringRareLines: Bool,
+        costLimit: Int?
     ) -> [DiffEdit] {
         diff(old, new, anchoringRareLines: anchoringRareLines, limits: DiffLimits(costLimit: costLimit)).edits
     }
@@ -119,7 +122,10 @@ public enum LineDiff {
     /// ``diff(_:_:anchoringRareLines:)`` within `limits`: their cost limit in place of every search's own, and the
     /// lines on one side only set aside before Myers when they say so.
     static func diff<Element: Hashable>(
-        _ old: [Element], _ new: [Element], anchoringRareLines: Bool, limits: DiffLimits
+        _ old: [Element],
+        _ new: [Element],
+        anchoringRareLines: Bool,
+        limits: DiffLimits
     ) -> LineDiffResult {
         var edits: [DiffEdit] = []
         edits.reserveCapacity(max(old.count, new.count))
@@ -232,20 +238,28 @@ public enum LineDiff {
     /// With `limits.discardsUnmatchedLines` off, Myers runs over the ranges whole.
     /// - Returns: Whether a cancellation stopped the search, or the cost limit cut it short.
     static func solveMatched<Element: Hashable>(
-        _ old: [Element], _ oldRange: Range<Int>, _ new: [Element], _ newRange: Range<Int>, limits: DiffLimits,
+        _ old: [Element],
+        _ oldRange: Range<Int>,
+        _ new: [Element],
+        _ newRange: Range<Int>,
+        limits: DiffLimits,
         into edits: inout [DiffEdit]
     ) -> SearchOutcome {
         guard limits.discardsUnmatchedLines else {
             var solver = MyersSolver(
-                old: old, new: new,
-                costLimit: limits.costLimit ?? Self.costLimit(lines: oldRange.count + newRange.count))
+                old: old,
+                new: new,
+                costLimit: limits.costLimit ?? Self.costLimit(lines: oldRange.count + newRange.count)
+            )
             solver.solve(old: oldRange, new: newRange, into: &edits)
             return SearchOutcome(wasCancelled: solver.wasCancelled, reachedCostLimit: solver.reachedCostLimit)
         }
         let (keptOld, keptNew) = matchedPositions(old, oldRange, new, newRange)
         var solver = MyersSolver(
-            old: keptOld.map { old[$0] }, new: keptNew.map { new[$0] },
-            costLimit: limits.costLimit ?? Self.costLimit(lines: keptOld.count + keptNew.count))
+            old: keptOld.map { old[$0] },
+            new: keptNew.map { new[$0] },
+            costLimit: limits.costLimit ?? Self.costLimit(lines: keptOld.count + keptNew.count)
+        )
         var kept: [DiffEdit] = []
         kept.reserveCapacity(keptOld.count + keptNew.count)
         solver.solve(old: 0 ..< keptOld.count, new: 0 ..< keptNew.count, into: &kept)
@@ -286,7 +300,10 @@ public enum LineDiff {
 
     /// The positions in `oldRange` whose line also occurs in `newRange`, and the other way round.
     private static func matchedPositions<Element: Hashable>(
-        _ old: [Element], _ oldRange: Range<Int>, _ new: [Element], _ newRange: Range<Int>
+        _ old: [Element],
+        _ oldRange: Range<Int>,
+        _ new: [Element],
+        _ newRange: Range<Int>
     ) -> (old: [Int], new: [Int]) {
         // Interned lines are small integers: marking them in two arrays costs a fraction of hashing them into sets,
         // which would be most of this pass on a large diff. Where `Element` is `Int` the casts compile away.
@@ -303,7 +320,10 @@ public enum LineDiff {
     /// ``matchedPositions(_:_:_:_:)`` over identifiers marked in arrays, or nil when one is negative or too large for
     /// an array about the size of the ranges, as a stretch of a larger diff can hold.
     private static func denseMatchedPositions(
-        _ old: [Int], _ oldRange: Range<Int>, _ new: [Int], _ newRange: Range<Int>
+        _ old: [Int],
+        _ oldRange: Range<Int>,
+        _ new: [Int],
+        _ newRange: Range<Int>
     ) -> (old: [Int], new: [Int])? {
         let bound = 2 * (oldRange.count + newRange.count) + 1_024
         guard old[oldRange].allSatisfy({ (0 ..< bound).contains($0) }),

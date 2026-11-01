@@ -3,7 +3,10 @@ enum TaskCompletionWait {
     /// Waits until everything `spawned` counted has been counted by `completed`, including what is spawned while
     /// waiting, racing one global budget of `duration` read from `now`.
     static func wait<C: Clock>(
-        spawned: CountProbe<Never>, completed: CountProbe<Never>, within duration: C.Duration, clock: C,
+        spawned: CountProbe<Never>,
+        completed: CountProbe<Never>,
+        within duration: C.Duration,
+        clock: C,
         now: @Sendable () -> C.Instant
     ) async throws {
         let deadline = now().advanced(by: duration)
@@ -22,18 +25,33 @@ enum TaskCompletionWait {
 
     /// The same wait on `clock`, reading its time from the clock.
     static func wait<C: Clock>(
-        spawned: CountProbe<Never>, completed: CountProbe<Never>, within duration: C.Duration, clock: C
+        spawned: CountProbe<Never>,
+        completed: CountProbe<Never>,
+        within duration: C.Duration,
+        clock: C
     ) async throws {
         try await wait(
-            spawned: spawned, completed: completed, within: duration, clock: clock, now: { clock.now })
+            spawned: spawned,
+            completed: completed,
+            within: duration,
+            clock: clock,
+            now: { clock.now }
+        )
     }
 
     /// The same wait on real time. The safety deadline uses real time even when production uses a virtual clock.
     static func wait(
-        spawned: CountProbe<Never>, completed: CountProbe<Never>, timeout: Duration,
+        spawned: CountProbe<Never>,
+        completed: CountProbe<Never>,
+        timeout: Duration,
         now: @Sendable () -> ContinuousClock.Instant = { .now }
     ) async throws {
         try await wait(
-            spawned: spawned, completed: completed, within: timeout, clock: ContinuousClock(), now: now)
+            spawned: spawned,
+            completed: completed,
+            within: timeout,
+            clock: ContinuousClock(),
+            now: now
+        )
     }
 }

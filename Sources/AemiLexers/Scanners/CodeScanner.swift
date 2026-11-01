@@ -28,7 +28,10 @@ struct CodeScanner {
     /// - Returns: The state at the end of `units`: a block comment or a string still open, or plain code.
     /// - Complexity: O(`units.count`)
     func scan<Output: ScannerToken>(
-        _ units: Span<UInt8>, from state: LexState, endsText: Bool, into tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from state: LexState,
+        endsText: Bool,
+        into tokens: inout [Output]
     ) -> LexState {
         let classes = tables.classes.span
         let count = units.count
@@ -77,7 +80,9 @@ struct CodeScanner {
     /// Ends the construct `state` says `units` starts inside, appending its token: where plain code resumes, or the
     /// state at the end of `units` when the construct runs on past it.
     private func resume<Output: ScannerToken>(
-        _ units: Span<UInt8>, from state: LexState, into tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from state: LexState,
+        into tokens: inout [Output]
     ) -> (index: Int, open: LexState?) {
         switch state.mode {
             case .blockComment:
@@ -88,7 +93,13 @@ struct CodeScanner {
             case .string:
                 let quote = state.quote
                 let (end, isOpen) = stringBody(
-                    units, from: 0, quote: quote, isTriple: state.isTriple, hashes: state.count, isRaw: state.isRaw)
+                    units,
+                    from: 0,
+                    quote: quote,
+                    isTriple: state.isTriple,
+                    hashes: state.count,
+                    isRaw: state.isRaw
+                )
                 if end > 0 { tokens.append(Output(kind: .string, range: 0 ..< end)) }
                 return (end, isOpen ? state : nil)
             case .longString:
@@ -105,7 +116,9 @@ struct CodeScanner {
     /// byte starts none, the range to skip, which ends where scanning resumes, and the state at the end of `units`
     /// when the token runs on past it.
     private func scanSpecial(
-        _ units: Span<UInt8>, at index: Int, classes: Span<UInt8>
+        _ units: Span<UInt8>,
+        at index: Int,
+        classes: Span<UInt8>
     ) -> (kind: TokenKind?, range: Range<Int>, open: LexState?) {
         let unit = units[index]
         let next = index + 1 < units.count ? units[index + 1] : 0
@@ -231,7 +244,10 @@ struct CodeScanner {
     /// Where a block comment ends when its body resumes at `start` inside `depth` levels of nesting, and the depth left
     /// open at the end of `units`, zero once it closed. Nested when the language nests them.
     private func blockCommentBody(
-        _ units: Span<UInt8>, from start: Int, depth: Int, block: (start: [UInt8], end: [UInt8])
+        _ units: Span<UInt8>,
+        from start: Int,
+        depth: Int,
+        block: (start: [UInt8], end: [UInt8])
     ) -> (end: Int, depth: Int) {
         let nests = tables.syntax.nestsBlockComments
         let opening = block.start[0]
@@ -260,7 +276,12 @@ struct CodeScanner {
             tables.classes[Int(quote)] & Class.tripleQuote != 0 && start + 2 < units.count
             && units[start + 1] == quote && units[start + 2] == quote
         let (end, isOpen) = stringBody(
-            units, from: start + (isTriple ? 3 : 1), quote: quote, isTriple: isTriple, hashes: hashes)
+            units,
+            from: start + (isTriple ? 3 : 1),
+            quote: quote,
+            isTriple: isTriple,
+            hashes: hashes
+        )
         return (end, isOpen ? LexState(mode: .string, quote: quote, isTriple: isTriple, count: hashes) : nil)
     }
 
@@ -271,7 +292,12 @@ struct CodeScanner {
     /// across lines; any other string stops at the end of its line,
     /// unless an escape takes the line break, as a backslash ending a line does.
     func stringBody(
-        _ units: Span<UInt8>, from start: Int, quote: UInt8, isTriple: Bool, hashes: Int, isRaw: Bool = false
+        _ units: Span<UInt8>,
+        from start: Int,
+        quote: UInt8,
+        isTriple: Bool,
+        hashes: Int,
+        isRaw: Bool = false
     ) -> (end: Int, isOpen: Bool) {
         let spansLines = isRaw || isTriple || tables.classes[Int(quote)] & Class.multilineQuote != 0
         let quotes = isTriple ? 3 : 1

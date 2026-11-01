@@ -38,7 +38,9 @@ extension Base64 {
     /// - Throws: ``EncodeError/outputBufferTooSmall(required:)`` if `output` is too small; nothing is
     ///   written then.
     public static func encode(
-        _ bytes: some Collection<UInt8>, into output: inout MutableSpan<UInt8>, options: Options
+        _ bytes: some Collection<UInt8>,
+        into output: inout MutableSpan<UInt8>,
+        options: Options
     ) throws(EncodeError) -> Int {
         let capacity = output.count
         let total = try checkedLength(forByteCount: bytes.count, capacity: capacity, options: options)
@@ -51,7 +53,9 @@ extension Base64 {
     /// Encodes `bytes` into `output` like ``encode(_:into:options:)``, for callers that hold a buffer
     /// pointer (`Array.withUnsafeMutableBufferPointer`) rather than a `MutableSpan`.
     public static func encode(
-        _ bytes: some Collection<UInt8>, into output: UnsafeMutableBufferPointer<UInt8>, options: Options
+        _ bytes: some Collection<UInt8>,
+        into output: UnsafeMutableBufferPointer<UInt8>,
+        options: Options
     ) throws(EncodeError) -> Int {
         let total = try checkedLength(forByteCount: bytes.count, capacity: output.count, options: options)
         let target = unsafe UnsafeMutableBufferPointer(rebasing: output[..<total])
@@ -60,7 +64,9 @@ extension Base64 {
 
     /// Encodes `bytes` into the front of `output`. See ``encode(_:into:options:)``.
     public static func encode(
-        _ bytes: Span<UInt8>, into output: inout MutableSpan<UInt8>, options: Options
+        _ bytes: Span<UInt8>,
+        into output: inout MutableSpan<UInt8>,
+        options: Options
     ) throws(EncodeError) -> Int {
         let total = try checkedLength(forByteCount: bytes.count, capacity: output.count, options: options)
         return output.withUnsafeMutableBufferPointer { buffer in
@@ -81,7 +87,9 @@ extension Base64 {
     }
 
     private static func checkedLength(
-        forByteCount count: Int, capacity: Int, options: Options
+        forByteCount count: Int,
+        capacity: Int,
+        options: Options
     ) throws(EncodeError) -> Int {
         guard let total = options.encodedLength(forByteCount: count) else { throw .inputTooLarge }
         guard total <= capacity else { throw .outputBufferTooSmall(required: total) }
@@ -90,7 +98,9 @@ extension Base64 {
 
     /// Encodes into `out`, which holds exactly the encoded length. Returns that length.
     private static func encodeCollection(
-        _ bytes: some Collection<UInt8>, into out: UnsafeMutableBufferPointer<UInt8>, options: Options
+        _ bytes: some Collection<UInt8>,
+        into out: UnsafeMutableBufferPointer<UInt8>,
+        options: Options
     ) -> Int {
         let done = bytes.withContiguousStorageIfAvailable {
             unsafe encodeContiguous($0, into: out, options: options)
@@ -102,7 +112,9 @@ extension Base64 {
     }
 
     private static func encodeContiguous(
-        _ input: UnsafeBufferPointer<UInt8>, into out: UnsafeMutableBufferPointer<UInt8>, options: Options
+        _ input: UnsafeBufferPointer<UInt8>,
+        into out: UnsafeMutableBufferPointer<UInt8>,
+        options: Options
     ) -> Int {
         let total = out.count
         let symbols = symbolCount(forByteCount: input.count, padded: options.writesPadding)
@@ -124,8 +136,11 @@ extension Base64 {
     }
 
     private static func writeSymbols(
-        of input: UnsafeBufferPointer<UInt8>, to out: UnsafeMutableBufferPointer<UInt8>, at start: Int,
-        table: UnsafeBufferPointer<UInt8>, padded: Bool
+        of input: UnsafeBufferPointer<UInt8>,
+        to out: UnsafeMutableBufferPointer<UInt8>,
+        at start: Int,
+        table: UnsafeBufferPointer<UInt8>,
+        padded: Bool
     ) {
         var source = 0
         var target = start
@@ -163,7 +178,10 @@ extension Base64 {
     /// between read and write positions never shrinks below the separators still to come, so no unread
     /// symbol is overwritten.
     private static func wrapLines(
-        in out: UnsafeMutableBufferPointer<UInt8>, from start: Int, symbols: Int, width: Int,
+        in out: UnsafeMutableBufferPointer<UInt8>,
+        from start: Int,
+        symbols: Int,
+        width: Int,
         ending: LineEnding
     ) {
         guard let base = out.baseAddress else { return }

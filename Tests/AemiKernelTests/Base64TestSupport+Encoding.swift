@@ -29,7 +29,9 @@ extension Base64 {
     /// whole buffer untouched; a successful one must not write past the window.
     @discardableResult
     static func encodeCanary(
-        _ input: some Collection<UInt8>, capacity: Int, options: Options
+        _ input: some Collection<UInt8>,
+        capacity: Int,
+        options: Options
     ) throws(EncodeError) -> (written: Int, window: [UInt8]) {
         var storage = [UInt8](repeating: canaryByte, count: capacity + 16)
         do {

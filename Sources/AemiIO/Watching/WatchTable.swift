@@ -78,7 +78,10 @@
         ///   - isSuppressed: Whether the app wrote `path` itself moments ago.
         /// - Returns: What to report for the event.
         func route(
-            path: String, flags: FSEventStreamEventFlags, id: FSEventStreamEventId, isSuppressed: (String) -> Bool
+            path: String,
+            flags: FSEventStreamEventFlags,
+            id: FSEventStreamEventId,
+            isSuppressed: (String) -> Bool
         ) -> Route {
             if flags & FSEventStreamEventFlags(kFSEventStreamEventFlagHistoryDone) != 0 { return .skip }
             if flags & FSEventStreamEventFlags(kFSEventStreamEventFlagMustScanSubDirs) != 0 { return .rescan(path) }

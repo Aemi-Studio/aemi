@@ -72,14 +72,19 @@ public enum IntralineEmphasis {
     /// layout's rows hold. A change past `limits.maximumPairs` pairs by position without reading its lines.
     /// - Complexity: O(removed × added × line length) for similarity pairing, O(lines) by position.
     public static func pairs(
-        of change: DiffChange, old: some LineSource, new: some LineSource, pairing: any LinePairing,
+        of change: DiffChange,
+        old: some LineSource,
+        new: some LineSource,
+        pairing: any LinePairing,
         limits: DiffLimits = DiffLimits()
     ) -> [LinePair] {
         guard !change.old.isEmpty, !change.new.isEmpty, change.old.count * change.new.count <= limits.maximumPairs
         else { return PositionalPairing.pairs(removed: change.old.count, added: change.new.count) }
         return pairing.pairs(
             removed: change.old.map { Substring(old.string(at: $0)) },
-            added: change.new.map { Substring(new.string(at: $0)) }, limits: limits)
+            added: change.new.map { Substring(new.string(at: $0)) },
+            limits: limits
+        )
     }
 
     /// The emphasis of each change of `changes`, indices into `structure.changes`, in the order given.
@@ -96,15 +101,24 @@ public enum IntralineEmphasis {
     /// - Returns: Each requested change's emphasis, by change index.
     /// - Throws: `CancellationError` when the calling task is cancelled; it is looked for between changes.
     public static func emphasis(
-        for changes: [Int], in structure: DiffStructure, pairs: [[LinePair]], old: some LineSource,
-        new: some LineSource, granularity: IntralineGranularity, refiners: [any IntralineRefining] = [],
-        tokens: (any IntralineTokenSource)? = nil, limits: DiffLimits = DiffLimits()
+        for changes: [Int],
+        in structure: DiffStructure,
+        pairs: [[LinePair]],
+        old: some LineSource,
+        new: some LineSource,
+        granularity: IntralineGranularity,
+        refiners: [any IntralineRefining] = [],
+        tokens: (any IntralineTokenSource)? = nil,
+        limits: DiffLimits = DiffLimits()
     ) async throws(CancellationError) -> [Int: ChangeEmphasis] {
         let emphasis = emphasize(
-            changes, of: structure.changes, pairs: pairs,
+            changes,
+            of: structure.changes,
+            pairs: pairs,
             options: Options(granularity: granularity, refiners: refiners, tokens: tokens, limits: limits),
             isCancelled: { Task.isCancelled },
-            units: { isOld, index in Array((isOld ? old.string(at: index) : new.string(at: index)).utf16) })
+            units: { isOld, index in Array((isOld ? old.string(at: index) : new.string(at: index)).utf16) }
+        )
         guard let emphasis else { throw CancellationError() }
         return emphasis
     }
@@ -120,7 +134,11 @@ public enum IntralineEmphasis {
     /// ``emphasis(for:in:pairs:old:new:granularity:refiners:tokens:limits:)`` over lines `units` gives as UTF-16
     /// units; nil once `isCancelled` says so.
     static func emphasize(
-        _ requested: [Int], of changes: [DiffChange], pairs: [[LinePair]], options: Options, isCancelled: () -> Bool,
+        _ requested: [Int],
+        of changes: [DiffChange],
+        pairs: [[LinePair]],
+        options: Options,
+        isCancelled: () -> Bool,
         units: (_ isOld: Bool, _ index: Int) -> [UInt16]
     ) -> [Int: ChangeEmphasis]? {
         let granularity = options.granularity
@@ -162,8 +180,12 @@ public enum IntralineEmphasis {
                     let newIndex = changes[change].new.lowerBound + newOffset
                     return
                         IntralineDiff.emphasis(
-                            oldUnits: lines.old, newUnits: lines.new, granularity: granularity,
-                            oldTokens: oldTokens?[oldIndex], newTokens: newTokens?[newIndex], refiners: refiners
+                            oldUnits: lines.old,
+                            newUnits: lines.new,
+                            granularity: granularity,
+                            oldTokens: oldTokens?[oldIndex],
+                            newTokens: newTokens?[newIndex],
+                            refiners: refiners
                         )
                         .map { LineEmphasis(old: $0.old, new: $0.new) }
                 }

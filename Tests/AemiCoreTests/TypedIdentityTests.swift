@@ -1,7 +1,6 @@
+import AemiCore
 import Foundation
 import Testing
-import AemiCore
-
 
 private struct Gadget: Equatable, Hashable, Identifiable, Sendable, Codable, Comparable {
     let id: Int

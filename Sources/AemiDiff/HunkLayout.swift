@@ -56,7 +56,9 @@ public enum HunkLayout {
             if let last = result.last, rows.lowerBound <= last.rows.upperBound {
                 result[result.count - 1] = Hunk(
                     rows: last.rows.lowerBound ..< max(last.rows.upperBound, rows.upperBound),
-                    firstBase: last.firstBase, lastBase: index)
+                    firstBase: last.firstBase,
+                    lastBase: index
+                )
             } else {
                 result.append(Hunk(rows: rows, firstBase: index, lastBase: index))
             }

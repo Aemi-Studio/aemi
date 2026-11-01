@@ -51,7 +51,8 @@ extension TemporaryDirectory {
     /// Creates a `TemporaryDirectory`, runs `body` with it, and cleans up afterward — even if
     /// `body` throws.
     public static func withTemporaryDirectory<R>(
-        prefix: String = "adtestkit", _ body: (TemporaryDirectory) throws -> R
+        prefix: String = "adtestkit",
+        _ body: (TemporaryDirectory) throws -> R
     ) rethrows -> R {
         let dir = TemporaryDirectory(prefix: prefix)
         defer { dir.cleanup() }
@@ -82,7 +83,8 @@ public typealias TempDir = TemporaryDirectory
 extension TemporaryDirectory {
     @available(*, deprecated, renamed: "withTemporaryDirectory(prefix:_:)")
     public static func withTempDir<R>(
-        prefix: String = "adtestkit", _ body: (TemporaryDirectory) throws -> R
+        prefix: String = "adtestkit",
+        _ body: (TemporaryDirectory) throws -> R
     ) rethrows -> R {
         try withTemporaryDirectory(prefix: prefix, body)
     }

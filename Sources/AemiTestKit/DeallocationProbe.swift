@@ -29,7 +29,9 @@
         sourceLocation: SourceLocation = #_sourceLocation
     ) -> AsyncEventProbe<Never> {
         let probe = AsyncEventProbe(
-            label: label ?? "deallocation of \(type(of: object))", sourceLocation: sourceLocation)
+            label: label ?? "deallocation of \(type(of: object))",
+            sourceLocation: sourceLocation
+        )
         let recorder = DeallocationRecorder(probe: probe)
         // The recorder's own address is a key unique to this probe, so several probes can watch one object.
         objc_setAssociatedObject(

@@ -1,6 +1,6 @@
+import AemiCore
 import Foundation
 import Testing
-import AemiCore
 
 private enum Part {}
 private enum Supplier {}
@@ -12,7 +12,6 @@ private enum Supplier {}
 /// missing from a collection.
 @Suite("Hashable witness")
 struct HashWitnessTests {
-
     @Test(arguments: [0, 1, -1, Int.max, Int.min])
     func `equal identifiers agree on every hashing entry point`(value: Int) {
         let sut = Identifier<Part, Int>(value)
@@ -41,7 +40,7 @@ struct HashWitnessTests {
 
     @Test
     func `a set deduplicates by raw value and rejects an absent member`() {
-        let values = Array(0..<500) + Array(0..<500)
+        let values = Array(0 ..< 500) + Array(0 ..< 500)
         let sut = Set(values.map { Identifier<Part, Int>($0) })
 
         #expect(sut.count == 500)
@@ -54,7 +53,7 @@ struct HashWitnessTests {
     @Test
     func `a dictionary keyed by the identifier retrieves every value`() {
         var sut: [Identifier<Part, UUID>: Int] = [:]
-        let keys = (0..<200).map { _ in Identifier<Part, UUID>() }
+        let keys = (0 ..< 200).map { _ in Identifier<Part, UUID>() }
         for (offset, key) in keys.enumerated() { sut[key] = offset }
 
         #expect(sut.count == 200)

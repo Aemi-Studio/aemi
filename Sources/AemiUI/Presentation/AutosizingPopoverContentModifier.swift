@@ -5,7 +5,6 @@
 //  Created by Gigi on 31/01/25.
 //
 
-
 import SwiftUI
 
 struct AutosizingPopoverContentModifier<PopoverContent>: ViewModifier where PopoverContent: View {

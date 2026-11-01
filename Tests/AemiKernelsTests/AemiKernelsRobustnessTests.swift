@@ -33,55 +33,93 @@ struct AemiKernelsRobustnessTests {
             backends: [.fastest, .scalar, .sse2, .avx2, .neon],
             run: { base, count, backend in
                 AemiKernels.indexOfStringStop(
-                    base: base, count: count, quote: quote, escape: escape, backend: backend)
+                    base: base,
+                    count: count,
+                    quote: quote,
+                    escape: escape,
+                    backend: backend
+                )
             },
-            predicate: { $0 < 0x20 || $0 >= 0x80 || $0 == quote || $0 == escape }),
+            predicate: { $0 < 0x20 || $0 >= 0x80 || $0 == quote || $0 == escape }
+        ),
         Kernel(
             name: "firstNonASCII",
             backends: [.fastest, .scalar, .sse2, .avx2, .neon],
             run: { base, count, backend in
                 AemiKernels.firstNonASCII(base: base, count: count, backend: backend)
             },
-            predicate: { $0 >= 0x80 }),
+            predicate: { $0 >= 0x80 }
+        ),
         Kernel(
             name: "firstIndexOfByte",
             backends: [.fastest, .scalar],
             run: { base, count, backend in
                 AemiKernels.firstIndexOfByte(base: base, count: count, needle: 0x2C, backend: backend)
             },
-            predicate: { $0 == 0x2C }),
+            predicate: { $0 == 0x2C }
+        ),
         Kernel(
             name: "firstIndexOfAny",
             backends: [.fastest, .scalar],
             run: { base, count, backend in
                 AemiKernels.firstIndexOfAny(
-                    base: base, count: count, 0x26, 0x3C, 0x3E, 0x22, 0x27, backend: backend)
+                    base: base,
+                    count: count,
+                    0x26,
+                    0x3C,
+                    0x3E,
+                    0x22,
+                    0x27,
+                    backend: backend
+                )
             },
-            predicate: { $0 == 0x26 || $0 == 0x3C || $0 == 0x3E || $0 == 0x22 || $0 == 0x27 }),
+            predicate: { $0 == 0x26 || $0 == 0x3C || $0 == 0x3E || $0 == 0x22 || $0 == 0x27 }
+        ),
         Kernel(
             name: "indexOfControlOrAny",
             backends: [.fastest, .scalar],
             run: { base, count, backend in
                 AemiKernels.indexOfControlOrAny(
-                    base: base, count: count, 0x22, 0x5C, 0x2F, 0x22, 0x22, backend: backend)
+                    base: base,
+                    count: count,
+                    0x22,
+                    0x5C,
+                    0x2F,
+                    0x22,
+                    0x22,
+                    backend: backend
+                )
             },
-            predicate: { $0 < 0x20 || $0 == 0x22 || $0 == 0x5C || $0 == 0x2F }),
+            predicate: { $0 < 0x20 || $0 == 0x22 || $0 == 0x5C || $0 == 0x2F }
+        ),
         Kernel(
             name: "firstDisallowedText(field-value)",
             backends: [.fastest, .scalar],
             run: { base, count, backend in
                 AemiKernels.firstDisallowedText(
-                    base: base, count: count, minAllowed: 0x20, allowTab: true, backend: backend)
+                    base: base,
+                    count: count,
+                    minAllowed: 0x20,
+                    allowTab: true,
+                    backend: backend
+                )
             },
-            predicate: { $0 < 0x80 && ($0 == 0x7F || ($0 < 0x20 && $0 != 0x09)) }),
+            predicate: { $0 < 0x80 && ($0 == 0x7F || ($0 < 0x20 && $0 != 0x09)) }
+        ),
         Kernel(
             name: "firstDisallowedText(request-target)",
             backends: [.fastest, .scalar],
             run: { base, count, backend in
                 AemiKernels.firstDisallowedText(
-                    base: base, count: count, minAllowed: 0x21, allowTab: false, backend: backend)
+                    base: base,
+                    count: count,
+                    minAllowed: 0x21,
+                    allowTab: false,
+                    backend: backend
+                )
             },
-            predicate: { $0 < 0x80 && ($0 == 0x7F || $0 <= 0x20) })
+            predicate: { $0 < 0x80 && ($0 == 0x7F || $0 <= 0x20) }
+        )
     ]
 
     static let boundarySizes = [0, 1, 2, 7, 8, 15, 16, 17, 30, 31, 32, 33, 47, 48, 63, 64, 65, 96, 128, 200]

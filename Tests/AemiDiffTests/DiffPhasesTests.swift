@@ -63,7 +63,10 @@ struct DiffPhasesTests {
         let new = (0 ..< 400).map { $0.isMultiple(of: 2) ? "old \($0)" : "new \($0)" }.joined(separator: "\n")
 
         let structure = try await LineDiff.structure(
-            old: TextLines(old), new: TextLines(new), limits: DiffLimits(costLimit: 1, discardsUnmatchedLines: false))
+            old: TextLines(old),
+            new: TextLines(new),
+            limits: DiffLimits(costLimit: 1, discardsUnmatchedLines: false)
+        )
 
         #expect(!structure.isMinimal)
         #expect(Self.reconstructs(structure.edits, old: 400, new: 400))
@@ -103,7 +106,11 @@ struct DiffPhasesTests {
     @Test
     func `the phases compose to the model the text initializer builds`() async throws {
         let full = DiffModel(
-            oldText: Self.old, newText: Self.new, granularity: .word, tokenRanges: CodeTokenRanges())
+            oldText: Self.old,
+            newText: Self.new,
+            granularity: .word,
+            tokenRanges: CodeTokenRanges()
+        )
         let old = TextLines(Self.old)
         let new = TextLines(Self.new)
         let pipeline = DiffPipeline()
@@ -112,8 +119,14 @@ struct DiffPhasesTests {
             IntralineEmphasis.pairs(of: $0, old: old, new: new, pairing: pipeline.pairing)
         }
         let emphasis = try await IntralineEmphasis.emphasis(
-            for: Array(structure.changes.indices), in: structure, pairs: pairs, old: old, new: new, granularity: .word,
-            refiners: pipeline.intralineRefiners)
+            for: Array(structure.changes.indices),
+            in: structure,
+            pairs: pairs,
+            old: old,
+            new: new,
+            granularity: .word,
+            refiners: pipeline.intralineRefiners
+        )
 
         let composed = DiffModel(structure: structure, pairs: pairs, oldText: Self.old, newText: Self.new)
             .applying(emphasis).applying(MovedBlocks.detect(in: structure))
@@ -151,7 +164,13 @@ struct DiffPhasesTests {
         let target = try #require(structure.changes.lastIndex { !$0.old.isEmpty && !$0.new.isEmpty })
 
         let emphasis = try await IntralineEmphasis.emphasis(
-            for: [target], in: structure, pairs: pairs, old: old, new: new, granularity: .word)
+            for: [target],
+            in: structure,
+            pairs: pairs,
+            old: old,
+            new: new,
+            granularity: .word
+        )
         let model = plain.applying(emphasis)
 
         #expect(Array(emphasis.keys) == [target])
@@ -174,8 +193,14 @@ struct DiffPhasesTests {
         let tokens = RecordingTokens()
 
         _ = try await IntralineEmphasis.emphasis(
-            for: Array(structure.changes.indices), in: structure, pairs: pairs, old: old, new: new,
-            granularity: .syntax, tokens: tokens)
+            for: Array(structure.changes.indices),
+            in: structure,
+            pairs: pairs,
+            old: old,
+            new: new,
+            granularity: .syntax,
+            tokens: tokens
+        )
 
         var pairedOld: [Int] = []
         var pairedNew: [Int] = []
@@ -193,8 +218,14 @@ struct DiffPhasesTests {
         let unasked = RecordingTokens()
         let added = try await LineDiff.structure(old: TextLines("a"), new: TextLines("a\nb"))
         _ = try await IntralineEmphasis.emphasis(
-            for: [0], in: added, pairs: [[LinePair(old: nil, new: 0)]], old: TextLines("a"), new: TextLines("a\nb"),
-            granularity: .syntax, tokens: unasked)
+            for: [0],
+            in: added,
+            pairs: [[LinePair(old: nil, new: 0)]],
+            old: TextLines("a"),
+            new: TextLines("a\nb"),
+            granularity: .syntax,
+            tokens: unasked
+        )
         #expect(unasked.requests.isEmpty)
     }
 
@@ -202,7 +233,11 @@ struct DiffPhasesTests {
     @Test
     func `moved lines come from the interned identifiers, and a line with too many candidates starts no block`() {
         let structure = LineDiff.makeStructure(
-            old: TextLines(Self.old), new: TextLines(Self.new), pipeline: DiffPipeline(), limits: DiffLimits())
+            old: TextLines(Self.old),
+            new: TextLines(Self.new),
+            pipeline: DiffPipeline(),
+            limits: DiffLimits()
+        )
 
         let moved = MovedBlocks.detect(in: structure)
         #expect(moved.old == [true, true, true] + Array(repeating: false, count: 7))
@@ -225,10 +260,12 @@ struct DiffPhasesTests {
 
         #expect(
             SimilarityPairing(maximumLineLength: 10_000).pairs(removed: removed, added: added)
-                == [LinePair(old: 0, new: nil), LinePair(old: 1, new: 0), LinePair(old: nil, new: 1)])
+                == [LinePair(old: 0, new: nil), LinePair(old: 1, new: 0), LinePair(old: nil, new: 1)]
+        )
         #expect(
             SimilarityPairing().pairs(removed: removed, added: added)
-                == [LinePair(old: 0, new: 0), LinePair(old: 1, new: 1)])
+                == [LinePair(old: 0, new: 0), LinePair(old: 1, new: 1)]
+        )
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -254,7 +291,8 @@ struct DiffPhasesTests {
             let new = (0 ..< random.int(in: 0 ... 30)).map { _ in random.int(in: 0 ... 6) }
             let script = LineDiff.diff(old, new, anchoringRareLines: true)
             #expect(
-                LineDiff.diff(old.map { "line \($0)" }, new.map { "line \($0)" }, anchoringRareLines: true) == script)
+                LineDiff.diff(old.map { "line \($0)" }, new.map { "line \($0)" }, anchoringRareLines: true) == script
+            )
             #expect(Self.reconstructs(script, old: old.count, new: new.count))
         }
     }

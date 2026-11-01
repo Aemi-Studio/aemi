@@ -32,7 +32,9 @@ extension Base64 {
         private var pendingCR = -1
 
         init(
-            lut: UnsafeBufferPointer<UInt8>, out: UnsafeMutableBufferPointer<UInt8>, options: Options
+            lut: UnsafeBufferPointer<UInt8>,
+            out: UnsafeMutableBufferPointer<UInt8>,
+            options: Options
         ) {
             unsafe self.lut = lut
             unsafe self.out = out

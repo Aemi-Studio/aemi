@@ -29,7 +29,11 @@
         line: UInt = #line
     ) -> CountProbe<Never> {
         let probe = CountProbe(
-            label: label ?? "deallocation of \(type(of: object))", file: file, function: function, line: line)
+            label: label ?? "deallocation of \(type(of: object))",
+            file: file,
+            function: function,
+            line: line
+        )
         let recorder = DeallocationRecorder(probe: probe)
         // The recorder's own address is a key unique to this probe, so several probes can watch one object.
         unsafe objc_setAssociatedObject(

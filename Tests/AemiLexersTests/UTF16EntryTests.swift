@@ -21,6 +21,7 @@ struct UTF16EntryTests {
             tokens == [
                 lexical(.string, 0 ..< 4), lexical(.keyword, 5 ..< 8),
                 lexical(.number, 13 ..< 14)
-            ])
+            ]
+        )
     }
 }

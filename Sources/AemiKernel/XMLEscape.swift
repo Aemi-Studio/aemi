@@ -32,7 +32,14 @@ public enum XMLEscape {
         var index = 0
         while index < count {
             let run = unsafe AemiKernels.firstIndexOfAny(
-                base: base + index, count: count - index, 0x26, 0x3C, 0x3E, 0x22, 0x27)
+                base: base + index,
+                count: count - index,
+                0x26,
+                0x3C,
+                0x3E,
+                0x22,
+                0x27
+            )
             if run > 0 {
                 unsafe out.append(contentsOf: UnsafeBufferPointer(start: base + index, count: run))
                 index += run

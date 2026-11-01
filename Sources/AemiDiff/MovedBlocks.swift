@@ -35,7 +35,8 @@ public enum MovedBlocks {
         }
         var moved = MovedLines(
             old: Array(repeating: false, count: structure.lines.old.count),
-            new: Array(repeating: false, count: structure.lines.new.count))
+            new: Array(repeating: false, count: structure.lines.new.count)
+        )
         mark(removed: removed, added: added, maximumCandidates: limits.maximumMovedCandidates) { old, new in
             moved.old[old] = true
             moved.new[new] = true
@@ -47,7 +48,8 @@ public enum MovedBlocks {
     /// with more than `maximumCandidates` removed occurrences starts no block.
     /// - Complexity: O(added lines × `maximumCandidates` × block length) at worst.
     public static func detect(
-        removed: [(index: Int, id: Int)], added: [(index: Int, id: Int)],
+        removed: [(index: Int, id: Int)],
+        added: [(index: Int, id: Int)],
         maximumCandidates: Int = DiffLimits().maximumMovedCandidates
     ) -> (old: Set<Int>, new: Set<Int>) {
         var movedOld: Set<Int> = []
@@ -61,7 +63,9 @@ public enum MovedBlocks {
 
     /// Calls `moved` with each removed line and the added line it moved to.
     private static func mark(
-        removed: [(index: Int, id: Int)], added: [(index: Int, id: Int)], maximumCandidates: Int,
+        removed: [(index: Int, id: Int)],
+        added: [(index: Int, id: Int)],
+        maximumCandidates: Int,
         moved: (_ old: Int, _ new: Int) -> Void
     ) {
         let removedRuns = runs(of: removed)

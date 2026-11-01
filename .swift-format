@@ -6,7 +6,7 @@
     "maximumBlankLines": 1,
     "respectsExistingLineBreaks": true,
     "lineBreakBeforeControlFlowKeywords": false,
-    "lineBreakBeforeEachArgument": false,
+    "lineBreakBeforeEachArgument": true,
     "lineBreakBeforeEachGenericRequirement": false,
     "lineBreakBetweenDeclarationAttributes": false,
     "lineBreakAroundMultilineExpressionChainComponents": true,

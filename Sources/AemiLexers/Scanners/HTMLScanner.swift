@@ -26,7 +26,9 @@ struct HTMLScanner {
     ///   `script` or `style` body, or in text.
     /// - Complexity: O(`units.count`), times a pattern's length where one is searched for.
     func scan<Output: ScannerToken>(
-        _ units: Span<UInt8>, from state: LexState, into tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from state: LexState,
+        into tokens: inout [Output]
     ) -> LexState {
         var index = 0
         switch state.mode {
@@ -50,7 +52,12 @@ struct HTMLScanner {
                 index = end
             case .attributeValue:
                 let (valueEnd, valueOpen) = scanValue(
-                    units, from: 0, quote: state.quote, kind: state.kind, tokens: &tokens)
+                    units,
+                    from: 0,
+                    quote: state.quote,
+                    kind: state.kind,
+                    tokens: &tokens
+                )
                 if let valueOpen { return valueOpen }
                 let (end, open) = scanAttributes(units, from: valueEnd, kind: state.kind, tokens: &tokens)
                 if let open { return open }
@@ -103,7 +110,9 @@ struct HTMLScanner {
     /// Scans what the `<` at `start` opens; returns where scanning resumes and, when what it opens runs on past the end
     /// of `units`, the state there.
     private func scanAngle<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        tokens: inout [Output]
     ) -> (Int, LexState?) {
         if matches(Self.commentStart, in: units, at: start) {
             guard let end = find(Self.commentEnd, in: units, from: start + 4) else {
@@ -158,7 +167,10 @@ struct HTMLScanner {
     /// `style` element; returns where scanning resumes and, when the tag or the body runs on past the end of `units`,
     /// the state there.
     private func scanAttributes<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, kind: LexState.ElementKind, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        kind: LexState.ElementKind,
+        tokens: inout [Output]
     ) -> (Int, LexState?) {
         var index = start
         while index < units.count {
@@ -194,7 +206,11 @@ struct HTMLScanner {
     /// when there is one in `units`; returns where its tag's attributes resume and, when the value runs on past the end
     /// of `units`, the state there.
     private func scanValue<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, quote: UInt8, kind: LexState.ElementKind, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        quote: UInt8,
+        kind: LexState.ElementKind,
+        tokens: inout [Output]
     ) -> (Int, LexState?) {
         var index = start
         while index < units.count, units[index] != quote { index += 1 }
@@ -218,7 +234,9 @@ struct HTMLScanner {
     }
 
     private func scanEntity<Output: ScannerToken>(
-        _ units: Span<UInt8>, from start: Int, tokens: inout [Output]
+        _ units: Span<UInt8>,
+        from start: Int,
+        tokens: inout [Output]
     ) -> Int {
         var index = start + 1
         // Entity names are ASCII, which keeps the 12-byte cap the same length in UTF-8 and in UTF-16.

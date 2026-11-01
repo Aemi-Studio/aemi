@@ -77,11 +77,11 @@ extension Identifier: RawRepresentable {}
 extension Identifier: Sendable where RawValue: Sendable {}
 
 #if compiler(>=6.0)
-extension Identifier: BitwiseCopyable where RawValue: BitwiseCopyable {}
+    extension Identifier: BitwiseCopyable where RawValue: BitwiseCopyable {}
 #endif
 
 #if compiler(>=6.2)
-extension Identifier: SendableMetatype where RawValue: SendableMetatype {}
+    extension Identifier: SendableMetatype where RawValue: SendableMetatype {}
 #endif
 
 /// An identifier is trivially its own identity — stronger than Tagged's

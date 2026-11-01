@@ -63,7 +63,8 @@ struct FuzzTests {
                 // A real suite would decode/parse here, swallowing typed errors. We just
                 // prove the driver feeds us bytes and survives.
                 exercised += mutated.isEmpty ? 0 : 1
-            })
+            }
+        )
         #expect(report.iterations == 500)
         #expect(report.totalEdits >= 500)  // at least one edit per iteration
         #expect(exercised >= 0)
@@ -77,7 +78,8 @@ struct FuzzTests {
                 seed: Seed(0xC0FF_EE),
                 iterations: 200,
                 generate: { _, rng in rng.int(in: 0 ... 1_000_000) },
-                exercise: { out.append($0) })
+                exercise: { out.append($0) }
+            )
             return out
         }
         #expect(collect() == collect())
@@ -90,13 +92,21 @@ struct FuzzTests {
         // Byte driver: the trace prints each Mutation's description, covering both the
         // trace branch and ByteMutator.Mutation.description.
         let byteReport = fuzzNeverTraps(
-            seed: Seed(0xABCD), iterations: 3, traceEnv: "ADTESTKIT_SELFTEST_TRACE",
-            corpus: { Array("trace".utf8) }, exercise: { _ in })
+            seed: Seed(0xABCD),
+            iterations: 3,
+            traceEnv: "ADTESTKIT_SELFTEST_TRACE",
+            corpus: { Array("trace".utf8) },
+            exercise: { _ in }
+        )
         #expect(byteReport.iterations == 3)
         // Generic driver trace branch.
         let genericReport = fuzzNeverTraps(
-            seed: Seed(0xBEEF), iterations: 3, traceEnv: "ADTESTKIT_SELFTEST_TRACE",
-            generate: { _, rng in rng.byte() }, exercise: { _ in })
+            seed: Seed(0xBEEF),
+            iterations: 3,
+            traceEnv: "ADTESTKIT_SELFTEST_TRACE",
+            generate: { _, rng in rng.byte() },
+            exercise: { _ in }
+        )
         #expect(genericReport.iterations == 3)
     }
 }

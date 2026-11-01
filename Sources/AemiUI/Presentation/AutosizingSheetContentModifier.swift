@@ -32,7 +32,10 @@ struct AutosizingSheetContentModifier<SheetContent>: ViewModifier where SheetCon
                 sheetContent()
                     .padding(
                         EdgeInsets(
-                            top: topPadding, leading: leadingPadding, bottom: bottomPadding, trailing: trailingPadding
+                            top: topPadding,
+                            leading: leadingPadding,
+                            bottom: bottomPadding,
+                            trailing: trailingPadding
                         )
                     )
                     .update($size)

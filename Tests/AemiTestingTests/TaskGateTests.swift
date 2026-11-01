@@ -8,7 +8,6 @@ import Testing
 /// signal-per-resume counts them deterministically.
 @Suite("TaskGate")
 struct TaskGateTests {
-
     @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 
     @Test func waitReturnsImmediatelyWhenAlreadyOpen() async throws {
@@ -50,7 +49,7 @@ struct TaskGateTests {
         let n = 8
 
         await withTaskGroup(of: Void.self) { group in
-            for _ in 0..<n {
+            for _ in 0 ..< n {
                 group.addTask {
                     try? await gate.wait()
                     counter.signal()
@@ -63,7 +62,7 @@ struct TaskGateTests {
         }
 
         // Drain the semaphore to confirm exactly `n` resumes.
-        for _ in 0..<n {
+        for _ in 0 ..< n {
             try await counter.wait()
         }
     }

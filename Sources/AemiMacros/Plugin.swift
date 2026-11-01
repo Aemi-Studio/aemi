@@ -5,6 +5,6 @@ import SwiftSyntaxMacros
 struct AemiPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         InternedMacro.self,
-        LoggableMacro.self,
+        LoggableMacro.self
     ]
 }

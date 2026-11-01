@@ -23,7 +23,9 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
         for (path, text) in files {
             let url = root.appending(path: path)
             try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try Data(text.utf8).write(to: url)
         }
         return URL(fileURLWithPath: root.path).resolvingSymlinksInPath()
@@ -89,7 +91,8 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
         defer { try? FileManager.default.removeItem(at: root) }
         let policy = DirectoryWalk.Policy(
             skippedNames: Self.skipped,
-            accepts: { $0.relativePath != "Generated" && !$0.name.hasSuffix(".md") })
+            accepts: { $0.relativePath != "Generated" && !$0.name.hasSuffix(".md") }
+        )
         let result = try DirectoryWalk.walk(root.path, policy: policy)
         let pruned: Bool = result.entries.contains { $0.relativePath.hasPrefix("Generated") }
         let refused: Bool = result.entries.contains { $0.relativePath.hasSuffix(".md") }
@@ -106,7 +109,8 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
             result.entries == [
                 .init(relativePath: "A", kind: .directory), .init(relativePath: "A/B", kind: .directory),
                 .init(relativePath: "A/B/C.swift", kind: .file)
-            ])
+            ]
+        )
     }
 
     /// A root with a link to a directory inside it, a cycle, a link out of it, a dangling link and a link to a file.
@@ -119,7 +123,9 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
         ]
         for (name, destination) in links {
             try FileManager.default.createSymbolicLink(
-                atPath: root.appending(path: name).path, withDestinationPath: destination)
+                atPath: root.appending(path: name).path,
+                withDestinationPath: destination
+            )
         }
         return (root, outside)
     }
@@ -179,13 +185,15 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
         }
         let victim = root.appending(path: "Victim").path
         let result = try DirectoryWalk.walk(
-            root.path, policy: .init(workers: 1),
+            root.path,
+            policy: .init(workers: 1),
             afterListing: { listed in
                 // Once Victim has been listed, swap it for a link to another tree before Deeper is opened.
                 guard listed == "Victim" else { return }
                 try? FileManager.default.removeItem(atPath: victim)
                 try? FileManager.default.createSymbolicLink(atPath: victim, withDestinationPath: target.path)
-            })
+            }
+        )
         let leaked: Bool = result.entries.contains {
             $0.relativePath.contains("Hidden") || $0.relativePath.contains("Secret")
         }
@@ -211,7 +219,8 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
 
     @Test func `a limit stops the walk and says so; cancellation stops it and says so`() throws {
         let root = try Self.tree(
-            files: Dictionary(uniqueKeysWithValues: (0 ..< 50).map { ("D\($0 % 5)/F\($0).swift", "") }))
+            files: Dictionary(uniqueKeysWithValues: (0 ..< 50).map { ("D\($0 % 5)/F\($0).swift", "") })
+        )
         defer { try? FileManager.default.removeItem(at: root) }
         let limited = try DirectoryWalk.walk(root.path, policy: .init(limit: 7))
         #expect(limited.entries.count == 7 && limited.limited)
@@ -233,7 +242,8 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
         #expect(batches > 1)
         #expect(
             streamed.sorted { $0.relativePath < $1.relativePath }
-                == (try DirectoryWalk.walk(root.path, policy: policy).entries))
+                == (try DirectoryWalk.walk(root.path, policy: policy).entries)
+        )
         var failed = false
         do { for try await _ in DirectoryWalk.batches(root.appending(path: "Absent").path) {} } catch {
             failed = error is IOError

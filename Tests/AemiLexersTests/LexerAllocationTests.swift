@@ -19,7 +19,8 @@ extension LexerCorpusTests {
         @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
         @Test(
             .enabled(if: allocationCountingAvailable && !isDebugBuild),
-            arguments: [Language.swift, .json, .yaml, .toml, .html, .css])
+            arguments: [Language.swift, .json, .yaml, .toml, .html, .css]
+        )
         func `a scan makes a handful of allocations`(language: Language) throws {
             let bytes = Array(LexerCorpus.text(language, fragments: 400).utf8)
             _ = SyntaxHighlighter.tokens(utf8: bytes, language: language)

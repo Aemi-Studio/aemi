@@ -28,7 +28,8 @@ struct AemiKernelsUTF16Tests {
                         let (count, bytes) = Self.prefix(units, backend)
                         #expect(
                             count == expectedCount && bytes == expected,
-                            "\(backend), length \(length), stop \(String(describing: stop))")
+                            "\(backend), length \(length), stop \(String(describing: stop))"
+                        )
                     }
                 }
             }

@@ -185,7 +185,8 @@ public final class TestClock: Clock, Sendable, CustomStringConvertible {
                 s.countWaiters.park(id: id, key: count, continuation)
                 return .parked
             },
-            unpark: { $0.countWaiters.remove(id: $1) })
+            unpark: { $0.countWaiters.remove(id: $1) }
+        )
     }
 
     /// A point in the clock's registration history, taken synchronously with ``registrationMark()``
@@ -226,7 +227,8 @@ public final class TestClock: Clock, Sendable, CustomStringConvertible {
                 s.registrationWaiters.park(id: id, key: target, continuation)
                 return .parked
             },
-            unpark: { $0.registrationWaiters.remove(id: $1) })
+            unpark: { $0.registrationWaiters.remove(id: $1) }
+        )
     }
 
     /// Suspend until `count` **further** sleepers park, counting only registrations that happen
@@ -265,7 +267,8 @@ public final class TestClock: Clock, Sendable, CustomStringConvertible {
                 s.untrackedWaiters.park(id: id, key: count, continuation)
                 return .parked
             },
-            unpark: { $0.untrackedWaiters.remove(id: $1) })
+            unpark: { $0.untrackedWaiters.remove(id: $1) }
+        )
     }
 
     /// Runs `body` with every `TestClock` sleep that the tasks it *creates* start marked *untracked*.

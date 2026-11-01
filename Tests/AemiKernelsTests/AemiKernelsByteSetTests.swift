@@ -76,7 +76,8 @@ struct AemiKernelsByteSetTests {
                 let expected = planted.firstIndex { set.contains($0) }
                 #expect(
                     AemiKernels.firstIndex(inSet: table, in: planted, backend: backend) == expected,
-                    "length \(length), hit \(hit)")
+                    "length \(length), hit \(hit)"
+                )
             }
         }
     }

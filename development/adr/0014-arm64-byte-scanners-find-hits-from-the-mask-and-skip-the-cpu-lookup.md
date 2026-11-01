@@ -17,7 +17,7 @@ suspects, each a cost that does not shrink with the input:
 
 ## Probes
 
-`scripts/bench-c-kernels.sh --small`, new: nanoseconds per call, with the previous `adf_scan.c` (`SMALL_BASE=afc1be3`) compiled under other names
+`scripts/bench-c-kernels.sh --small`, new: nanoseconds per call, with the previous `adf_scan.c` (`SMALL_BASE=5ee18dc^`) compiled under other names
 in the same binary; 31 interleaved rounds in a shuffled order; median and p10–p90. Two inputs per length: no hit, and a hit at a random position
 (one input in eight has none) in each of 256 buffers, cycled, so the branch predictor cannot learn a position. Apple M2 Pro class machine, `-Os`
 as SwiftPM builds it.
@@ -47,7 +47,7 @@ as SwiftPM builds it.
   `ADF_ISA_ARM_I8MM`) already ran the same kernel, so nothing is lost. `adf_kernels_isa()` remains for x86-64 and for reporting.
 - The named backends (`_scalar`, `_neon`), and the x86-64 kernels, are unchanged.
 
-## Measured (p50, ns per call; before is `afc1be3`)
+## Measured (p50, ns per call; before is `5ee18dc^`)
 
 | Kernel | Bytes | Input | Before, ns (p10–p90) | After, ns (p10–p90) | Ratio |
 |---|---|---|---|---|---|

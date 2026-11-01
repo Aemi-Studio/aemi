@@ -2,7 +2,7 @@
 // GeneratedUnicodeTables.swift (flat inclusive [lo, hi] pairs, ascending).
 //
 // The tables are generated from the same JavaScriptCore engine that produces
-// the parity fixtures (scripts/gen-unicode-tables.mjs), so every character
+// the parity fixtures (Scripts/gen-unicode-tables.mjs), so every character
 // class decision here matches transformers.js by construction.
 
 public enum UnicodeSets {

@@ -16,6 +16,17 @@ new unsafe use is flagged at compile time. The guiding principle is **no traps a
 — size and offset arithmetic on untrusted input returns `nil` (see ``Swift/FixedWidthInteger/checkedAdding(_:)``)
 rather than aborting the process.
 
+### Embedded Swift
+
+`AemiKernel` and `AemiKernels` build as Embedded Swift, and must stay that way: WineKit links them, with `CAemiKernels`
+and `CAemiCPU`'s feature set, into Wine's `ntdll`, which can carry neither the Swift runtime nor the standard library's
+Unicode tables. In these two targets, anything that needs `Synchronization`, Foundation, `Character` or `String`
+processing, existentials or key paths is guarded by `#if !hasFeature(Embedded)` (today `ByteBufferPool`,
+`HTTPDateParser` and the `Character` helpers of `ASCII`). `Scripts/check-embedded.sh`, run by CI, builds both for arm64
+and x86_64 and fails when the objects need any symbol beyond libc and compiler-rt's CPU model. A consumer outside
+SwiftPM compiles `Sources/CAemiKernels/*.c` and `Sources/CAemiCPU/adf_cpu_features.c` with both targets' `include`
+directories, and imports `CAemiKernels` through its shipped module map.
+
 ## Topics
 
 ### Checked arithmetic

@@ -28,19 +28,23 @@ public enum ASCII {
     }
 }
 
-extension Character {
-    @inlinable public var isASCIIAlpha: Bool {
-        ("a" ... "z").contains(self) || ("A" ... "Z").contains(self)
-    }
-    @inlinable public var isASCIIDigit: Bool { ("0" ... "9").contains(self) }
-    @inlinable public var isASCIIAlphanumeric: Bool { isASCIIAlpha || isASCIIDigit }
-    @inlinable public var isASCIIHexDigit: Bool {
-        isASCIIDigit || ("a" ... "f").contains(self) || ("A" ... "F").contains(self)
-    }
-    @inlinable public var isSubDelimiter: Bool {
-        switch self {
-            case "!", "$", "&", "'", "(", ")", "*", "+", ",", ";", "=": true
-            default: false
+// Not in Embedded Swift: comparing `Character`s needs the standard library's Unicode tables. The `UInt8`
+// statics above are all Embedded code may use.
+#if !hasFeature(Embedded)
+    extension Character {
+        @inlinable public var isASCIIAlpha: Bool {
+            ("a" ... "z").contains(self) || ("A" ... "Z").contains(self)
+        }
+        @inlinable public var isASCIIDigit: Bool { ("0" ... "9").contains(self) }
+        @inlinable public var isASCIIAlphanumeric: Bool { isASCIIAlpha || isASCIIDigit }
+        @inlinable public var isASCIIHexDigit: Bool {
+            isASCIIDigit || ("a" ... "f").contains(self) || ("A" ... "F").contains(self)
+        }
+        @inlinable public var isSubDelimiter: Bool {
+            switch self {
+                case "!", "$", "&", "'", "(", ")", "*", "+", ",", ";", "=": true
+                default: false
+            }
         }
     }
-}
+#endif

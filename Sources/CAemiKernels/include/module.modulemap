@@ -1,0 +1,4 @@
+module CAemiKernels {
+    header "CAemiKernels.h"
+    export *
+}

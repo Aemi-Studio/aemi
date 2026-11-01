@@ -78,7 +78,7 @@ static void fold_neon_impl(uint8_t *dst, const uint8_t *src, size_t len) {
     // The loop now handles 64 bytes per pass. At 16 bytes the loop overhead and the chain latency
     // were a large share of the work.
     //
-    // Remeasured with scripts/bench-c-kernels.sh (ADR-0011): 35 -> 52 GB/s from 1 KiB to 1 MiB, at
+    // Remeasured with Scripts/bench-c-kernels.sh (ADR-0011): 35 -> 52 GB/s from 1 KiB to 1 MiB, at
     // parity with the scalar reference compiled at -O2. SwiftPM builds this target at -Os, where
     // clang does not vectorise the scalar loop (1.9 GB/s), so this kernel is about 27x what the
     // scalar code would ship as.

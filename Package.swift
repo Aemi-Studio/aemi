@@ -175,6 +175,7 @@ let package = Package(
         // Syntax lexers, whole text or a line at a time; not in the AemiFoundation umbrella.
         .library(name: "AemiLexers", targets: ["AemiLexers"]),
         .library(name: "AemiDiff", targets: ["AemiDiff"]),
+        .library(name: "AemiArgon2", targets: ["AemiArgon2"]),
         // Concurrency seams + pools (formerly ADConcurrency).
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
         // Shared swift-syntax helpers for macro compiler plugins. Never re-exported by an umbrella.
@@ -222,7 +223,9 @@ let package = Package(
         ),
         // CAemiKernels — runtime-dispatched SIMD byte kernels in C (per-function
         // `__attribute__((target))` + `pthread_once` feature probe).
-        .target(name: "CAemiKernels", cSettings: strictCSettings),
+        // CAemiCPU — what this CPU can do, asked once: the feature set every C kernel target dispatches on.
+        .target(name: "CAemiCPU", cSettings: strictCSettings),
+        .target(name: "CAemiKernels", dependencies: ["CAemiCPU"], cSettings: strictCSettings),
         // AemiKernels — the pure-Swift facade over CAemiKernels; strict-memory-safe like AemiKernel.
         .target(
             name: "AemiKernels",
@@ -279,6 +282,21 @@ let package = Package(
         .target(
             name: "AemiDiff",
             dependencies: ["AemiKernel", "AemiText", "AemiLexers"],
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
+        // AemiArgon2 — BLAKE2b (RFC 7693) and Argon2d, Argon2i and Argon2id (RFC 9106), for a key from a password, which
+        // neither CryptoKit nor CommonCrypto offers. Standard library only.
+        // CAemiArgon2 — its kernels in C: G and the memory fill, BLAKE2b's F, a constant-time comparison and a wipe;
+        // scalar, NEON, NEON with SHA3, SSSE3 and AVX2, chosen at run time. -O3 in release: the fill is the whole cost.
+        .target(
+            name: "CAemiArgon2",
+            dependencies: ["CAemiCPU"],
+            cSettings: strictCSettings + [.unsafeFlags(["-O3"], .when(configuration: .release))]
+        ),
+        .target(
+            name: "AemiArgon2",
+            dependencies: ["CAemiArgon2"],
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
         ),
@@ -395,6 +413,12 @@ let package = Package(
         .testTarget(
             name: "AemiLexersTests",
             dependencies: ["AemiLexers", "AemiTestKit"],
+            swiftSettings: testSettings
+        ),
+        .testTarget(name: "CAemiCPUTests", dependencies: ["CAemiCPU"], swiftSettings: testSettings),
+        .testTarget(
+            name: "AemiArgon2Tests",
+            dependencies: ["AemiArgon2", "CAemiArgon2", "AemiTestKit"],
             swiftSettings: testSettings
         ),
         .testTarget(

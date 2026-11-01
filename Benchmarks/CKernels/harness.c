@@ -1,6 +1,6 @@
 // Benchmark and differential check for CAemiKernels' fold_ascii and index_of_nonascii.
 //
-// Run through `scripts/bench-c-kernels.sh`, which compiles every variant in its own translation unit
+// Run through `Scripts/bench-c-kernels.sh`, which compiles every variant in its own translation unit
 // with the flags under test. The rules this harness keeps, each answering a mistake already made once:
 //
 // - Variants are reached through function pointers in separate translation units: no inlining, so

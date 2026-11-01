@@ -5,7 +5,7 @@
 # file length, type/function body length, cyclomatic complexity, tuple/parameter arity, nesting.
 # `only_rules` guarantees no SwiftLint style rule can ever fight swift-format.
 #
-# This file is the single source of truth: `scripts/sync-config.sh` copies it into every
+# This file is the single source of truth: `Scripts/sync-config.sh` copies it into every
 # consumer package and the reusable `swift-quality.yml` workflow fails on drift (same model as
 # the canonical `.swift-format`). All metric rules here are plain `lint` rules (NOT analyzer
 # rules), so they run from a normal `swiftlint lint` with no compiler invocation log.
@@ -26,7 +26,7 @@ only_rules:
 
 # Not hand-authored / not shipped source, so excluded from the metrics. SwiftLint resolves these
 # relative to THIS config file's directory, which is why the config is synced to every package root
-# (by scripts/sync-config.sh) and run from there — the same single-source-of-truth model as
+# (by Scripts/sync-config.sh) and run from there — the same single-source-of-truth model as
 # `.swift-format`. The metrics gate the shipped `Sources/` tree; `Tests/` are gated separately.
 excluded:
   - .build

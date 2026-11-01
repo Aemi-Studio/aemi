@@ -20,6 +20,8 @@ extra=""
 if [ "${1:-}" = "--check" ]; then
     mode=check
     extra="-g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+    # The x86-64 pass (below) rebuilds everything for x86_64 and runs it under Rosetta.
+    [ -n "${AEMI_X86:-}" ] && extra="$extra -arch x86_64"
 elif [ "${1:-}" = "--small" ]; then
     mode=small
 fi
@@ -45,8 +47,15 @@ cc -O2 -std=c11 -I"$kernels/include" "$root/Benchmarks/CKernels/harness.c" -o "$
 # shellcheck disable=SC2086
 clang $extra "$out"/*.o -o "$out/bench-c-kernels"
 
-if [ "$mode" = check ]; then
+if [ "$mode" = check ] && [ -n "${AEMI_X86:-}" ]; then
+    # Rosetta runs AVX2 only when asked to advertise it: SSE4.2 first, then AVX2.
+    echo "x86_64 under Rosetta:"; arch -x86_64 "$out/bench-c-kernels" --check
+    echo "x86_64 under Rosetta, AVX2 advertised:"; ROSETTA_ADVERTISE_AVX=1 arch -x86_64 "$out/bench-c-kernels" --check
+elif [ "$mode" = check ]; then
     "$out/bench-c-kernels" --check
+    if [ "$(uname -s)-$(uname -m)" = "Darwin-arm64" ]; then
+        AEMI_X86=1 bash "$0" --check
+    fi
 elif [ "$mode" = small ]; then
     "$out/bench-c-kernels" --small
 else

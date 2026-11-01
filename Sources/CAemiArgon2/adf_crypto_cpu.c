@@ -3,7 +3,7 @@
 //  CAemiArgon2
 //
 //  Which backends this CPU runs, from CAemiCPU's shared feature set: SHA3 is a compile-time constant on Apple silicon,
-//  and AVX2 is withheld under Rosetta 2, which traps it.
+//  and AVX2 runs under Rosetta 2 when Rosetta advertises it.
 //
 
 #include "adf_argon2_internal.h"

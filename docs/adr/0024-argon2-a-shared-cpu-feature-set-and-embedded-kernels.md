@@ -25,9 +25,9 @@ date: 2026-11-01
 - **Asked once, as a set of bits:**
   - arm64: NEON, CRC32, PMULL, AES, SHA2, SHA3, SHA512, DotProd, I8MM, BF16, SVE, SVE2, SME, DIT, SB;
   - x86-64: SSE2 up to AVX-512 VL;
-  - whether the process is translated.
+  - whether the process is translated. Under Rosetta, CPUID is trusted: it reports AVX2 and BMI2 only when the
+    process starts with `ROSETTA_ADVERTISE_AVX=1`, and AVX-512 never.
 - **Where the answers come from:** `sysctl` on Darwin, `getauxval` on Linux, `__builtin_cpu_supports` on x86-64.
-- **Rosetta:** AVX and above stay withheld under Rosetta, as before.
 - **`ADF_CPU_HAS(NAME)`** folds to 1 where the target guarantees the feature.
 - **CAemiKernels' interface is unchanged.** `adf_kernels_isa`, `adf_kernels_has_crc32_pmull` and
   `adf_kernels_backend` now read the set, and choose the same tiers as before: NEON+I8MM with CRC and PMULL natively,
@@ -100,8 +100,11 @@ date: 2026-11-01
   - NEON+SHA3 with DIT takes 9.4–10.6 ms on one lane, and 3.6–4.6 ms on 4 lanes with 4 threads;
   - OpenSSL 4.1 takes 15.1 ms, its process start subtracted;
   - DIT costs about 4% on G.
-- **Rosetta:** AVX2 passes when called directly under Rosetta, so the blanket cap at SSE4.2 is now stricter than
-  needed. It stays until it is measured.
+- **Rosetta (macOS 27):** CPUID reports no AVX by default. With `ROSETTA_ADVERTISE_AVX=1` it reports AVX, AVX2, BMI2
+  and FMA, not AVX-512, and AVX2 and BMI2 code runs correctly. The old blanket cap at SSE4.2 is removed. With it gone,
+  CAemiKernels' AVX2 tier runs for the first time: CRC, bit count and UTF-16, fold and scan, and pair-set all agree
+  with scalar under Rosetta, as does Argon2's AVX2 G. Every x86 check now runs twice under Rosetta, the second time
+  with AVX advertised.
 - **Embedded:** the objects need exactly WineKit's list. A mutation that unguards the `Character` helpers fails with
   the four `__swift_stdlib_*` symbols WineKit reported.
 
@@ -113,5 +116,7 @@ date: 2026-11-01
 - **Timing checks stay local:** CI runners are too noisy for a t-test.
 - **A tool that reads Argon2 parameters from a file** must bound them itself. RFC 9106 allows 4 TiB, and the library
   follows the RFC.
-- **Not regenerable:** `Sources/AemiUnicode/GeneratedUnicodeTables.swift` names a generator that is not in the
-  repository (`gen-unicode-tables.mjs`, since ADFoundation's absorption), so those tables cannot be rebuilt here.
+- **The tokenizer-parity tables are regenerable again.** `GeneratedUnicodeTables.swift` named a generator that had
+  not been in the repository since ADFoundation's absorption. `Scripts/unicode/gen-unicode-tables.mjs` was rewritten
+  from the file's own description and transformers.js's definitions, and on Bun 1.4.4 it reproduces every table
+  exactly; only the engine-version line differs. CI regenerates the tables and compares them.

@@ -257,7 +257,7 @@ static void bench_one(const kernel *kernel, size_t len, int random_hit) {
         }
     }
     scan_fn fns[2] = {kernel->prev, kernel->now};
-    const char *names[2] = {"before (afc1be3)", "after"};
+    const char *names[2] = {"before (5ee18dc^)", "after"};
     size_t iterations = 200000;
     double samples[2][ROUNDS];
     for (int r = 0; r < ROUNDS; ++r) {

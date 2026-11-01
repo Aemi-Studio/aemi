@@ -36,7 +36,7 @@ done
 git -C "$root" show 'aff9ca5^:Sources/CAemiKernels/adf_fold.c' | sed 's/adf_fold_ascii/prev_fold_ascii/g' > "$out/prev_fold.c"
 cc -Os -std=c11 -I"$kernels/include" "$out/prev_fold.c" -o "$out/prev_fold.o"
 # The scanners as they were before the small-input work (SMALL_BASE), under other names: "before" in --small.
-SMALL_BASE=afc1be3
+SMALL_BASE=5ee18dc^
 git -C "$root" show "$SMALL_BASE:Sources/CAemiKernels/adf_scan.c" | sed 's/adf_index_of/prev_index_of/g; s/adf_first_/prev_first_/g' > "$out/prev_scan.c"
 cc -Os -std=c11 -I"$kernels/include" "$out/prev_scan.c" -o "$out/prev_scan.o"
 cc -O2 -std=c11 -I"$kernels/include" "$root/Benchmarks/CKernels/small_inputs.c" -o "$out/small_inputs.o"

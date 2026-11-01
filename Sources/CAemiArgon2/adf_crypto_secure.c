@@ -5,11 +5,16 @@
 //  A comparison whose time depends on the length only, a wipe the optimiser keeps, and Argon2's memory.
 //
 
+// mmap and MAP_ANON are POSIX and BSD; a strict C11 build on Linux hides them unless asked.
+#if defined(__linux__)
+#define _DEFAULT_SOURCE 1
+#endif
+
 #include "adf_argon2_internal.h"
 
 #include <CAemiCPU.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 
 int adf_crypto_equal(const uint8_t *a, const uint8_t *b, size_t length) {
     const adf_timing_token_t token = adf_cpu_timing_safe_begin();
@@ -39,9 +44,11 @@ uint64_t *adf_argon2_allocate(size_t blocks) {
     if (blocks == 0 || blocks > SIZE_MAX / 1024u) {
         return NULL;
     }
-    // C11's aligned_alloc (the size is a multiple of the alignment): 128 bytes, a cache line on Apple silicon and two
-    // on x86-64, so no block straddles one more than it must.
-    return aligned_alloc(128, blocks * 1024u);
+    // Mapped, not malloc'd: munmap gives the pages back to the system at once. A large malloc block, freed, stays resident for
+    // reuse: measured in ask, the 19 MiB of a derivation still counted after it, against a 20 MiB budget. Page-aligned, which is
+    // more than the cache line a block needs.
+    void *memory = mmap(NULL, blocks * 1024u, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    return memory == MAP_FAILED ? NULL : memory;
 }
 
 void adf_argon2_release(uint64_t *memory, size_t blocks) {
@@ -49,5 +56,5 @@ void adf_argon2_release(uint64_t *memory, size_t blocks) {
         return;
     }
     adf_crypto_wipe(memory, blocks * 1024u);
-    free(memory);
+    (void)munmap(memory, blocks * 1024u);
 }

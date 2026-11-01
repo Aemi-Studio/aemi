@@ -3,10 +3,11 @@
 # size/complexity identically: `.swift-format` (style, driven by swift-format) + `.swiftlint.yml`
 # (the size/complexity metrics swift-format cannot express, driven by SwiftLint).
 #
-# Usage:   scripts/sync-config.sh /path/to/consumer-repo
+# Usage:   Scripts/sync-config.sh /path/to/consumer-repo
 # The reusable CI workflow runs the equivalent diffs and fails on drift.
 set -eu
 
+# shellcheck disable=SC1007 # `CDPATH= cd` clears CDPATH for this cd only, so a user's CDPATH cannot redirect it
 here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 dest="${1:-}"

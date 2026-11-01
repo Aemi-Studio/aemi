@@ -81,6 +81,8 @@ umbrella when an Apple application needs that whole group.
 | `AemiMetrics` | Process metrics. |
 | `AemiLexers` | Syntax lexers for 20 languages over borrowed UTF-8: a whole text, or a line at a time from each line's entry state, with the roles and line tokens a highlighter needs. Standard library only; from the 26 releases on. |
 | `AemiDiff` | Text diffs: Myers and histogram line diffs over interned lines, intraline emphasis, moved blocks, hunk layout, unified patches and gutter change marks. Standard library only; from the 26 releases on. |
+| `AemiArgon2` | Argon2d, Argon2i and Argon2id (RFC 9106) and BLAKE2b (RFC 7693), for a key from a password; kernels in C (`CAemiArgon2`): NEON, NEON with SHA3, SSSE3, AVX2, lanes on threads, data-independent timing on Apple silicon, a constant-time comparison and wipes. |
+| `CAemiCPU` | What this CPU can do, asked once: the feature set every C kernel dispatches on, and a data-independent timing scope for code handling secrets. |
 | `AemiRuntime` | Task/clock interfaces, resource and scratch pools, and blocking-work offloading. |
 | `AemiFoundation` | Runtime umbrella for the kernel, text, IO, metrics, and concurrency products. |
 | `AemiMacroSupport` | SwiftSyntax helpers for compiler plugins. Select this only in macro targets. |

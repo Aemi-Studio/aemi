@@ -109,13 +109,32 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27"
       - name: Regenerate and compare
         run: |
-          go run scripts/unicode/gen.go > /tmp/UnicodeDataTables.swift
+          go run Scripts/unicode/gen.go > /tmp/UnicodeDataTables.swift
           diff -u Sources/AemiUnicode/Generated/UnicodeDataTables.swift /tmp/UnicodeDataTables.swift
+
+  embedded:
+    # AemiKernels and AemiKernel as Embedded Swift for arm64 and x86_64 macOS, needing libc only: WineKit links them into
+    # Wine's ntdll, which cannot carry the Swift runtime or its Unicode tables (ADR 0024). Xcode's compiler has no Embedded
+    # standard library, so this uses a swift.org toolchain.
+    name: Embedded Swift, AemiKernel and AemiKernels
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Select the stable SDK
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - name: Install Swift 6.4.1
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        with:
+          swift-version: '6.4.1'
+      - name: Build as Embedded and check the symbols the objects need
+        run: SWIFTC="$(command -v swiftc)" Scripts/check-embedded.sh
 
   c-kernels:
     # The C kernels against their scalar references with AddressSanitizer and UndefinedBehaviorSanitizer: every fold and scan variant,
@@ -132,11 +151,13 @@ jobs:
       - name: Rosetta, for the x86-64 path
         run: sudo softwareupdate --install-rosetta --agree-to-license || true
       - name: Fold and scan kernels
-        run: scripts/bench-c-kernels.sh --check
+        run: Scripts/bench-c-kernels.sh --check
       - name: Pair-set kernel
-        run: scripts/pair-set-check.sh
+        run: Scripts/pair-set-check.sh
       - name: CRC-32C, bit count and UTF-16 kernels (ADR 0020)
-        run: scripts/checksum-kernels-check.sh
+        run: Scripts/checksum-kernels-check.sh
+      - name: Argon2 and BLAKE2b kernels, every backend, natively and SSSE3 and AVX2 under Rosetta (ADR 0024)
+        run: Scripts/argon2/check.sh
 
   c-kernels-linux-arm64:
     # The arm64 paths macOS never builds: the CRC's runtime feature check (HWCAP), and GCC, whose target attributes differ from
@@ -147,9 +168,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: CRC-32C, bit count and UTF-16 kernels with gcc
-        run: CC=gcc scripts/checksum-kernels-check.sh
+        run: CC=gcc Scripts/checksum-kernels-check.sh
+      - name: Argon2 and BLAKE2b kernels with gcc, SHA3 found at run time
+        run: CC=gcc Scripts/argon2/check.sh
       - name: The same with clang
-        run: CC=clang scripts/checksum-kernels-check.sh
+        run: CC=clang Scripts/checksum-kernels-check.sh
 
   result:
     name: ci result

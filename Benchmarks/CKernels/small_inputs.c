@@ -1,6 +1,6 @@
 // Benchmark and differential check of CAemiKernels' byte scanners on inputs of about one line.
 //
-// Run through `scripts/bench-c-kernels.sh --small` (timing) or `--check` (correctness). The harness.c
+// Run through `Scripts/bench-c-kernels.sh --small` (timing) or `--check` (correctness). The harness.c
 // rules apply: every variant sits behind a function pointer in its own translation unit, outputs are
 // consumed, samples are interleaved in a shuffled order, and the figure is a median with its p10-p90
 // spread. What this file adds:

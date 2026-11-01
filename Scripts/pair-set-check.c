@@ -1,6 +1,6 @@
 // Checks the Teddy kernel's SIMD path against its scalar reference on random tables and haystacks, for every start offset, and that no
 // byte past the end of the buffer is read (the bytes after it are poisoned to look like a pair).
-// Built for x86_64 and run under Rosetta by scripts/pair-set-check.sh, to test the SSSE3 path from an arm64 machine. Correctness only:
+// Built for x86_64 and run under Rosetta by Scripts/pair-set-check.sh, to test the SSSE3 path from an arm64 machine. Correctness only:
 // Rosetta timings say nothing about native Intel or AMD speed.
 #include "../Sources/CAemiKernels/include/CAemiKernels.h"
 #include <stdio.h>

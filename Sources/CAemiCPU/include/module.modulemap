@@ -1,0 +1,4 @@
+module CAemiCPU {
+    header "CAemiCPU.h"
+    export *
+}

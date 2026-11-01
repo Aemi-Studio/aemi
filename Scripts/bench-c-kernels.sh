@@ -12,9 +12,8 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 kernels="$root/Sources/CAemiKernels"
-
-strict=$(sed -n '/^let strictCSettings/,/^]/p' "$root/Package.swift" | grep -o '"-[^"]*"' | tr -d '"' | tr '\n' ' ')
-[ -n "$strict" ] || { echo "could not read strictCSettings from Package.swift" >&2; exit 1; }
+AEMI_ROOT="$root"
+. "$root/Scripts/lib/c-targets.sh"
 
 mode=bench
 extra=""
@@ -25,10 +24,12 @@ elif [ "${1:-}" = "--small" ]; then
     mode=small
 fi
 
+# shellcheck disable=SC2086 # $extra is a list of flags
 cc() { clang -c $extra "$@"; }
-for source in "$kernels"/*.c; do
+# CAemiKernels and the feature set it dispatches on (CAemiCPU), as SwiftPM compiles them.
+for source in $KERNELS_SOURCES $CPU_SOURCES; do
     # shellcheck disable=SC2086
-    cc -Os $strict -I"$kernels/include" "$source" -o "$out/$(basename "$source" .c).o"
+    cc -Os $C_STRICT $C_INCLUDES "$source" -o "$out/$(basename "$source" .c).o"
 done
 git -C "$root" show '3e64286^:Sources/CAemiKernels/adf_fold.c' | sed 's/adf_fold_ascii/prev_fold_ascii/g' > "$out/prev_fold.c"
 cc -Os -std=c11 -I"$kernels/include" "$out/prev_fold.c" -o "$out/prev_fold.o"

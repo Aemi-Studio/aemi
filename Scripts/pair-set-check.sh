@@ -4,14 +4,19 @@
 # Exit status is the check's.
 set -eu
 cd "$(dirname "$0")"
+AEMI_ROOT=$(cd .. && pwd)
+. "$AEMI_ROOT/Scripts/lib/c-targets.sh"
 OUT="${TMPDIR:-/tmp}/aemi-pair-set-check"
-SRC="../Sources/CAemiKernels"
+CC="${CC:-cc}"
+KERNEL_FILES="$(kernels adf_teddy adf_cpu) $CPU_SOURCES"
+FILES="pair-set-check.c $KERNEL_FILES"
+CHECK="-O2 -std=c11 -Wall -Wextra -Werror $C_INCLUDES -fsanitize=address,undefined -fno-sanitize-recover=all"
 mkdir -p "$OUT"
-cc -O2 -std=c11 -I"$SRC/include" -fsanitize=address,undefined -o "$OUT/check-host" pair-set-check.c "$SRC/adf_teddy.c" "$SRC/adf_cpu.c"
+# shellcheck disable=SC2086
+"$CC" $CHECK -o "$OUT/check-host" $FILES
 echo "host ($(uname -m)), ASan+UBSan:"; "$OUT/check-host"
 if [ "$(uname -s)-$(uname -m)" = "Darwin-arm64" ]; then
-    cc -O2 -std=c11 -I"$SRC/include" -arch x86_64 -fsanitize=address,undefined -o "$OUT/check-x86" pair-set-check.c "$SRC/adf_teddy.c" \
-        "$SRC/adf_cpu.c" 2>/dev/null \
-        || cc -O2 -std=c11 -I"$SRC/include" -arch x86_64 -o "$OUT/check-x86" pair-set-check.c "$SRC/adf_teddy.c" "$SRC/adf_cpu.c"
+    # shellcheck disable=SC2086
+    "$CC" $CHECK -arch x86_64 -o "$OUT/check-x86" $FILES
     echo "x86_64 under Rosetta (SSSE3):"; arch -x86_64 "$OUT/check-x86"
 fi

@@ -222,14 +222,14 @@ jobs:
         run: |
           fail=0
           diff -u "$GITHUB_WORKSPACE/.aemi-tools/.swift-format" .swift-format \
-            || { echo "::error::.swift-format drifted from canonical — run scripts/sync-config.sh"; fail=1; }
+            || { echo "::error::.swift-format drifted from canonical — run Scripts/sync-config.sh"; fail=1; }
           diff -u "$GITHUB_WORKSPACE/.aemi-tools/.swiftlint.yml" .swiftlint.yml \
-            || { echo "::error::.swiftlint.yml drifted from canonical — run scripts/sync-config.sh"; fail=1; }
+            || { echo "::error::.swiftlint.yml drifted from canonical — run Scripts/sync-config.sh"; fail=1; }
           exit $fail
       - name: Manifest settings drift (canonical swiftSettings present)
         shell: bash
         run: |
-          "$GITHUB_WORKSPACE/.aemi-tools/scripts/check-manifest-settings.sh" Package.swift
+          "$GITHUB_WORKSPACE/.aemi-tools/Scripts/check-manifest-settings.sh" Package.swift
       - name: SwiftLint metrics (size / complexity)
         # swift-format cannot express file-length / cyclomatic-complexity; SwiftLint adds ONLY those
         # metrics (see .swiftlint.yml). ENFORCING (WS3 complete): `--strict` promotes every metric
@@ -261,7 +261,7 @@ jobs:
         if: ${{ inputs.strict-tags }}
         shell: bash
         run: |
-          STRICT_TAGS=1 "$GITHUB_WORKSPACE/.aemi-tools/scripts/check-tags.sh" all
+          STRICT_TAGS=1 "$GITHUB_WORKSPACE/.aemi-tools/Scripts/check-tags.sh" all
 
   static-analysis:
     name: static analysis (arc • clones • dead code)

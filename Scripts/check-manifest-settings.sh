@@ -5,7 +5,7 @@
 # `strictSettings` blocks from silently diverging (the drift that left ADConcurrency / ADTestKit
 # without the import-visibility upcoming features). Run per-package by the reusable swift-quality.yml.
 #
-# Usage: scripts/check-manifest-settings.sh [path/to/Package.swift]   (defaults to ./Package.swift)
+# Usage: Scripts/check-manifest-settings.sh [path/to/Package.swift]   (defaults to ./Package.swift)
 set -eu
 
 manifest="${1:-Package.swift}"

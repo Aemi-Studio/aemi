@@ -21,7 +21,7 @@ public struct LexStates: Sendable, Equatable {
 
     /// Records that line `line` starts in `state`, found by scanning from an exact state. Only a line up to the first
     /// one not yet known extends what is known; a line past the text is ignored.
-    mutating func record(_ state: LexState, at line: Int) {
+    public mutating func record(_ state: LexState, at line: Int) {
         guard line >= 0, line < lineCount, line <= exactLines else { return }
         states[line] = state
         if line == exactLines { exactLines += 1 }

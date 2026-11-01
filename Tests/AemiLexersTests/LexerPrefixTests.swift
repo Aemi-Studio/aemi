@@ -16,9 +16,10 @@ extension LexerCorpusTests {
                 var last = 0
                 for token in SyntaxHighlighter.tokens(utf8: Array(bytes[..<end]), language: language) {
                     #expect(
-                        token.range.lowerBound >= last && !token.range.isEmpty && token.range.upperBound <= end,
-                        "\(language) prefix of \(end) bytes: \(token.range)")
-                    last = token.range.upperBound
+                        token.byteRange.lowerBound >= last && !token.byteRange.isEmpty
+                            && token.byteRange.upperBound <= end,
+                        "\(language) prefix of \(end) bytes: \(token.byteRange)")
+                    last = token.byteRange.upperBound
                 }
             }
         }

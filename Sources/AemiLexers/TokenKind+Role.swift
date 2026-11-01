@@ -1,6 +1,6 @@
 extension TokenKind {
     /// The role a scanner token carries into the shared model.
-    public var role: HighlightRole {
+    var role: HighlightRole {
         switch self {
             case .keyword: .keyword
             case .string: .string

@@ -71,11 +71,11 @@ extension LexerCorpusTests {
 
         @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
         /// FNV-1a over each token's kind and range.
-        private static func checksum(_ tokens: [Token]) -> UInt64 {
+        private static func checksum(_ tokens: [HighlightToken]) -> UInt64 {
             var hash: UInt64 = 14_695_981_039_346_656_037
             for token in tokens {
                 let fields = [
-                    UInt64(token.kind.ordinal), UInt64(token.range.lowerBound), UInt64(token.range.upperBound)
+                    UInt64(token.role.ordinal), UInt64(token.byteRange.lowerBound), UInt64(token.byteRange.upperBound)
                 ]
                 for field in fields { hash = (hash ^ field) &* 1_099_511_628_211 }
             }
@@ -84,7 +84,7 @@ extension LexerCorpusTests {
     }
 }
 
-extension TokenKind {
+extension HighlightRole {
     /// A stable number per kind, for checksums.
     fileprivate var ordinal: Int {
         switch self {
@@ -95,8 +95,9 @@ extension TokenKind {
             case .type: 5
             case .attribute: 6
             case .tag: 7
-            case .attributeName: 8
-            case .entity: 9
+            case .property: 8
+            case .escape: 9
+            default: 100 + Int(rawValue)
         }
     }
 }

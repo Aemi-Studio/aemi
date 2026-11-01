@@ -1,4 +1,6 @@
-public enum TokenKind: Sendable {
+/// The scanners' own shorthand for what a token is; each kind stands for one ``HighlightRole``, which every token
+/// they build carries.
+enum TokenKind: Sendable {
     case keyword
     case string
     case comment
@@ -10,26 +12,20 @@ public enum TokenKind: Sendable {
     case entity
 }
 
-/// A syntax token whose range is in the unit its entry point documents: UTF-8 bytes or UTF-16 units.
-public struct Token: Sendable, Equatable {
-    public let kind: TokenKind
-    public let range: Range<Int>
-
-    public init(kind: TokenKind, range: Range<Int>) {
-        self.kind = kind
-        self.range = range
-    }
-}
-
-/// What a scanner emits, built in place: `Token` for a whole text, `LineToken` for a line.
+/// What a scanner emits, built in place: ``HighlightToken`` for a whole text, ``LineToken`` for a line, so a client
+/// keeps the scanners' tokens as they come.
 ///
 /// Internal on purpose: a generic scan called from another module is not specialized and runs about three times
-/// slower (measured 2026-10-31), so clients take `Token`s and map them to their own type.
+/// slower (measured 2026-10-31), so the entry points build the clients' token types here, in the module.
 protocol ScannerToken {
     init(kind: TokenKind, range: Range<Int>)
 }
 
-extension Token: ScannerToken {}
+extension HighlightToken: ScannerToken {
+    init(kind: TokenKind, range: Range<Int>) {
+        self.init(byteRange: range, role: kind.role, layer: .lexical)
+    }
+}
 
 /// Hand-written scanners over borrowed UTF-8 bytes. Each scan allocates its token array and nothing per token; the
 /// UTF-16 entry points convert the byte offsets once, for callers that index a `String` or a text store.
@@ -40,7 +36,7 @@ extension Token: ScannerToken {}
 public enum SyntaxHighlighter {
     /// Tokens over `text`, with ranges in UTF-16 offsets.
     /// - Complexity: O(UTF-8 length of `text` + tokens)
-    public static func tokens(in text: String, language: Language) -> [Token] {
+    public static func tokens(in text: String, language: Language) -> [HighlightToken] {
         guard language != .plain else { return [] }
         let utf8 = text.utf8Span
         var found = tokens(utf8: utf8.span, language: language)
@@ -51,7 +47,7 @@ public enum SyntaxHighlighter {
     /// Tokens over UTF-16 units, with ranges in UTF-16 offsets. An unpaired surrogate scans as U+FFFD, which takes
     /// one unit as well, so every offset still falls where it does in `units`.
     /// - Complexity: O(`units.count` + tokens)
-    public static func tokens(utf16 units: [UInt16], language: Language) -> [Token] {
+    public static func tokens(utf16 units: [UInt16], language: Language) -> [HighlightToken] {
         guard language != .plain else { return [] }
         let bytes = utf8(of: units)
         var found = tokens(utf8: bytes.span, language: language)
@@ -92,14 +88,14 @@ public enum SyntaxHighlighter {
 
     /// Tokens over UTF-8 bytes, with ranges in byte offsets.
     /// - Complexity: O(`bytes.count` + tokens)
-    public static func tokens(utf8 bytes: [UInt8], language: Language) -> [Token] {
+    public static func tokens(utf8 bytes: [UInt8], language: Language) -> [HighlightToken] {
         tokens(utf8: bytes.span, language: language)
     }
 
     /// Tokens over borrowed UTF-8 bytes, with ranges in byte offsets.
     /// - Complexity: O(`bytes.count` + tokens)
-    public static func tokens(utf8 bytes: Span<UInt8>, language: Language) -> [Token] {
-        scan(utf8: bytes, language: language, as: Token.self)
+    public static func tokens(utf8 bytes: Span<UInt8>, language: Language) -> [HighlightToken] {
+        scan(utf8: bytes, language: language, as: HighlightToken.self)
     }
 
     /// The tokens of `bytes` in `language`, built as `Output`, ascending and disjoint, in byte offsets.
@@ -123,15 +119,15 @@ public enum SyntaxHighlighter {
 
     /// Moves `tokens`, ascending and disjoint in byte offsets over `bytes`, to UTF-16 offsets, in one pass over the
     /// bytes up to the last token's end.
-    private static func moveToUTF16(_ tokens: inout [Token], over bytes: Span<UInt8>) {
+    private static func moveToUTF16(_ tokens: inout [HighlightToken], over bytes: Span<UInt8>) {
         var byte = 0
         var unit = 0
         for index in tokens.indices {
             let token = tokens[index]
-            UTF16Offsets.advance(&byte, to: token.range.lowerBound, in: bytes, counting: &unit)
+            UTF16Offsets.advance(&byte, to: token.byteRange.lowerBound, in: bytes, counting: &unit)
             let start = unit
-            UTF16Offsets.advance(&byte, to: token.range.upperBound, in: bytes, counting: &unit)
-            tokens[index] = Token(kind: token.kind, range: start ..< unit)
+            UTF16Offsets.advance(&byte, to: token.byteRange.upperBound, in: bytes, counting: &unit)
+            tokens[index] = HighlightToken(byteRange: start ..< unit, role: token.role, layer: token.layer)
         }
     }
 }

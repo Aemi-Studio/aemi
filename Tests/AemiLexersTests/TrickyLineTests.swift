@@ -77,31 +77,31 @@ struct TrickyLineTests {
         Case(
             .html, "<a href=\"x\" data-y='z'>&amp; <!-- c --> text</a>",
             [
-                "tag=<a", "attributeName=href", "string=\"x\"", "attributeName=data-y", "string='z'", "tag=>",
-                "entity=&amp;", "comment=<!-- c -->", "tag=</a", "tag=>"
+                "tag=<a", "property=href", "string=\"x\"", "property=data-y", "string='z'", "tag=>",
+                "escape=&amp;", "comment=<!-- c -->", "tag=</a", "tag=>"
             ]),
         Case(
             .css, "@media (min-width: 10px) { .a > #b { color: #fff !important; } }",
             [
-                "attribute=@media", "number=10px", "type=.a", "type=#b", "attributeName=color", "number=#fff",
+                "attribute=@media", "number=10px", "type=.a", "type=#b", "property=color", "number=#fff",
                 "keyword=!important"
             ]),
         Case(
             .json, #"{"key": [1, -2.5e3, true, null, "s\"q"], "k2": {}}"#,
             [
-                #"attributeName="key""#, "number=1", "number=-2.5e3", "keyword=true", "keyword=null", #"string="s\"q""#,
-                #"attributeName="k2""#
+                #"property="key""#, "number=1", "number=-2.5e3", "keyword=true", "keyword=null", #"string="s\"q""#,
+                #"property="k2""#
             ]),
         Case(
             .yaml, "key: value # c\nlist:\n  - \"a\"\n  - 1.5\nanchor: &a *b",
             [
-                "attributeName=key", "comment=# c", "attributeName=list", "string=\"a\"", "number=1.5",
-                "attributeName=anchor", "attribute=&a", "attribute=*b"
+                "property=key", "comment=# c", "property=list", "string=\"a\"", "number=1.5",
+                "property=anchor", "attribute=&a", "attribute=*b"
             ]),
         Case(
             .toml, "[table]\nkey = \"v\" # c\n\"quoted key\" = 1979-05-27T07:32:00Z",
             [
-                "tag=[table]", "attributeName=key", "string=\"v\"", "comment=# c", "attributeName=\"quoted key\"",
+                "tag=[table]", "property=key", "string=\"v\"", "comment=# c", "property=\"quoted key\"",
                 "number=1979-05-27T07:32:00Z"
             ])
     ]
@@ -112,7 +112,7 @@ struct TrickyLineTests {
         let bytes = Array(tricky.text.utf8)
         let tokens = SyntaxHighlighter.tokens(utf8: bytes, language: tricky.language)
 
-        #expect(tokens.map { "\($0.kind)=" + String(decoding: bytes[$0.range], as: UTF8.self) } == tricky.tokens)
+        #expect(tokens.map { "\($0.role)=" + String(decoding: bytes[$0.byteRange], as: UTF8.self) } == tricky.tokens)
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)

@@ -9,7 +9,7 @@ struct UTF16EntryTests {
     func `an unpaired surrogate keeps the offsets after it in units`() {
         let units: [UInt16] = [0xDC00, 0x20, 0xD800] + Array(" let x = 1".utf16)
         let tokens = SyntaxHighlighter.tokens(utf16: units, language: .swift)
-        #expect(tokens == [Token(kind: .keyword, range: 4 ..< 7), Token(kind: .number, range: 12 ..< 13)])
+        #expect(tokens == [lexical(.keyword, 4 ..< 7), lexical(.number, 12 ..< 13)])
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -19,8 +19,8 @@ struct UTF16EntryTests {
         let tokens = SyntaxHighlighter.tokens(utf16: units, language: .swift)
         #expect(
             tokens == [
-                Token(kind: .string, range: 0 ..< 4), Token(kind: .keyword, range: 5 ..< 8),
-                Token(kind: .number, range: 13 ..< 14)
+                lexical(.string, 0 ..< 4), lexical(.keyword, 5 ..< 8),
+                lexical(.number, 13 ..< 14)
             ])
     }
 }

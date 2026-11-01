@@ -33,7 +33,8 @@ struct LexerUnitParityTests {
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     /// Maps a token over one unit type onto scalar indices of `text`, so two unit types compare.
-    private static func scalarRanges(_ tokens: [Token], unitsPerScalar: [Int]) -> [(TokenKind, Range<Int>)] {
+    private static func scalarRanges(_ tokens: [HighlightToken], unitsPerScalar: [Int]) -> [(HighlightRole, Range<Int>)]
+    {
         // unitsPerScalar[i] is the number of units scalar i takes; prefix sums give unit offsets.
         var offsetToScalar: [Int: Int] = [:]
         var offset = 0
@@ -44,8 +45,9 @@ struct LexerUnitParityTests {
         offsetToScalar[offset] = unitsPerScalar.count
         return tokens.map { token in
             (
-                token.kind,
-                (offsetToScalar[token.range.lowerBound] ?? -1) ..< (offsetToScalar[token.range.upperBound] ?? -1)
+                token.role,
+                (offsetToScalar[token.byteRange.lowerBound] ?? -1)
+                    ..< (offsetToScalar[token.byteRange.upperBound] ?? -1)
             )
         }
     }

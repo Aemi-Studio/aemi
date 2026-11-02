@@ -16,7 +16,8 @@ AEMI_ROOT=$(pwd)
 KERNELS_INCLUDE="Sources/CAemiKernels/include"
 # libc, and compiler-rt's __cpu_model and __cpu_indicator_init (`__builtin_cpu_supports` on x86-64).
 ALLOWED="__bzero __cpu_indicator_init __cpu_model arc4random_buf bzero free memchr memcmp memcpy memmove memset posix_memalign pthread_once strlen sysctlbyname"
-SWIFT_FLAGS="-enable-experimental-feature Embedded -wmo -Osize -parse-as-library -strict-memory-safety -Xfrontend -disable-stack-protector"
+# `-package-name`: AemiKernel calls the kernels' `package` facades (ADR 0025, 0026), so both modules are one package.
+SWIFT_FLAGS="-enable-experimental-feature Embedded -wmo -Osize -parse-as-library -strict-memory-safety -package-name aemi -Xfrontend -disable-stack-protector"
 status=0
 for arch in arm64 x86_64; do
     target="$arch-apple-macos15"

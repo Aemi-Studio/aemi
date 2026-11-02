@@ -52,8 +52,11 @@ struct TestClockRendezvousTests {
             parkSleepers(1, on: clock, in: &group)
             try? await clock.waitForSleepers(atLeast: 1)
 
-            // Target not yet met, so this genuinely suspends until the second sleeper parks.
+            // Target not yet met, so this genuinely suspends until the second sleeper parks. Park the second
+            // sleeper only once it has: a waiter that first ran after `runToLastSleeper()` emptied the clock
+            // would wait for two sleepers that never come, and the group would never finish.
             group.addTask { try? await clock.waitForSleepers(atLeast: 2) }
+            while clock.rendezvousWaiterCount < 1 { await Task.yield() }
             parkSleepers(1, on: clock, in: &group)
 
             try? await clock.waitForSleepers(atLeast: 2)

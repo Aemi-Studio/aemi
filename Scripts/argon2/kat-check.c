@@ -208,7 +208,7 @@ static void argon2_answer(uint32_t type, const char *tag_hex, int backend, uint3
 // MARK: - The secure helpers
 
 static void secure_helpers(void) {
-    uint8_t a[300], b[300];
+    uint8_t a[300] = {0}, b[300] = {0};
     for (size_t len = 0; len <= 300; len++) {
         for (size_t i = 0; i < len; i++) a[i] = b[i] = (uint8_t)(i * 29 + 7);
         EXPECT(adf_crypto_equal(a, b, len) == 1, "equal: equal buffers of %zu", len);

@@ -1,29 +1,25 @@
+internal import AemiKernels
+
 /// In-house byte-needle search + split over a `[UInt8]` buffer — the primitive that
 /// `multipart/form-data` boundary scanning and similar wire-format parsing need (MultipartKit is
-/// `vapor/*`, excluded by the dependency rule). Pure standard library, no unsafe pointers (so it is
-/// `StrictMemorySafety`-clean). Relocated from ADServe's `MultipartParser` so any AD-family parser
-/// can share one scanner instead of re-rolling it; semantics are byte-identical to that original.
+/// `vapor/*`, excluded by the dependency rule). Relocated from ADServe's `MultipartParser` so any
+/// AD-family parser can share one scanner instead of re-rolling it; its answers are those of that
+/// original. The search runs on the SIMD kernel of `AemiKernels` (NEON, AVX2, SSE2) and is linear
+/// in the worst case whatever the input: a crafted one falls back to Knuth-Morris-Pratt.
 public enum ByteSearch {
     /// The first range of `needle` within `haystack`, expressed in `haystack`'s OWN indices (an
     /// `ArraySlice` keeps its parent array's indices, not 0-based ones), or `nil` when `needle` is
-    /// empty, longer than `haystack`, or absent. A plain forward scan — no skip table — matching the
-    /// extracted original; do not "optimize" it without a benchmark proving a real parser hot path.
+    /// empty, longer than `haystack`, or absent.
+    ///
+    /// - Complexity: O(`haystack.count` + `needle.count`) for every input (ADR 0026).
     public static func firstRange(of needle: [UInt8], in haystack: ArraySlice<UInt8>) -> Range<Int>? {
         guard !needle.isEmpty, haystack.count >= needle.count else { return nil }
-        let lastStart = haystack.endIndex - needle.count
-        var index = haystack.startIndex
-        while index <= lastStart {
-            if haystack[index] == needle[0] {
-                var matched = true
-                for offset in 1 ..< needle.count where haystack[index + offset] != needle[offset] {
-                    matched = false
-                    break
-                }
-                if matched { return index ..< (index + needle.count) }
-            }
-            index += 1
+        let found = haystack.withUnsafeBufferPointer { hay in
+            needle.withUnsafeBufferPointer { pattern in unsafe AemiKernels.firstIndex(of: pattern, in: hay) }
         }
-        return nil
+        guard let found else { return nil }
+        let start = haystack.startIndex + found
+        return start ..< (start + needle.count)
     }
 
     /// Split `bytes` on every non-overlapping occurrence of `separator`, returning the slices

@@ -50,7 +50,7 @@ to move it to ARM assembly kernels, with unrolling and the arm64 features, reusi
 | 1 MiB | 2.90 → 22.0 | 1.70 → 11.6 | 1.55 → 3.94 |
 
 Below about 100 bytes the ~90 ns of the result allocation dominates and nothing changes; at 16 B no block is complete.
-The kernels alone (`Scripts/base64-kernels-check.sh --bench`, against their C scalar references): encode 3.5 → 22.6 GB/s, decode
+The kernels alone (`Scripts/codec-kernels-check.sh --bench`, against their C scalar references): encode 3.5 → 22.6 GB/s, decode
 3.1 → 11.7 GB/s of output.
 
 ### x86-64 under Rosetta 2 (translation: indicative only, not real x86 hardware), same Swift benchmark, 1 MiB
@@ -67,19 +67,19 @@ nothing here says how the AVX2 kernels run on an Intel core; the next section do
 ### x86-64 on real hardware: Intel Core i5-8500B (Coffee Lake, AVX2, no AVX-512), macOS 15.6, Swift 6.3.2, release
 
 Swift end to end at 1 MiB (an Apple-silicon Mac, 2026-11-02): encode 1.08 → **11.45** GB/s, decode 0.60 → **6.24**, `.mime` decode 0.55 → 1.28;
-at 1 KiB encode 0.83 → 2.68, decode 0.49 → 1.80. The kernels alone (`Scripts/base64-kernels-check.sh --bench`), 1 MiB, input GB/s for
+at 1 KiB encode 0.83 → 2.68, decode 0.49 → 1.80. The kernels alone (`Scripts/codec-kernels-check.sh --bench`), 1 MiB, input GB/s for
 encode and decoded-output GB/s for decode: scalar C 1.48 / 1.37, SSSE3 6.32 / 3.45, **AVX2 11.34 / 6.08**. AVX2 is 1.8× SSSE3 here, and the
 dispatcher chooses it natively, so the rule that sends a Rosetta process to SSSE3 (where AVX2 was slower) costs nothing on real hardware.
-The sanitized differential check (67,200 checks per backend, ASan and UBSan) and `AemiBase64Probe` (189,708 checks) pass on it with 0 mismatches.
+The sanitized differential check (67,200 checks per backend, ASan and UBSan) and `AemiCodecProbe` (189,708 checks) pass on it with 0 mismatches.
 
 ## Checks
 
-- `Scripts/base64-kernels-check.sh`: 67,200 differential checks per backend (dispatched, SSSE3, AVX2; four alphabets: standard,
+- `Scripts/codec-kernels-check.sh`: 67,200 differential checks per backend (dispatched, SSSE3, AVX2; four alphabets: standard,
   URL-safe, `A-Za-z0-9*,`, and a shuffled one; every length 0…699; a bad byte at a random position), with exact-size buffers
   under AddressSanitizer and UBSan, native arm64 and x86-64 under Rosetta 2, SSSE3 and AVX2 advertised: 0 mismatches. Mutation
   checks: loosening the SSSE3 decode bound by 8 bytes gives a heap-buffer-overflow; a wrong compare constant in the encode
   reduction gives 23,186 mismatches.
-- `AemiBase64Probe` (`swift run --arch x86_64 AemiBase64Probe`, with and without `ROSETTA_ADVERTISE_AVX=1`): 189,708 Swift-level
+- `AemiCodecProbe` (`swift run --arch x86_64 AemiCodecProbe`, with and without `ROSETTA_ADVERTISE_AVX=1`): 189,708 Swift-level
   checks per tier (all four alphabets, every length to 400, a bad byte at every position of every 5th length, limits, 1 MiB round
   trips; contiguous against the byte engine), 0 failures on arm64 and on x86-64 under Rosetta. The test target itself does not
   build for x86-64 (`ShortestDoubleTests.swift:49`, a Double literal that underflows there; unrelated, not fixed), hence the probe.

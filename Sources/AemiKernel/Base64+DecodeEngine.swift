@@ -22,6 +22,9 @@ extension Base64 {
         private let canonical: Bool
         private let whitespace: WhitespacePolicy
         private let lineLimit: Int
+        /// Whether whole lines of `lineLimit` symbols can go to the line kernel: line breaks are skipped and the width is a
+        /// whole number of groups.
+        private let wholeLines: Bool
         private let limit: Int
         private let limitError: DecodeError
 
@@ -47,6 +50,7 @@ extension Base64 {
             whitespace = options.whitespace
             // Columns are only meaningful when line breaks are skipped, so only then is a limit enforced.
             lineLimit = options.whitespace == .reject ? Int.max : (options.effectiveLineLength ?? Int.max)
+            wholeLines = lineLimit != Int.max && lineLimit % 4 == 0 && lineLimit >= 16
             if let maximum = options.effectiveMaximumDecodedSize, maximum <= out.count {
                 limit = maximum
                 limitError = .outputTooLarge(limit: maximum)
@@ -67,6 +71,19 @@ extension Base64 {
             var cursor = written
             var col = column
             let end = input.count
+            // At the start of a line of wrapped text, whole lines of exactly `lineLimit` symbols and a line break go to the line
+            // kernel; it stops before any other line (and before what would pass `limit`), which the paths below then take.
+            if wholeLines, col == 0, end - position > lineLimit {
+                let lines = unsafe AemiKernels.base64DecodeLines(
+                    lookup: lut,
+                    tail: tail,
+                    input: UnsafeBufferPointer(rebasing: input[position...]),
+                    output: UnsafeMutableBufferPointer(rebasing: out[cursor ..< limit]),
+                    width: lineLimit
+                )
+                position += lines.consumed
+                cursor += lines.written
+            }
             // Whole blocks (64 symbols on NEON, 16 or 32 on x86-64) go to the SIMD kernel, capped so that it neither crosses the line limit nor
             // writes past `limit`; the loop below takes what is left, including the block with a bad byte.
             let room = Swift.min(end - position, 4 * ((limit - cursor) / 3), lineLimit - col)

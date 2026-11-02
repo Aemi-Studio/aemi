@@ -119,24 +119,52 @@ extension Base64 {
         options: Options
     ) -> Int {
         let total = out.count
-        let symbols = symbolCount(forByteCount: input.count, padded: options.writesPadding)
-        // Symbols go to the END of the buffer; wrapping then moves each line forward over the gap and
-        // writes the separator after it, so wrapping needs no second buffer.
-        let start = total - symbols
-        options.alphabet.encodeTable.withUnsafeBufferPointer { table in
+        let tail = options.alphabet.rangedTail
+        return options.alphabet.encodeTable.withUnsafeBufferPointer { table in
+            // Wrapped text whose width is a whole number of groups: every line but the last goes straight to its place through
+            // the line kernel, endings included; the last line (at most `width` symbols) is written in place after them.
+            if let width = options.effectiveLineLength, width % 4 == 0 {
+                let lines = unsafe AemiKernels.base64EncodeLines(
+                    table: table,
+                    tail: tail,
+                    input: input,
+                    output: out,
+                    width: width,
+                    crlf: options.lineEnding == .crlf
+                )
+                let rest = unsafe UnsafeBufferPointer(rebasing: input[lines.consumed...])
+                let symbols = symbolCount(forByteCount: rest.count, padded: options.writesPadding)
+                precondition(
+                    symbols <= width && lines.written + symbols == total,
+                    "Base64: the line kernel left \(rest.count) bytes for \(total - lines.written) places"
+                )
+                unsafe writeSymbols(
+                    of: rest,
+                    to: out,
+                    at: lines.written,
+                    table: table,
+                    tail: tail,
+                    padded: options.writesPadding
+                )
+                return total
+            }
+            let symbols = symbolCount(forByteCount: input.count, padded: options.writesPadding)
+            // Symbols go to the END of the buffer; wrapping then moves each line forward over the gap and
+            // writes the separator after it, so wrapping needs no second buffer.
+            let start = total - symbols
             unsafe writeSymbols(
                 of: input,
                 to: out,
                 at: start,
                 table: table,
-                tail: options.alphabet.rangedTail,
+                tail: tail,
                 padded: options.writesPadding
             )
+            if let width = options.effectiveLineLength, symbols > 0 {
+                unsafe wrapLines(in: out, from: start, symbols: symbols, width: width, ending: options.lineEnding)
+            }
+            return total
         }
-        if let width = options.effectiveLineLength, symbols > 0 {
-            unsafe wrapLines(in: out, from: start, symbols: symbols, width: width, ending: options.lineEnding)
-        }
-        return total
     }
 
     private static func symbolCount(forByteCount count: Int, padded: Bool) -> Int {

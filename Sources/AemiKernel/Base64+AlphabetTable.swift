@@ -21,6 +21,10 @@ extension Base64 {
         /// Byte → sextet value, or ``invalidSextet`` for a byte outside the alphabet. Always 256 elements.
         let decodeTable: [UInt8]
 
+        /// `plus | slash << 8` when the alphabet is `A-Za-z0-9` followed by two other symbols (the standard and URL-safe
+        /// alphabets, and any custom one of that shape), else 0. The x86-64 block kernels compute symbols from this shape.
+        let rangedTail: UInt16
+
         /// The marker ``decodeTable`` holds for a byte that is not in the alphabet.
         static let invalidSextet: UInt8 = 0xFF
 
@@ -67,6 +71,9 @@ extension Base64 {
             var reverse = [UInt8](repeating: Self.invalidSextet, count: 256)
             for (value, byte) in validSymbols.enumerated() { reverse[Int(byte)] = UInt8(value) }
             self.encodeTable = validSymbols
+            let head = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".utf8)
+            self.rangedTail =
+                validSymbols.starts(with: head) ? UInt16(validSymbols[62]) | UInt16(validSymbols[63]) << 8 : 0
             self.decodeTable = reverse
         }
     }

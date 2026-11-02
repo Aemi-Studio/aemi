@@ -36,3 +36,7 @@ A preset is a value: change a field to tune it (`var options = Base64.Options.pe
 set `errorReporting = .uniform` to hide the failure cause from remote parties, or supply a validated
 custom alphabet with `Base64.AlphabetTable(symbols:)`. Contiguous input (`Array`, `ArraySlice`, a
 native `String`'s UTF-8, `Span`) takes a table-driven fast path.
+
+On arm64 contiguous input is encoded and decoded 48 and 64 bytes at a time with NEON; on x86-64, 12 or 24 bytes with SSSE3 or AVX2
+for the standard, URL-safe and any other `A-Za-z0-9`-prefixed alphabet. Results, errors and error offsets are identical to the
+scalar engine's (ADR 0025).

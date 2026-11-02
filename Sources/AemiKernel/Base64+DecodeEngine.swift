@@ -1,3 +1,5 @@
+internal import AemiKernels
+
 extension Base64 {
     /// The single decode state machine behind every public decode entry point.
     ///
@@ -15,6 +17,7 @@ extension Base64 {
 
         private let lut: UnsafeBufferPointer<UInt8>
         private let out: UnsafeMutableBufferPointer<UInt8>
+        private let tail: UInt16
         private let padding: PaddingPolicy
         private let canonical: Bool
         private let whitespace: WhitespacePolicy
@@ -38,6 +41,7 @@ extension Base64 {
         ) {
             unsafe self.lut = lut
             unsafe self.out = out
+            tail = options.alphabet.rangedTail
             padding = options.padding
             canonical = options.trailingBits == .canonical
             whitespace = options.whitespace
@@ -63,6 +67,20 @@ extension Base64 {
             var cursor = written
             var col = column
             let end = input.count
+            // Whole blocks (64 symbols on NEON, 16 or 32 on x86-64) go to the SIMD kernel, capped so that it neither crosses the line limit nor
+            // writes past `limit`; the loop below takes what is left, including the block with a bad byte.
+            let room = Swift.min(end - position, 4 * ((limit - cursor) / 3), lineLimit - col)
+            if room >= 24 {
+                let consumed = unsafe AemiKernels.base64DecodeBlocks(
+                    lookup: lut,
+                    tail: tail,
+                    input: UnsafeBufferPointer(rebasing: input[position ..< position + room]),
+                    output: UnsafeMutableBufferPointer(rebasing: out[cursor...])
+                )
+                position += consumed
+                cursor += consumed / 4 * 3
+                col += consumed
+            }
             while end - position >= 4, limit - cursor >= 3, lineLimit - col >= 4 {
                 let a = unsafe lut[Int(unsafe input[position])]
                 let b = unsafe lut[Int(unsafe input[position + 1])]

@@ -48,15 +48,15 @@ struct UnifiedPatchTests {
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     @Test
     func `git patches parse into per-file hunks with added, deleted, renamed and binary files`() {
-        let patch = UnifiedPatch(parsing: Self.gitPatch)
-
-        let oldPaths: [String?] = ["Sources/App.swift", nil, "Old.swift", "Was.swift", "Image.png"]
-        let newPaths: [String?] = ["Sources/App.swift", "New.swift", nil, "Is.swift", "Image.png"]
-        let binary: [Bool] = [false, false, false, false, true]
-        #expect(patch.files.map(\.oldPath) == oldPaths)
-        #expect(patch.files.map(\.newPath) == newPaths)
-        #expect(patch.files.map(\.isBinary) == binary)
-        #expect(patch.files[3].isRename)
+        let files: [UnifiedPatch.FileChange] = UnifiedPatch(parsing: Self.gitPatch).files
+        Self.expectPaths(
+            of: files,
+            old: ["Sources/App.swift", nil, "Old.swift", "Was.swift", "Image.png"],
+            new: ["Sources/App.swift", "New.swift", nil, "Is.swift", "Image.png"]
+        )
+        let binary: [Bool] = files.map { (file: UnifiedPatch.FileChange) -> Bool in file.isBinary }
+        #expect(binary == [false, false, false, false, true])
+        #expect(files[3].isRename)
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -75,15 +75,13 @@ struct UnifiedPatchTests {
     func `reconstructed texts place hunks at their line numbers and omit missing sides`() {
         let patch = UnifiedPatch(parsing: Self.gitPatch)
 
-        let modified = patch.files[0].reconstructedTexts
-        #expect(modified.old == "\n\nlet a = 1\nlet b = 2\nlet c = 4\n")
-        #expect(modified.new == "\n\nlet a = 1\nlet b = 3\nlet c = 4\n")
-        let added = patch.files[1].reconstructedTexts
-        #expect(added.old == Optional<String>.none)
-        #expect(added.new == "line one\nline two\n")
-        let deleted = patch.files[2].reconstructedTexts
-        #expect(deleted.old == "gone\n")
-        #expect(deleted.new == Optional<String>.none)
+        Self.expectTexts(
+            of: patch.files[0],
+            old: "\n\nlet a = 1\nlet b = 2\nlet c = 4\n",
+            new: "\n\nlet a = 1\nlet b = 3\nlet c = 4\n"
+        )
+        Self.expectTexts(of: patch.files[1], old: nil, new: "line one\nline two\n")
+        Self.expectTexts(of: patch.files[2], old: "gone\n", new: nil)
         let renamed: String = patch.files[3].reconstructedTexts.new ?? ""
         let renamedLines: Int = renamed.split(separator: "\n", omittingEmptySubsequences: false).count
         #expect(renamedLines == 12)
@@ -107,10 +105,23 @@ struct UnifiedPatchTests {
             """
         let patch = UnifiedPatch(parsing: text)
 
-        #expect(patch.files.map(\.oldPath) == ["before.txt", "other.txt"])
-        #expect(patch.files.map(\.newPath) == ["after.txt", "other.txt"])
-        #expect(patch.files[0].hunks[0].lines.map(\.text) == ["same", "a", "b"])
-        #expect(patch.files[1].hunks[0].lines.map(\.kind) == [.removed, .added])
+        let oldPaths: [String?] = ["before.txt", "other.txt"]
+        let newPaths: [String?] = ["after.txt", "other.txt"]
+        let texts: [String] = ["same", "a", "b"]
+        let kinds: [UnifiedPatch.Hunk.LineKind] = [.removed, .added]
+        let files: [UnifiedPatch.FileChange] = patch.files
+        let actualOld: [String?] = files.map { (file: UnifiedPatch.FileChange) -> String? in file.oldPath }
+        let actualNew: [String?] = files.map { (file: UnifiedPatch.FileChange) -> String? in file.newPath }
+        let actualTexts: [String] = files[0].hunks[0].lines
+            .map { (line: UnifiedPatch.Hunk.Line) -> String in line.text }
+        let actualKinds: [UnifiedPatch.Hunk.LineKind] = files[1].hunks[0].lines
+            .map {
+                (line: UnifiedPatch.Hunk.Line) -> UnifiedPatch.Hunk.LineKind in line.kind
+            }
+        #expect(actualOld == oldPaths)
+        #expect(actualNew == newPaths)
+        #expect(actualTexts == texts)
+        #expect(actualKinds == kinds)
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
@@ -145,5 +156,22 @@ struct UnifiedPatchTests {
         #expect(file.hunks[0].newStart == UnifiedPatch.maximumLineNumber)
         let texts = file.reconstructedTexts
         #expect((texts.new ?? "").utf8.count <= UnifiedPatch.maximumLineNumber + 2)
+    }
+
+    /// Each file's old and new paths.
+    @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+    private static func expectPaths(of files: [UnifiedPatch.FileChange], old: [String?], new: [String?]) {
+        let actualOld: [String?] = files.map { (file: UnifiedPatch.FileChange) -> String? in file.oldPath }
+        let actualNew: [String?] = files.map { (file: UnifiedPatch.FileChange) -> String? in file.newPath }
+        #expect(actualOld == old)
+        #expect(actualNew == new)
+    }
+
+    /// The texts a file's hunks rebuild, each side compared on its own.
+    @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+    private static func expectTexts(of file: UnifiedPatch.FileChange, old: String?, new: String?) {
+        let texts: (old: String?, new: String?) = file.reconstructedTexts
+        #expect(texts.old == old)
+        #expect(texts.new == new)
     }
 }

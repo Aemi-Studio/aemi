@@ -215,6 +215,11 @@ static b64_block_encoder b64_encoder_for(uint16_t tail) {
 #define ADF_B64_SSSE3 __attribute__((target("ssse3")))
 #define ADF_B64_AVX2 __attribute__((target("avx2")))
 
+// Out-of-line SSSE3 entry points (defined below): a function compiled without SSSE3 may call these, never the always-inline
+// steps, which on an x86-64 baseline without SSSE3 (Linux; macOS's baseline has it) cannot be inlined into it.
+ADF_B64_SSSE3 static size_t b64_decode_x86_ssse3_all(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
+ADF_B64_SSSE3 static size_t b64_encode_x86_ssse3_all(const uint8_t *table, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
+
 /// Offsets that turn a sextet into its symbol, picked by `subs(s, 51)` (or 13 for s < 26): Muła and Lemire's reduction.
 ADF_B64_SSSE3 __attribute__((always_inline)) static inline __m128i b64_offsets(uint16_t tail) {
     const char plus = (char)(uint8_t)((tail & 0xFF) - 62), slash = (char)(uint8_t)((tail >> 8) - 63);
@@ -298,7 +303,7 @@ size_t adf_b64_encode_blocks_avx2(const uint8_t *table, uint16_t tail, const uin
 
 size_t adf_b64_encode_blocks_ssse3(const uint8_t *table, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out) {
     if (tail == 0 || !adf_cpu_has(ADF_CPU_SSSE3)) return adf_b64_encode_blocks_scalar(table, in, len, out);
-    return b64_encode_x86_ssse3(table, tail, in, len, out, 0);
+    return b64_encode_x86_ssse3_all(table, tail, in, len, out);
 }
 
 size_t adf_b64_encode_blocks(const uint8_t *table, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out) {
@@ -391,7 +396,7 @@ size_t adf_b64_decode_blocks_avx2(const uint8_t *lut, uint16_t tail, const uint8
 
 size_t adf_b64_decode_blocks_ssse3(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out) {
     if (tail == 0 || !adf_cpu_has(ADF_CPU_SSSE3)) return adf_b64_decode_blocks_scalar(lut, in, len, out);
-    return b64_decode_x86_ssse3(lut, tail, in, len, out, 0);
+    return b64_decode_x86_ssse3_all(lut, tail, in, len, out);
 }
 
 size_t adf_b64_decode_blocks(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out) {
@@ -407,10 +412,10 @@ static size_t b64_scalar_encode_any(const uint8_t *table, uint16_t tail, const u
     (void)tail;
     return adf_b64_encode_blocks_scalar(table, in, len, out);
 }
-ADF_B64_SSSE3 __attribute__((always_inline)) static inline size_t b64_decode_x86_ssse3_all(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out) {
+ADF_B64_SSSE3 static size_t b64_decode_x86_ssse3_all(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out) {
     return b64_decode_x86_ssse3(lut, tail, in, len, out, 0);
 }
-ADF_B64_SSSE3 __attribute__((always_inline)) static inline size_t b64_encode_x86_ssse3_all(const uint8_t *table, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out) {
+ADF_B64_SSSE3 static size_t b64_encode_x86_ssse3_all(const uint8_t *table, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out) {
     return b64_encode_x86_ssse3(table, tail, in, len, out, 0);
 }
 

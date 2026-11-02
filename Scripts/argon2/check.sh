@@ -41,10 +41,24 @@ SANITIZE="-fsanitize=address,undefined -fno-sanitize-recover=all"
 # shellcheck disable=SC2086
 "$CC" $FLAGS ${EXTRA_CFLAGS:-} $SANITIZE -o "$OUT/check-host" kernels-check.c $FILES -lpthread
 echo "host ($(uname -m))${SANITIZE:+, ASan+UBSan}:"; "$OUT/check-host"
+# The published answers (RFC 7693, RFC 9106) and the secure helpers, independent of the scalar references.
+# shellcheck disable=SC2086
+"$CC" $FLAGS ${EXTRA_CFLAGS:-} $SANITIZE -o "$OUT/kat-host" kat-check.c $FILES -lpthread
+"$OUT/kat-host"
+if [ -z "${NO_SANITIZE:-}" ] && [ "$(uname -s)" = Darwin ]; then
+    # The threaded fill under ThreadSanitizer: lanes filled by several threads must not race.
+    # shellcheck disable=SC2086
+    "$CC" $FLAGS -fsanitize=thread -o "$OUT/kat-threads" kat-check.c $FILES -lpthread
+    echo "ThreadSanitizer:"; "$OUT/kat-threads"
+fi
 if [ "$(uname -s)-$(uname -m)" = "Darwin-arm64" ]; then
     # shellcheck disable=SC2086
     "$CC" $FLAGS -arch x86_64 -fsanitize=address,undefined -fno-sanitize-recover=all -o "$OUT/check-x86" kernels-check.c $FILES
     echo "x86_64 under Rosetta, ASan+UBSan:"; arch -x86_64 "$OUT/check-x86"
     # Rosetta runs AVX2 only when asked to advertise it.
     echo "x86_64 under Rosetta, AVX2 advertised:"; ROSETTA_ADVERTISE_AVX=1 arch -x86_64 "$OUT/check-x86"
+    # shellcheck disable=SC2086
+    "$CC" $FLAGS -arch x86_64 -fsanitize=address,undefined -fno-sanitize-recover=all -o "$OUT/kat-x86" kat-check.c $FILES
+    arch -x86_64 "$OUT/kat-x86"
+    ROSETTA_ADVERTISE_AVX=1 arch -x86_64 "$OUT/kat-x86"
 fi

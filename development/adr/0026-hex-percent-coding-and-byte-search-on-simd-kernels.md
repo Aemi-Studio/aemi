@@ -49,7 +49,7 @@ i5-8500B decode is 0.84 against 1.32 GB/s for the reference), still above the Sw
 
 ## Checks
 
-- `Scripts/codec-kernels-check.sh` (renamed from `base64-kernels-check.sh`; `KERNELS=` selects harnesses): hex 14,400 checks per
+- `Scripts/kernels-check.sh` (renamed from `base64-kernels-check.sh`; `KERNELS=` selects harnesses): hex 14,400 checks per
   backend (every length to 599, both cases, mixed-case decode, a bad byte, odd lengths), percent 39,984 (two sets, four densities,
   one byte short of capacity, damaged and form decodes), find 8,048 (small alphabets, present and absent needles, and the
   adversarial inputs, 16 of which give up as designed and must rule out exactly the starts before `resume`). ASan and UBSan, exact

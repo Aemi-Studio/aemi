@@ -167,8 +167,8 @@ jobs:
         run: Scripts/checksum-kernels-check.sh
       - name: Argon2 and BLAKE2b kernels, every backend, natively and SSSE3 and AVX2 under Rosetta (ADR 0024)
         run: Scripts/argon2/check.sh
-      - name: Base64, hex, percent-coding and search kernels, natively and SSSE3 and AVX2 under Rosetta (ADR 0025, 0026)
-        run: Scripts/codec-kernels-check.sh
+      - name: Every CAemiKernels kernel, exhaustive, guard pages, ThreadSanitizer, natively and SSSE3 and AVX2 under Rosetta (ADR 0027)
+        run: Scripts/kernels-check.sh
 
   c-kernels-linux-arm64:
     # The arm64 paths macOS never builds: the CRC's runtime feature check (HWCAP), and GCC, whose target attributes differ from
@@ -185,9 +185,30 @@ jobs:
       - name: The same with clang
         run: CC=clang Scripts/checksum-kernels-check.sh
 
+  c-kernels-linux-x86:
+    # Real x86-64 hardware, which the macOS jobs only reach through Rosetta: an SSE2 baseline (where a target-attribute slip that
+    # macOS's SSSE3 baseline hides breaks the build) and the runner's AVX2 run natively, with the swift.org clang's sanitizers and
+    # libFuzzer (ADR 0027). Every kernel check, then a minute of fuzzing per target.
+    name: C kernels, x86-64 Linux, checks and fuzzing
+    runs-on: ubuntu-latest
+    container: swift:6.4.1-noble
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: CAemiKernels, exhaustive and under ThreadSanitizer
+        run: bash Scripts/kernels-check.sh
+      - name: Pair sets, checksums, Argon2 and BLAKE2b (published answers included)
+        run: |
+          CC=clang bash Scripts/pair-set-check.sh
+          CC=clang bash Scripts/checksum-kernels-check.sh
+          CC=clang sh Scripts/argon2/check.sh
+      - name: Fuzzing, 60 s per target
+        run: FUZZ_CLANG=clang bash Scripts/kernels-fuzz.sh 60
+
   result:
     name: ci result
-    needs: [test, unicode-tables, c-kernels, c-kernels-linux-arm64]
+    needs: [test, unicode-tables, c-kernels, c-kernels-linux-arm64, c-kernels-linux-x86]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 2

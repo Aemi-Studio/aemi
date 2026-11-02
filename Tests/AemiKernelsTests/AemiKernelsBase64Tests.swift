@@ -76,26 +76,40 @@ struct AemiKernelsBase64Tests {
         for inputEdge in GuardedBytes.Edge.allCases {
             for outputEdge in GuardedBytes.Edge.allCases {
                 for count in Self.lengths {
-                    for badAt in [nil, count - 1, count / 2] {
-                        var text = (0 ..< count).map { Self.symbols[($0 &* 7 &+ 3) % 64] }
-                        if let badAt, badAt >= 0, badAt < count { text[badAt] = UInt8(ascii: "!") }
-                        GuardedBytes.with(text, against: inputEdge) { input in
-                            GuardedBytes.with([UInt8](repeating: 0, count: count / 4 * 3), against: outputEdge) {
-                                fast in
-                                GuardedBytes.with([UInt8](repeating: 0, count: count / 4 * 3), against: outputEdge) {
-                                    slow in
-                                    let consumed = decode(input, count, fast, backend: .fastest)
-                                    let reference = decode(input, count, slow, backend: .scalar)
-                                    #expect(
-                                        consumed % 4 == 0 && consumed <= reference,
-                                        "length \(count) bad \(String(describing: badAt))"
-                                    )
-                                    #expect((0 ..< consumed / 4 * 3).allSatisfy { fast[$0] == slow[$0] })
-                                    if let badAt, badAt >= 0, badAt < count { #expect(consumed <= badAt) }
-                                }
-                            }
-                        }
+                    let bads: [Int?] = [nil, count - 1, count / 2]
+                    for badAt in bads {
+                        checkGuardedDecode(count: count, badAt: badAt, inputEdge: inputEdge, outputEdge: outputEdge)
                     }
+                }
+            }
+        }
+    }
+
+    /// One case of the guarded decode test, kept apart so that each body stays quick to type-check.
+    private func checkGuardedDecode(
+        count: Int,
+        badAt: Int?,
+        inputEdge: GuardedBytes.Edge,
+        outputEdge: GuardedBytes.Edge
+    ) {
+        var text: [UInt8] = (0 ..< count).map { (index: Int) -> UInt8 in Self.symbols[(index &* 7 &+ 3) % 64] }
+        let bad: Int? = badAt.flatMap { (at: Int) -> Int? in at >= 0 && at < count ? at : nil }
+        if let bad { text[bad] = UInt8(ascii: "!") }
+        let outputCount: Int = count / 4 * 3
+        GuardedBytes.with(text, against: inputEdge) { input in
+            GuardedBytes.with([UInt8](repeating: 0, count: outputCount), against: outputEdge) { fast in
+                GuardedBytes.with([UInt8](repeating: 0, count: outputCount), against: outputEdge) { slow in
+                    let consumed: Int = decode(input, count, fast, backend: .fastest)
+                    let reference: Int = decode(input, count, slow, backend: .scalar)
+                    #expect(
+                        consumed % 4 == 0 && consumed <= reference,
+                        "length \(count) bad \(String(describing: bad))"
+                    )
+                    let decoded: Int = consumed / 4 * 3
+                    var same = true
+                    for index in 0 ..< decoded where fast[index] != slow[index] { same = false }
+                    #expect(same)
+                    if let bad { #expect(consumed <= bad) }
                 }
             }
         }

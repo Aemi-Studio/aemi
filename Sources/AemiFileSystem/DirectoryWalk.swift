@@ -53,6 +53,10 @@ public enum DirectoryWalk {
         /// Worker threads; four was the measured knee (diary 2026-10-29-02).
         public var workers: Int
         /// Polled between directories; true stops the walk, and the result says it was cancelled.
+        ///
+        /// It runs on the walk's worker threads, not on the caller's task, so `Task.isCancelled` read there answers
+        /// for no task and never stops the walk. Capture a flag the caller sets instead, or use ``cancellableWalk(_:policy:)``
+        /// or ``batches(_:policy:)``, which tie the walk to the caller's cancellation.
         public var isCancelled: (@Sendable () -> Bool)?
 
         public init(
@@ -119,6 +123,32 @@ public enum DirectoryWalk {
     /// - Throws: an ``IOError`` when the root itself cannot be opened.
     public static func walk(_ root: String, policy: Policy = Policy()) throws(IOError) -> Result {
         try walk(root, policy: policy, afterListing: nil)
+    }
+
+    /// Walks `root` under `policy`, stopping when the calling task is cancelled (the result then says so) as well as
+    /// when the policy's own ``Policy/isCancelled`` asks. The walk runs on its worker threads while the caller waits.
+    /// - Throws: an ``IOError`` when the root itself cannot be opened.
+    public static func cancellableWalk(_ root: String, policy: Policy = Policy()) async throws(IOError) -> Result {
+        let stopped = Flag()
+        var policy = policy
+        let asked = policy.isCancelled
+        policy.isCancelled = { stopped.isSet || asked?() == true }
+        let bound = policy
+        let walked: Swift.Result<Result, IOError> = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                let run: @Sendable () -> Void = {
+                    do throws(IOError) {
+                        continuation.resume(returning: .success(try walk(root, policy: bound)))
+                    } catch {
+                        continuation.resume(returning: .failure(error))
+                    }
+                }
+                if !WorkerThread.spawn(run) { run() }
+            }
+        } onCancel: {
+            stopped.set()
+        }
+        return try walked.get()
     }
 
     /// The test seam for a tree changing under the walk: called after a directory is listed and before any of its

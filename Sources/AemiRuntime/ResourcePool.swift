@@ -24,7 +24,8 @@ public enum ResourcePoolError: Error, Sendable {
     case resourceUnavailable(index: Int, count: Int, path: String)
 }
 
-/// A fixed-size pool of `count` pre-opened `Resource`s with wait-free checkout.
+/// A fixed-size pool of `count` pre-opened `Resource`s with wait-free checkout, and an `async` ``acquire()`` that waits
+/// for one when all are out.
 ///
 /// Checkout happens INSIDE the work that needs a resource, so at most `count` are out at once
 /// and a checkout never blocks (it returns `nil` when momentarily drained — the caller decides
@@ -34,19 +35,94 @@ public enum ResourcePoolError: Error, Sendable {
 ///
 /// Generalized from apple-docs' server `ConnectionPool` so the seam can be shared by the
 /// extracted server and an async database façade without either depending on the other.
-public final class ResourcePool<Resource: PooledResource>: Sendable {
-    private let free: Mutex<[Resource]>
+public final class ResourcePool<Resource: Sendable>: Sendable {
+    /// The free resources and the tasks waiting in ``acquire()``, oldest first.
+    private struct State {
+        var free: [Resource]
+        var waiters: [(id: UInt64, continuation: CheckedContinuation<Resource, any Error>)] = []
+        var nextWaiter: UInt64 = 0
+    }
+
+    private let state: Mutex<State>
     /// The number of resources the pool was built with (its maximum concurrent checkouts).
     public let count: Int
 
+    /// Build a pool of `max(1, count)` resources from `make`, called with each index in order; the first error it
+    /// throws is rethrown and no pool is built. The factory form for resources that are not opened from a path (a
+    /// worker slot, a scratch directory per index).
+    public init<Failure: Error>(count: Int, make: (_ index: Int) throws(Failure) -> Resource) throws(Failure) {
+        let target = max(1, count)
+        var resources: [Resource] = []
+        resources.reserveCapacity(target)
+        for index in 0 ..< target { resources.append(try make(index)) }
+        state = Mutex(State(free: resources))
+        self.count = resources.count
+    }
+
+    /// Pop a free resource, or `nil` when all `count` are currently checked out.
+    public func checkout() -> Resource? { state.withLock { $0.free.popLast() } }
+
+    /// A free resource, waiting for a ``checkin(_:)`` when all are out; waiters are served oldest first.
+    /// - Throws: `CancellationError` when the calling task is cancelled while it waits; it then holds nothing.
+    public func acquire() async throws -> Resource {
+        if let resource = checkout() { return resource }
+        let id = state.withLock { state -> UInt64 in
+            state.nextWaiter += 1
+            return state.nextWaiter
+        }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                // Under the lock that `onCancel` also takes: a cancellation either came before (the flag is set, so
+                // the waiter is never registered) or comes after (it finds the waiter and resumes it).
+                let outcome: AcquireOutcome<Resource> = state.withLock { state in
+                    if let resource = state.free.popLast() { return .served(resource) }
+                    if Task.isCancelled { return .cancelled }
+                    state.waiters.append((id, continuation))
+                    return .waiting
+                }
+                switch outcome {
+                    case .served(let resource): continuation.resume(returning: resource)
+                    case .cancelled: continuation.resume(throwing: CancellationError())
+                    case .waiting: break
+                }
+            }
+        } onCancel: {
+            let waiter = state.withLock { state -> CheckedContinuation<Resource, any Error>? in
+                guard let index = state.waiters.firstIndex(where: { $0.id == id }) else { return nil }
+                return state.waiters.remove(at: index).continuation
+            }
+            waiter?.resume(throwing: CancellationError())
+        }
+    }
+
+    /// Return a resource to the pool: to the oldest waiting ``acquire()`` if any, else to the free-list. Prefer
+    /// `lease()`, which does this automatically.
+    public func checkin(_ resource: Resource) {
+        let waiter = state.withLock { state -> CheckedContinuation<Resource, any Error>? in
+            guard !state.waiters.isEmpty else {
+                state.free.append(resource)
+                return nil
+            }
+            return state.waiters.removeFirst().continuation
+        }
+        waiter?.resume(returning: resource)
+    }
+}
+
+/// What ``ResourcePool/acquire()`` found under the lock.
+private enum AcquireOutcome<Resource> {
+    case served(Resource)
+    case cancelled
+    case waiting
+}
+
+extension ResourcePool where Resource: PooledResource {
     /// Build a pool of `max(1, count)` resources by opening `Resource(path:)` that many times.
     /// `nil` if ANY open fails — the pool is all-or-nothing, so a partial pool never ships.
     ///
     /// The historical, source-stable entry point: it collapses every failure to `nil`. When you
     /// need to know WHICH resource failed (to log it), use the throwing `init(diagnostic:count:)`
-    /// below — it discards its `ResourcePoolError` with `try?`. (A `convenience`
-    /// initializer because a class designated initializer cannot delegate with `self.init`; for
-    /// this `final` class that is invisible at every call site — the call syntax is unchanged.)
+    /// below — it discards its `ResourcePoolError` with `try?`.
     public convenience init?(path: String, count: Int) {
         try? self.init(diagnostic: path, count: count)
     }
@@ -61,32 +137,22 @@ public final class ResourcePool<Resource: PooledResource>: Sendable {
     /// `init?(path:count:)`; the two overloads are otherwise identically shaped. Existing call
     /// sites that wrote `ResourcePool(path:count:)` keep resolving to the failable initializer, so
     /// source compatibility for this zero-dependency leaf is preserved.)
-    public init(diagnostic path: String, count: Int) throws(ResourcePoolError) {
+    public convenience init(diagnostic path: String, count: Int) throws(ResourcePoolError) {
         let target = max(1, count)
-        var resources: [Resource] = []
-        resources.reserveCapacity(target)
-        for index in 0 ..< target {
+        try self.init(count: target) { index throws(ResourcePoolError) in
             guard let resource = Resource(path: path) else {
                 throw .resourceUnavailable(index: index, count: target, path: path)
             }
-            resources.append(resource)
+            return resource
         }
-        free = Mutex(resources)
-        self.count = resources.count
     }
-
-    /// Pop a free resource, or `nil` when all `count` are currently checked out.
-    public func checkout() -> Resource? { free.withLock { $0.popLast() } }
-
-    /// Return a resource to the free-list. Prefer `lease()`, which does this automatically.
-    public func checkin(_ resource: Resource) { free.withLock { $0.append(resource) } }
 }
 
 /// A single-owner, compile-enforced borrow of a pooled `Resource`. Noncopyable, so it cannot be
 /// duplicated (no double-checkout) and the resource returns to the pool on `deinit` at every
 /// scope exit — replacing a manual `checkout()` + `defer { checkin() }` pair, where an early
 /// `return` between the two would silently leak a resource. Obtain one with `ResourcePool.lease()`.
-public struct ResourceLease<Resource: PooledResource>: ~Copyable {
+public struct ResourceLease<Resource: Sendable>: ~Copyable {
     /// The borrowed resource — valid for the lease's lifetime; returned to the pool on `deinit`.
     public let resource: Resource
     private let pool: ResourcePool<Resource>
@@ -105,5 +171,10 @@ extension ResourcePool {
     public func lease() -> ResourceLease<Resource>? {
         guard let resource = checkout() else { return nil }
         return ResourceLease(resource: resource, pool: self)
+    }
+
+    /// Borrow a resource as a `ResourceLease`, waiting as ``acquire()`` does when all are out.
+    public func acquireLease() async throws -> ResourceLease<Resource> {
+        ResourceLease(resource: try await acquire(), pool: self)
     }
 }

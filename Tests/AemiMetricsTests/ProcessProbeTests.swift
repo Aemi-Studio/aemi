@@ -58,3 +58,23 @@ struct ProcessProbeTests {
         }
     #endif
 }
+
+#if os(macOS) || os(Linux)
+    import Foundation
+
+    @Suite struct ChildrenUsageTests {
+        @Test func `children's CPU grows by what a waited-for child used`() throws {
+            let before = ProcessProbe.childrenCPUNanos()
+            let child = Process()
+            child.executableURL = URL(fileURLWithPath: "/bin/sh")
+            // About 0.3 s of CPU in the shell itself.
+            child.arguments = ["-c", "i=0; while [ $i -lt 60000 ]; do i=$((i+1)); done"]
+            try child.run()
+            child.waitUntilExit()
+            let after = ProcessProbe.childrenCPUNanos()
+            let used = (after.user &+ after.system) &- (before.user &+ before.system)
+            #expect(used > 10_000_000)
+            #expect(ProcessProbe.childrenPeakResidentBytes() > 0)
+        }
+    }
+#endif

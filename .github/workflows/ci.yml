@@ -52,7 +52,7 @@ jobs:
       # not meant for Linux (AemiCore imports Combine).
       - name: Build the products the tools take
         run: |
-          for product in AemiFileSystem AemiIO AemiKernel AemiKernels AemiRuntime AemiMetrics AemiMacroSupport AemiTestKit; do
+          for product in AemiFileSystem AemiIO AemiKernel AemiKernels AemiRuntime AemiMetrics AemiProcess AemiMacroSupport AemiTestKit; do
             echo "::group::$product"
             swift build --product "$product"
             echo "::endgroup::"

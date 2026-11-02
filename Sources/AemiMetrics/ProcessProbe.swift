@@ -132,6 +132,40 @@ public enum ProcessProbe {
         #endif
     }
 
+    /// User and system CPU nanoseconds of every child the process has waited for, and their descendants that were
+    /// waited for (`getrusage(RUSAGE_CHILDREN)`).
+    ///
+    /// A running total over all children: the difference across an interval attributes CPU to the children that
+    /// finished in it, which is exact only when one child runs at a time (a baseline run measured alone, say). It is
+    /// how a supervisor measures how many cores a child keeps busy (CPU over wall time). Per-child accounting needs the
+    /// usage the reaping call returns; the process runner that reaps the child has to report it.
+    public static func childrenCPUNanos() -> (user: UInt64, system: UInt64) {
+        let ru = childrenUsage()
+        return (timevalNanos(ru.ru_utime), timevalNanos(ru.ru_stime))
+    }
+
+    /// The largest peak resident set of any child waited for, in bytes (`getrusage(RUSAGE_CHILDREN)` high-water
+    /// mark), normalized as ``peakResidentBytes()`` is.
+    public static func childrenPeakResidentBytes() -> UInt64 {
+        let ru = childrenUsage()
+        #if canImport(Darwin)
+            return UInt64(clamping: ru.ru_maxrss)
+        #else
+            return UInt64(clamping: ru.ru_maxrss) &* 1024
+        #endif
+    }
+
+    /// `getrusage(RUSAGE_CHILDREN)`, spelled per libc as ``selfUsage()`` explains.
+    private static func childrenUsage() -> rusage {
+        var ru = rusage()
+        #if canImport(Glibc)
+            _ = getrusage(RUSAGE_CHILDREN.rawValue, &ru)
+        #else
+            _ = getrusage(RUSAGE_CHILDREN, &ru)
+        #endif
+        return ru
+    }
+
     /// `getrusage(RUSAGE_SELF)` with the `who` argument spelled per libc. Darwin (and Musl) declare
     /// the parameter `Int32` and export `RUSAGE_SELF` to match, but Glibc's importer vends
     /// `RUSAGE_SELF` as the C enum `__rusage_who` while `getrusage` still takes a plain `Int32`,

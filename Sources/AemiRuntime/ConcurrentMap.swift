@@ -44,3 +44,52 @@ public func mapConcurrently<Item: Sendable, Result: Sendable>(
     try Task.checkCancellation()
     return results.compactMap { $0 }
 }
+
+/// Transforms `items` concurrently with at most `limit` transforms in flight, handing each result to `each` as soon as
+/// it is ready, in completion order.
+///
+/// The form for work whose results must be kept as they come (journalled, reported) rather than when the last one is
+/// done: a crash then loses only the transforms in flight. `each` runs on the calling task, one result at a time, so
+/// it needs no synchronisation; the next transform starts once `each` returns, which bounds both the work in flight
+/// and the results waiting to be handled. An error from a transform or from `each` cancels the transforms still
+/// running and is rethrown; cancelling the caller cancels them too and throws `CancellationError`.
+///
+/// A callback rather than an `AsyncSequence`: the transforms stay child tasks of the caller's task group, so their
+/// lifetime and cancellation are the caller's, with no unstructured task to stop.
+///
+/// - Parameters:
+///   - items: The inputs, submitted in order.
+///   - limit: The maximum number of transforms in flight; a value below one behaves as one.
+///   - transform: The transform applied to each item; it runs on the cooperative pool.
+///   - each: Receives the index of an item and its result.
+/// - Throws: The first error a transform or `each` throws, or `CancellationError` if the caller is cancelled.
+/// - Complexity: O(n) tasks over the whole run, O(`limit`) in flight and in storage.
+public func forEachConcurrently<Item: Sendable, Result: Sendable>(
+    _ items: [Item],
+    limit: Int,
+    _ transform: @Sendable @escaping (Item) async throws -> Result,
+    each: (_ index: Int, _ result: Result) async throws -> Void
+) async throws {
+    let limit = max(limit, 1)
+    try await withThrowingTaskGroup(of: (Int, Result).self) { group in
+        var next = 0
+        func enqueue() {
+            let index = next
+            let item = items[index]
+            group.addTask { (index, try await transform(item)) }
+            next += 1
+        }
+        while next < min(limit, items.count) {
+            try Task.checkCancellation()
+            enqueue()
+        }
+        while let (index, result) = try await group.next() {
+            try await each(index, result)
+            if next < items.count {
+                try Task.checkCancellation()
+                enqueue()
+            }
+        }
+    }
+    try Task.checkCancellation()
+}

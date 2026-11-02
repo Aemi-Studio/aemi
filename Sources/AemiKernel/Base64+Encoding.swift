@@ -1,3 +1,5 @@
+internal import AemiKernels
+
 // Configurable encoding. The `Alphabet`/`padding:` overloads stay in `Base64.swift` and delegate here.
 extension Base64 {
     /// Encodes `bytes` under `options`: the alphabet, `=` padding (written unless
@@ -122,7 +124,14 @@ extension Base64 {
         // writes the separator after it, so wrapping needs no second buffer.
         let start = total - symbols
         options.alphabet.encodeTable.withUnsafeBufferPointer { table in
-            unsafe writeSymbols(of: input, to: out, at: start, table: table, padded: options.writesPadding)
+            unsafe writeSymbols(
+                of: input,
+                to: out,
+                at: start,
+                table: table,
+                tail: options.alphabet.rangedTail,
+                padded: options.writesPadding
+            )
         }
         if let width = options.effectiveLineLength, symbols > 0 {
             unsafe wrapLines(in: out, from: start, symbols: symbols, width: width, ending: options.lineEnding)
@@ -140,11 +149,24 @@ extension Base64 {
         to out: UnsafeMutableBufferPointer<UInt8>,
         at start: Int,
         table: UnsafeBufferPointer<UInt8>,
+        tail: UInt16,
         padded: Bool
     ) {
         var source = 0
         var target = start
         let end = input.count
+        // Whole blocks go to the SIMD kernel (48 bytes on NEON, 12 or 24 on x86-64). The facade checks that the output
+        // holds the symbols of the rest of the input; `symbolCount` reserved exactly that from `target` on.
+        if end >= 16 {
+            let consumed = unsafe AemiKernels.base64EncodeBlocks(
+                table: table,
+                tail: tail,
+                input: input,
+                output: UnsafeMutableBufferPointer(rebasing: out[target...])
+            )
+            source += consumed
+            target += consumed / 3 * 4
+        }
         while end - source >= 3 {
             let chunk =
                 (UInt32(unsafe input[source]) << 16) | (UInt32(unsafe input[source + 1]) << 8)

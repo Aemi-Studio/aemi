@@ -68,6 +68,11 @@ public enum AemiKernels {
         backend: Backend = .fastest
     ) {
         guard count > 0 else { return }
+        // In place (`dst == src`) is the one overlap the kernels support: each block is loaded whole before it is stored.
+        // Any other overlap would have a store clobber bytes still to be read, so it traps rather than corrupt silently.
+        let shared = unsafe overlaps(UnsafePointer(dst), count, src, count)
+        let sameBuffer = unsafe UnsafePointer(dst) == src
+        precondition(!shared || sameBuffer, "foldASCII: dst and src overlap without being the same buffer")
         switch backend {
             case .fastest: unsafe adf_fold_ascii(dst, src, count)
             case .scalar: unsafe adf_fold_ascii_scalar(dst, src, count)
@@ -345,6 +350,33 @@ public enum AemiKernels {
         into out: UnsafeMutablePointer<UInt32>
     ) {
         guard count > 0, width > 0 else { return }
+        // The distance is a `UInt32`, so a vector of 512 MiB or more could wrap it, and `width * count` must not overflow.
+        precondition(width <= Int(UInt32.max) / 8, "hammingScan: width \(width) could overflow a UInt32 distance")
+        let (bytes, overflow) = width.multipliedReportingOverflow(by: count)
+        precondition(!overflow && bytes >= 0, "hammingScan: width * count overflows")
         unsafe adf_hamming_scan(query, corpus, width, count, out)
+    }
+
+    /// The same scan over buffers, with the sizes checked: `query` holds `width` bytes, `corpus` holds `count` vectors of
+    /// `width` bytes, and `out` has room for `count` distances. A buffer too small traps before the kernel runs.
+    ///
+    /// - Precondition: `query.count >= width`; `corpus.count >= width * count` (no overflow); `out.count >= count`; `out` is
+    ///   neither of the inputs.
+    public static func hammingScan(
+        query: UnsafeBufferPointer<UInt8>,
+        corpus: UnsafeBufferPointer<UInt8>,
+        width: Int,
+        count: Int,
+        into out: UnsafeMutableBufferPointer<UInt32>
+    ) {
+        precondition(width >= 0 && count >= 0, "hammingScan: negative width or count")
+        let (bytes, overflow) = width.multipliedReportingOverflow(by: count)
+        precondition(!overflow, "hammingScan: width * count overflows")
+        precondition(query.count >= width, "hammingScan: the query is shorter than width")
+        precondition(corpus.count >= bytes, "hammingScan: the corpus holds fewer than count vectors")
+        precondition(out.count >= count, "hammingScan: no room for count distances")
+        guard count > 0, width > 0, let q = query.baseAddress, let c = corpus.baseAddress, let o = out.baseAddress
+        else { return }
+        unsafe hammingScan(query: q, corpus: c, width: width, count: count, into: o)
     }
 }

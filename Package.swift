@@ -240,6 +240,13 @@ let package = Package(
             dependencies: ["AemiKernels"],
             swiftSettings: strictSettings
         ),
+        // AemiBase64Probe — the same for Base64: block kernels against the byte engine, on the host's tier
+        // (`swift run --arch x86_64 AemiBase64Probe`, and with ROSETTA_ADVERTISE_AVX=1 for AVX2).
+        .executableTarget(
+            name: "AemiBase64Probe",
+            dependencies: ["AemiKernel", "AemiKernels"],
+            swiftSettings: strictSettings
+        ),
         .target(
             name: "AemiUnicode",
             dependencies: ["AemiKernel"],

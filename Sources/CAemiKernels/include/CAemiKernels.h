@@ -214,4 +214,28 @@ size_t adf_pair_set_find_scalar(const uint8_t *table, const uint8_t *hay, size_t
 size_t adf_pair_set_candidates(
     const uint8_t *table, const uint8_t *hay, size_t len, size_t from, size_t *out, size_t cap, size_t *resume);
 
+// MARK: - Base64 blocks
+
+/// `tail` is `plus | slash << 8` when the alphabet is `A-Za-z0-9` followed by the symbols `plus` and `slash` (sextets 62 and 63), else 0.
+/// arm64 ignores it (a `tbl` lookup serves any alphabet); x86-64 computes the symbols and so needs it, and runs the scalar reference when
+/// it is 0.
+///
+/// Encodes whole blocks of `in[0 ..< len]` with `table` (the 64 symbols, indexed by sextet) into `out`, and returns how many input bytes it
+/// consumed (a multiple of 3: of 48 for NEON, 12 or 24 for SSSE3 or AVX2). `out` has room for `consumed / 3 * 4` bytes. Padding, tails and
+/// line wrapping are the caller's. NEON on arm64, SSSE3 or AVX2 on x86-64 when present, else the scalar reference.
+size_t adf_b64_encode_blocks(const uint8_t *table, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
+size_t adf_b64_encode_blocks_scalar(const uint8_t *table, const uint8_t *in, size_t len, uint8_t *out);
+/// Decodes whole blocks of `in[0 ..< len]` through `lut` (256 bytes, the sextet of each byte, or a value >= 0x40 for a byte that
+/// is not a symbol) into `out`, stopping before the first block with a byte that is not a symbol, and returns how many symbols it
+/// consumed (a multiple of 4; the vector kernels stop at the first block with such a byte, the scalar reference at its group). `out` has room for `consumed / 4 * 3` bytes, and the caller
+/// guarantees `len / 4 * 3` of them. The caller decodes the rest and reports errors.
+size_t adf_b64_decode_blocks(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
+size_t adf_b64_decode_blocks_scalar(const uint8_t *lut, const uint8_t *in, size_t len, uint8_t *out);
+/// The x86-64 backends by name, for differential tests and benchmarks. Each self-guards: without its feature, or with `tail` 0, it is the scalar
+/// reference (as on every other architecture). The dispatchers choose AVX2, but SSSE3 in a process translated by Rosetta 2, where AVX2 is slower.
+size_t adf_b64_encode_blocks_ssse3(const uint8_t *table, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
+size_t adf_b64_encode_blocks_avx2(const uint8_t *table, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
+size_t adf_b64_decode_blocks_ssse3(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
+size_t adf_b64_decode_blocks_avx2(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
+
 #endif /* CADFKERNELS_H */

@@ -167,6 +167,8 @@ jobs:
         run: Scripts/checksum-kernels-check.sh
       - name: Argon2 and BLAKE2b kernels, every backend, natively and SSSE3 and AVX2 under Rosetta (ADR 0024)
         run: Scripts/argon2/check.sh
+      - name: Base64, hex, percent-coding and search kernels, natively and SSSE3 and AVX2 under Rosetta (ADR 0025, 0026)
+        run: Scripts/codec-kernels-check.sh
 
   c-kernels-linux-arm64:
     # The arm64 paths macOS never builds: the CRC's runtime feature check (HWCAP), and GCC, whose target attributes differ from

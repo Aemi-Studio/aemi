@@ -53,6 +53,7 @@ recorded what it had to build around aemi (Litmus `docs/upstream-recommendations
 7. **`ContentDigest.sha256`** in `AemiKernel`: CommonCrypto (the CPU's SHA instructions) on Apple platforms, a
    portable FIPS 180-4 implementation elsewhere, held to the NIST vectors and, on Apple platforms, to CommonCrypto over
    random inputs and random splits. No package: swift-crypto would have added a dependency for Linux alone.
+   *Superseded by ADR 0029*: `ContentDigest` moved to `AemiDigest`, on CryptoKit and swift-crypto.
 
 ## Consequences
 

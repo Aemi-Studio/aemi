@@ -77,13 +77,14 @@ private struct Slot: Sendable, Equatable {
         let pool = ResourcePool(count: 1) { Slot(index: $0) }
         let held = try #require(pool.checkout())
         let order = Mutex<[Int]>([])
-        let first = Task {
+        // Explicitly @Sendable: Swift 6.3 cannot prove a closure that captures the noncopyable `order` safe to send.
+        let first = Task { @Sendable in
             let slot = try await pool.acquire()
             order.withLock { $0.append(1) }
             pool.checkin(slot)
         }
         try await Task.sleep(for: .milliseconds(50))
-        let second = Task {
+        let second = Task { @Sendable in
             let slot = try await pool.acquire()
             order.withLock { $0.append(2) }
             pool.checkin(slot)

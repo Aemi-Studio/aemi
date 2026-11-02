@@ -62,7 +62,15 @@ The kernels alone (`Scripts/base64-kernels-check.sh --bench`, against their C sc
 | AVX2 kernels (`ROSETTA_ADVERTISE_AVX=1`, forced) | 2.2 | 1.5 | 0.87 |
 
 The kernels alone: scalar C 2.2 / 0.74 GB/s, SSSE3 6.25 / 3.77, AVX2 2.2 / 1.6. Rosetta's AVX2 is a translation to 128-bit NEON, so
-nothing here says how the AVX2 kernels run on an Intel or AMD core; that is **unmeasured**.
+nothing here says how the AVX2 kernels run on an Intel core; the next section does.
+
+### x86-64 on real hardware: Intel Core i5-8500B (Coffee Lake, AVX2, no AVX-512), macOS 15.6, Swift 6.3.2, release
+
+Swift end to end at 1 MiB (an Apple-silicon Mac, 2026-11-02): encode 1.08 → **11.45** GB/s, decode 0.60 → **6.24**, `.mime` decode 0.55 → 1.28;
+at 1 KiB encode 0.83 → 2.68, decode 0.49 → 1.80. The kernels alone (`Scripts/base64-kernels-check.sh --bench`), 1 MiB, input GB/s for
+encode and decoded-output GB/s for decode: scalar C 1.48 / 1.37, SSSE3 6.32 / 3.45, **AVX2 11.34 / 6.08**. AVX2 is 1.8× SSSE3 here, and the
+dispatcher chooses it natively, so the rule that sends a Rosetta process to SSSE3 (where AVX2 was slower) costs nothing on real hardware.
+The sanitized differential check (67,200 checks per backend, ASan and UBSan) and `AemiBase64Probe` (189,708 checks) pass on it with 0 mismatches.
 
 ## Checks
 
@@ -101,5 +109,5 @@ AemiProtobuf's `ProtoJSONBase64` now uses this codec instead of its own scalar o
 
 - **`.mime`/`.pem` decode** gains less (3.9 GB/s): a 76-column line is one 64-symbol block, 12 symbols of scalar and a line
   break. A 32-symbol step and encoding wrapped lines straight into place would help; unmeasured.
-- Real x86-64 hardware (AVX2 speed, and whether AVX2 beats SSSE3 as expected); AVX-512/VBMI kernels; Linux (arm64 or x86-64): not built or run.
+- AVX-512/VBMI kernels (no such CPU here); AMD cores; Linux (arm64 or x86-64): not built or run.
 - Hex and percent coding could use the same `tbl` approach.

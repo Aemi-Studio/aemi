@@ -254,4 +254,48 @@ size_t adf_b64_encode_blocks_avx2(const uint8_t *table, uint16_t tail, const uin
 size_t adf_b64_decode_blocks_ssse3(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
 size_t adf_b64_decode_blocks_avx2(const uint8_t *lut, uint16_t tail, const uint8_t *in, size_t len, uint8_t *out);
 
+// MARK: - Hexadecimal
+
+/// Writes the two digits of each byte of `in[0 ..< len]` (high nibble first; `upper` picks `A-F`, else `a-f`) to `out[0 ..< 2 * len]`.
+/// NEON on arm64, AVX2 or SSSE3 on x86-64 (SSSE3 under Rosetta 2), else the scalar reference. `in` and `out` must not overlap.
+void adf_hex_encode(const uint8_t *in, size_t len, uint8_t *out, int upper);
+/// Decodes the digit pairs of `in[0 ..< len]` (either case) into `out[0 ..< len / 2]`, up to the first pair holding a byte that is not
+/// a hex digit, and returns 2 times the number of pairs decoded. Every backend returns exactly the scalar reference's answer; bytes
+/// of `out` past `consumed / 2` may be written. `in` and `out` must not overlap.
+size_t adf_hex_decode(const uint8_t *in, size_t len, uint8_t *out);
+void adf_hex_encode_scalar(const uint8_t *in, size_t len, uint8_t *out, int upper);
+size_t adf_hex_decode_scalar(const uint8_t *in, size_t len, uint8_t *out);
+/// The x86-64 backends by name; each self-guards (the scalar reference without its feature, and on other architectures).
+void adf_hex_encode_ssse3(const uint8_t *in, size_t len, uint8_t *out, int upper);
+void adf_hex_encode_avx2(const uint8_t *in, size_t len, uint8_t *out, int upper);
+size_t adf_hex_decode_ssse3(const uint8_t *in, size_t len, uint8_t *out);
+size_t adf_hex_decode_avx2(const uint8_t *in, size_t len, uint8_t *out);
+
+// MARK: - Percent-coding
+
+/// How many bytes of `buf[0 ..< len]` the set `lo`/`hi` holds (see `adf_index_of_set`).
+size_t adf_count_in_set(const uint8_t *buf, size_t len, const uint8_t lo[16], const uint8_t hi[16]);
+size_t adf_count_in_set_scalar(const uint8_t *buf, size_t len, const uint8_t lo[16], const uint8_t hi[16]);
+/// Copies `in[0 ..< len]` to `out`, each byte the set `lo`/`hi` holds written as `%XY` (uppercase), and returns the bytes written;
+/// `out_cap` must be `len + 2 * adf_count_in_set(...)`. Writes nothing at or past `out_cap`: returns SIZE_MAX instead.
+size_t adf_percent_encode(const uint8_t *in, size_t len, const uint8_t lo[16], const uint8_t hi[16], uint8_t *out, size_t out_cap);
+size_t adf_percent_encode_scalar(const uint8_t *in, size_t len, const uint8_t lo[16], const uint8_t hi[16], uint8_t *out,
+                                 size_t out_cap);
+/// Decodes `in[0 ..< len]` into `out` (room for `len` bytes): `%XY` (either case) to its byte, `+` to a space when `plus`, any other
+/// byte unchanged. Returns the bytes written, or SIZE_MAX with `*bad` the offset of the first `%` not followed by two hex digits.
+size_t adf_percent_decode(const uint8_t *in, size_t len, uint8_t *out, int plus, size_t *bad);
+size_t adf_percent_decode_scalar(const uint8_t *in, size_t len, uint8_t *out, int plus, size_t *bad);
+
+// MARK: - Byte-string search
+
+/// What `adf_find` returns when it stops early: every start before `*resume` is known not to match.
+#define ADF_FIND_GAVE_UP (SIZE_MAX - 1)
+
+/// The first index of `needle[0 ..< nlen]` in `hay[0 ..< hlen]`, SIZE_MAX when absent (0 for an empty needle), or ADF_FIND_GAVE_UP
+/// when the candidates' comparisons pass a budget proportional to `hlen` (an adversarial input), with `*resume` the first start not
+/// yet ruled out: the caller finishes with a linear-time search from there. Reads only `hay[0 ..< hlen]` and `needle[0 ..< nlen]`.
+size_t adf_find(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume);
+/// The plain reference: every start, byte by byte (quadratic in the worst case; for tests).
+size_t adf_find_scalar(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen);
+
 #endif /* CADFKERNELS_H */

@@ -1,3 +1,5 @@
+internal import AemiKernels
+
 /// RFC 3986 percent-coding over bytes. Domain-neutral: the caller supplies the `allowed` predicate
 /// (the safe set for its grammar — a path segment, a query component, userinfo, …), so URL- or
 /// JSON-specific policy stays at the call site while the escaping mechanics live here once. Built on
@@ -17,8 +19,80 @@ public enum PercentCoding {
 
     /// Percent-encodes `bytes`: each byte for which `allowed` returns `false` becomes a `%XX` triple
     /// with uppercase hex (RFC 3986 §2.1); allowed bytes are copied verbatim.
-    @inlinable
+    ///
+    /// Contiguous input of 64 bytes or more whose escaped bytes form a set the SIMD kernels can hold (most grammars' sets do)
+    /// is encoded 16 bytes at a time; `allowed` is then asked once per byte value rather than once per byte.
     public static func encode(_ bytes: some Sequence<UInt8>, allowed: (UInt8) -> Bool) -> [UInt8] {
+        let fast = bytes.withContiguousStorageIfAvailable { buffer -> [UInt8]? in
+            guard buffer.count >= 64 else { return nil }
+            let escaped = (0 ... 255).map { UInt8($0) }.filter { !allowed($0) }
+            guard let set = AemiKernels.ByteSet(escaped) else { return nil }
+            return unsafe encode(buffer, escaping: set)
+        }
+        if let fast, let fast { return fast }
+        return encodeByteByByte(bytes, allowed: allowed)
+    }
+
+    /// Percent-encodes `bytes`, escaping every byte outside the RFC 3986 unreserved set (``isUnreserved(_:)``).
+    public static func encode(_ bytes: some Sequence<UInt8>) -> [UInt8] {
+        let fast = bytes.withContiguousStorageIfAvailable { unsafe encode($0, escaping: reservedSet) }
+        return fast ?? encodeByteByByte(bytes, allowed: isUnreserved)
+    }
+
+    /// Percent-decodes `bytes` (RFC 3986): `%XX` (either hex case) becomes its byte, every other byte is copied. Returns `nil`
+    /// for a `%` not followed by two hex digits.
+    public static func decode(_ bytes: some Collection<UInt8>) -> [UInt8]? {
+        decode(bytes, plusAsSpace: false)
+    }
+
+    /// Percent-decodes `bytes` as `application/x-www-form-urlencoded`: as ``decode(_:)``, and a literal `+` becomes a space.
+    public static func decodeForm(_ bytes: some Collection<UInt8>) -> [UInt8]? {
+        decode(bytes, plusAsSpace: true)
+    }
+
+    /// Percent-decodes `bytes`, with `+` as a space when `plusAsSpace`. Contiguous input is decoded 16 bytes at a time
+    /// wherever a block holds no escape.
+    public static func decode(_ bytes: some Collection<UInt8>, plusAsSpace: Bool) -> [UInt8]? {
+        let fast = bytes.withContiguousStorageIfAvailable { buffer -> [UInt8]? in
+            var malformed = false
+            // Decoding only ever copies or shrinks, so the input's length is an upper bound.
+            let result = unsafe [UInt8](unsafeUninitializedCapacity: buffer.count) { out, initialized in
+                initialized = 0
+                if let written = unsafe AemiKernels.percentDecode(buffer, into: out, plusAsSpace: plusAsSpace) {
+                    initialized = written
+                } else {
+                    malformed = true
+                }
+            }
+            return malformed ? nil : result
+        }
+        if let fast { return fast }
+        return decodeByteByByte(bytes, plusAsSpace: plusAsSpace)
+    }
+
+    // MARK: - Plumbing
+
+    /// The bytes ``encode(_:)`` escapes: everything but the unreserved set, which fits the kernels' nibble tables (six rows).
+    static let reservedSet: AemiKernels.ByteSet = {
+        guard let set = AemiKernels.ByteSet((0 ... 255).map { UInt8($0) }.filter { !isUnreserved($0) }) else {
+            preconditionFailure("PercentCoding: the reserved set must fit the kernel's tables")
+        }
+        return set
+    }()
+
+    private static func encode(_ input: UnsafeBufferPointer<UInt8>, escaping set: AemiKernels.ByteSet) -> [UInt8] {
+        let escapes = unsafe AemiKernels.count(inSet: set, in: input)
+        let (extra, overflow1) = escapes.multipliedReportingOverflow(by: 2)
+        let (total, overflow2) = input.count.addingReportingOverflow(extra)
+        precondition(!overflow1 && !overflow2, "PercentCoding: the encoded length overflows Int")
+        return unsafe [UInt8](unsafeUninitializedCapacity: total) { out, initialized in
+            initialized = 0
+            unsafe AemiKernels.percentEncode(input, escaping: set, into: out)
+            initialized = total
+        }
+    }
+
+    private static func encodeByteByByte(_ bytes: some Sequence<UInt8>, allowed: (UInt8) -> Bool) -> [UInt8] {
         var out: [UInt8] = []
         out.reserveCapacity(bytes.underestimatedCount)
         for b in bytes {
@@ -33,40 +107,7 @@ public enum PercentCoding {
         return out
     }
 
-    /// Percent-encodes `bytes`, escaping everything outside the RFC 3986 ``isUnreserved(_:)`` set.
-    @inlinable
-    public static func encode(_ bytes: some Sequence<UInt8>) -> [UInt8] {
-        encode(bytes, allowed: isUnreserved)
-    }
-
-    /// Percent-decodes `bytes`, turning each `%XX` triple back into its byte and copying everything
-    /// else verbatim. Returns `nil` on a truncated (`"%"`, `"%A"`) or non-hex (`"%G0"`) escape rather
-    /// than trapping. A literal `"+"` is left as-is (RFC 3986); use ``decodeForm(_:)`` when you need the
-    /// `application/x-www-form-urlencoded` `"+"`→space rule (query components, HTML form bodies).
-    @inlinable
-    public static func decode(_ bytes: some Collection<UInt8>) -> [UInt8]? {
-        decode(bytes, plusAsSpace: false)
-    }
-
-    /// Percent-decodes `bytes` as `application/x-www-form-urlencoded`: identical to ``decode(_:)``
-    /// except a literal `"+"` becomes a space (`0x20`) — the rule for URL query components and HTML
-    /// form bodies. Returns `nil` on a malformed escape, exactly like ``decode(_:)``. Decoding the
-    /// query string through one audited primitive (rather than a per-call hand-rolled loop) is also the
-    /// safe choice: the `nil` lets the caller reject malformed input instead of silently mis-decoding.
-    @inlinable
-    public static func decodeForm(_ bytes: some Collection<UInt8>) -> [UInt8]? {
-        decode(bytes, plusAsSpace: true)
-    }
-
-    /// Shared decoder core. Percent-decodes `bytes`; when `plusAsSpace` is `true`, a literal `"+"` maps
-    /// to a space (`0x20`) per `application/x-www-form-urlencoded`, otherwise it is copied verbatim per
-    /// RFC 3986. Returns `nil` on a truncated or non-hex escape rather than trapping.
-    @inlinable
-    public static func decode(_ bytes: some Collection<UInt8>, plusAsSpace: Bool) -> [UInt8]? {
-        // Decoding only ever copies or shrinks, so `bytes.count` is an exact upper bound: build into a
-        // single, exclusively-owned `OutputSpan` sized to it (back-deploys to the floor; no
-        // `reserveCapacity` foot-gun, bounds-checked writes, no CoW). A malformed escape sets the flag
-        // and bails; the partially-built buffer is then discarded for the documented `nil`.
+    private static func decodeByteByByte(_ bytes: some Collection<UInt8>, plusAsSpace: Bool) -> [UInt8]? {
         var malformed = false
         let result = [UInt8](capacity: bytes.count) { span in
             var iterator = bytes.makeIterator()

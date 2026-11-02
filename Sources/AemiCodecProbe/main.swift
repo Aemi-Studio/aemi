@@ -1,7 +1,8 @@
-// AemiBase64Probe — standalone differential check of Base64 on the host's SIMD tier, for architectures the test target
-// cannot be built for: `swift run --arch x86_64 AemiBase64Probe` under Rosetta 2 (SSSE3), and with ROSETTA_ADVERTISE_AVX=1
-// (AVX2). Contiguous input takes the block kernels; a collection that hides its storage takes the byte engine, which never
-// uses them, so the two must agree on every value and every typed error with its offset. Exits 1 on a mismatch.
+// AemiCodecProbe — standalone differential check of Base64, hex, percent-coding and byte search on the host's SIMD tier, for
+// architectures the test target cannot be built for: `swift run --arch x86_64 AemiCodecProbe` under Rosetta 2 (SSSE3), with
+// ROSETTA_ADVERTISE_AVX=1 (AVX2), and on Intel hardware. Base64: contiguous input takes the block kernels and a collection that
+// hides its storage takes the byte engine, which never uses them, so the two must agree on every value and every typed error with
+// its offset. The others are checked against naive references written in Probe+Codecs.swift. Exits 1 on a mismatch.
 import AemiKernel
 import AemiKernels
 
@@ -129,7 +130,10 @@ struct Probe {
 }
 
 var probe = Probe()
-do { try probe.run() } catch {
+do {
+    try probe.run()
+    probe.runCodecs()
+} catch {
     print("probe error:", error)
     exit(2)
 }

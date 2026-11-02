@@ -40,3 +40,6 @@ native `String`'s UTF-8, `Span`) takes a table-driven fast path.
 On arm64 contiguous input is encoded and decoded 48 and 64 bytes at a time with NEON; on x86-64, 12 or 24 bytes with SSSE3 or AVX2
 for the standard, URL-safe and any other `A-Za-z0-9`-prefixed alphabet. Results, errors and error offsets are identical to the
 scalar engine's (ADR 0025).
+
+The same kernels speed `.mime` and `.pem` text: whole lines go through line kernels, the rest through the byte engine, so errors
+are unchanged.

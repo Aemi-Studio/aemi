@@ -105,9 +105,32 @@ byte; and on a kernel answer that is not a multiple of 3 (4) or exceeds the inpu
 AemiProtobuf's `ProtoJSONBase64` now uses this codec instead of its own scalar one; its tests keep the old decoder as an oracle
 (about 20,000 valid, damaged, URL-safe and mixed-alphabet strings agree), on the pinned aemi and on this one.
 
+## Wrapped text (.mime, .pem), 2026-11-02
+
+`.mime` decode was 1.28 GB/s on the i5-8500B and 3.9 on the M3: a 76-symbol line was one kernel call for 64 symbols, 12 symbols
+in the scalar loop, and the line break through the byte engine. Now:
+
+- **Line kernels** (`adf_b64_decode_lines`, `adf_b64_encode_lines`): whole lines of exactly `width` symbols and their LF or CR LF in
+  one call. Decode stops before any other line (shorter, longer, a bad byte, padding, a lone CR, the end, no room), which the byte
+  engine then takes, so every error and offset is still its own. Encode writes every line but the last in place, endings included;
+  the last line is written after them, so wrapping no longer moves the text. On x86-64 the line loops are compiled per ISA with the
+  block kernel inlined: through a per-line dispatch (each `adf_cpu_has` is a `pthread_once`) `.mime` encode was 3.1 GB/s, inlined 6.8.
+- **Tails by overlap**: every block kernel now consumes every whole group. The last 4–12 symbols (or 3–45 bytes on encode) are one
+  more vector step that ends on the last whole group and rewrites bytes already done with the same values, instead of a scalar loop.
+  A block holding a bad byte goes to the scalar reference, so every backend returns exactly the reference's answer, which the checks
+  now require (equality, not "at most").
+
+| 1 MiB, Swift end to end | i5-8500B before → after | M3 before → after (load was high; indicative) |
+|---|---|---|
+| `.mime` decode | 0.55 → 1.28 → **4.34** GB/s | 3.9 → **7.3** |
+| `.pem` decode | 0.55 → 2.6 → **4.64** | – → **7.5** |
+| `.mime` encode | 0.96 → 5.8 → **6.83** | – → **10.4** |
+
+Checks: the C differential (now also line decode, 5,600 cases with damaged lines, lone CRs and short outputs, and line encode, 2,642)
+under ASan/UBSan on arm64, Rosetta (SSSE3, AVX2) and the i5-8500B; `wrappedTextWithADamagedByteAnywhereIsReportedLikeTheByteEngine`
+(a damaged, removed or inserted byte across `.mime`/`.pem`, LF/CRLF, and limits inside a line); guard-page tests for both line kernels.
+
 ## Not done
 
-- **`.mime`/`.pem` decode** gains less (3.9 GB/s): a 76-column line is one 64-symbol block, 12 symbols of scalar and a line
-  break. A 32-symbol step and encoding wrapped lines straight into place would help; unmeasured.
 - AVX-512/VBMI kernels (no such CPU here); AMD cores; Linux (arm64 or x86-64): not built or run.
 - Hex and percent coding could use the same `tbl` approach.

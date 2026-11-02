@@ -101,6 +101,57 @@ struct AemiKernelsBase64Tests {
         }
     }
 
+    @Test func `wrapped text stays inside an input and an output that end at a guard page`() {
+        for edge in GuardedBytes.Edge.allCases {
+            for width in [16, 64, 76] {
+                for count in [0, 1, 47, 48, 57, 58, 114, 200, 1000] {
+                    for crlf in [false, true] {
+                        let bytes = (0 ..< count).map { UInt8(truncatingIfNeeded: $0 &* 13 &+ 1) }
+                        let lineBytes = width / 4 * 3
+                        let lineCount = max(1, (count + lineBytes - 1) / lineBytes)
+                        let capacity = (count + 2) / 3 * 4 + (lineCount - 1) * (crlf ? 2 : 1)
+                        GuardedBytes.with(bytes, against: edge) { input in
+                            GuardedBytes.with([UInt8](repeating: 0, count: capacity), against: edge) { output in
+                                let encoded = Self.symbols.withUnsafeBufferPointer { table in
+                                    AemiKernels.base64EncodeLines(
+                                        table: table,
+                                        tail: Self.tail,
+                                        input: UnsafeBufferPointer(start: input, count: count),
+                                        output: UnsafeMutableBufferPointer(start: output, count: capacity),
+                                        width: width,
+                                        crlf: crlf
+                                    )
+                                }
+                                #expect(encoded.consumed % lineBytes == 0 && encoded.consumed <= count)
+                                // Decode what was written, flush against the guard page again.
+                                let text = Array(UnsafeBufferPointer(start: output, count: encoded.written))
+                                GuardedBytes.with(text, against: edge) { source in
+                                    GuardedBytes.with([UInt8](repeating: 0, count: encoded.consumed), against: edge) {
+                                        target in
+                                        let decoded = Self.lookup.withUnsafeBufferPointer { table in
+                                            AemiKernels.base64DecodeLines(
+                                                lookup: table,
+                                                tail: Self.tail,
+                                                input: UnsafeBufferPointer(start: source, count: text.count),
+                                                output: UnsafeMutableBufferPointer(
+                                                    start: target,
+                                                    count: encoded.consumed
+                                                ),
+                                                width: width
+                                            )
+                                        }
+                                        #expect(decoded.consumed == text.count && decoded.written == encoded.consumed)
+                                        #expect((0 ..< decoded.written).allSatisfy { target[$0] == bytes[$0] })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Calls that break the contract trap
 
     @Test func `a symbol table of the wrong size traps`() async {

@@ -79,8 +79,8 @@ static long check_with(const char *name, EncodeFn encode, DecodeFn decode, long 
                 if (consumed % 3 != 0 || consumed > n || again != consumed || reference != consumed ||
                     memcmp(fast, slow, consumed / 3 * 4) != 0)
                     bad++;
-                // The kernel consumes a whole block when one fits (smallest: 16 bytes on x86-64, 48 on arm64).
-                if (n >= 48 && consumed == 0) bad++;
+                // Every backend encodes every whole group.
+                if (consumed != n / 3 * 3) bad++;
                 // Decode: random symbols, sometimes one random byte that is not a symbol.
                 const size_t m = n / 4 * 4;
                 uint8_t *text = malloc(m ? m : 1), *d1 = malloc(m / 4 * 3 + 1), *d2 = malloc(m / 4 * 3 + 1);
@@ -97,11 +97,81 @@ static long check_with(const char *name, EncodeFn encode, DecodeFn decode, long 
                 memcpy(d1, e1, r1 / 4 * 3);
                 checks++;
                 // Never past the scalar's stop, on a group edge, with the same bytes up to it...
-                if (r1 % 4 != 0 || r1 > r2 || memcmp(d1, d2, r1 / 4 * 3) != 0) bad++;
+                if (r1 % 4 != 0 || r1 != r2 || memcmp(d1, d2, r1 / 4 * 3) != 0) bad++;
                 // ...never past a bad byte, and, for valid text, leaving less than one block (64 symbols) undone.
-                if (at < m && r1 > at / 4 * 4) bad++;
-                if (at >= m && r1 + 64 <= m) bad++;
+                if (at < m && r1 != at / 4 * 4) bad++;
+                if (at >= m && r1 != m) bad++;
                 free(in); free(fast); free(slow); free(text); free(d1); free(d2); free(e1);
+            }
+        }
+    }
+    *checks_out = checks;
+    return bad;
+}
+
+typedef size_t (*LinesFn)(const uint8_t *, uint16_t, const uint8_t *, size_t, uint8_t *, size_t, size_t, size_t *);
+
+/// Wrapped text against the scalar reference: widths around the vector steps, LF and CR LF, damaged lines and short outputs. The
+/// input and output are exact-size allocations, so a stray access is an AddressSanitizer error.
+static long check_lines(LinesFn lines, long *checks_out) {
+    Alphabet a;
+    make(&a, '+', '/', 0);
+    const size_t widths[] = {0, 3, 4, 8, 12, 16, 20, 60, 64, 68, 76, 80, 128, 132};
+    long bad = 0, checks = 0;
+    srand(11);
+    for (size_t w = 0; w < sizeof widths / sizeof widths[0]; w++) {
+        const size_t width = widths[w];
+        for (int rep = 0; rep < 400; rep++) {
+            const size_t count = (size_t)(rand() % 12);
+            const int crlf = rand() % 2;
+            size_t len = 0;
+            uint8_t *text = malloc(count * (width + 6) + 8);
+            for (size_t l = 0; l < count; l++) {
+                size_t symbols = width;
+                if (rand() % 8 == 0 && symbols >= 4) symbols -= (size_t)(rand() % 4) + 1;  // a short line
+                if (rand() % 16 == 0) symbols += 4;                                          // a long line
+                for (size_t k = 0; k < symbols; k++) text[len++] = a.table[rand() % 64];
+                if (crlf) text[len++] = 0x0D;
+                if (rand() % 32 != 0) text[len++] = 0x0A;                                    // sometimes a lone CR
+            }
+            if (len > 0 && rand() % 4 == 0) text[(size_t)rand() % len] = (uint8_t)"=!- \x80"[rand() % 5];
+            uint8_t *exact = malloc(len ? len : 1);
+            memcpy(exact, text, len);
+            const size_t cap = rand() % 3 == 0 ? (size_t)rand() % (len + 1) : len;
+            uint8_t *o1 = malloc(cap ? cap : 1), *o2 = malloc(cap ? cap : 1);
+            size_t w1 = 0, w2 = 0;
+            const size_t c1 = lines(a.lut, a.tail, exact, len, o1, cap, width, &w1);
+            const size_t c2 = adf_b64_decode_lines_scalar(a.lut, exact, len, o2, cap, width, &w2);
+            checks++;
+            if (c1 != c2 || w1 != w2 || w1 > cap || c1 > len || memcmp(o1, o2, w1) != 0) bad++;
+            free(text); free(exact); free(o1); free(o2);
+        }
+    }
+    *checks_out = checks;
+    return bad;
+}
+
+/// Line-wrapped encoding against the scalar reference, exact-size buffers.
+static long check_encode_lines(long *checks_out) {
+    Alphabet a;
+    make(&a, '+', '/', 0);
+    const size_t widths[] = {0, 3, 4, 8, 12, 16, 20, 60, 64, 68, 76, 80, 128};
+    long bad = 0, checks = 0;
+    srand(13);
+    for (size_t w = 0; w < sizeof widths / sizeof widths[0]; w++) {
+        for (size_t n = 0; n < 400; n += 1 + (size_t)(rand() % 7)) {
+            for (int crlf = 0; crlf < 2; crlf++) {
+                uint8_t *in = malloc(n ? n : 1);
+                for (size_t i = 0; i < n; i++) in[i] = (uint8_t)rand();
+                const size_t full = n / 3 * 4 + (n / 3 + 1) * 2 + 8;
+                const size_t cap = rand() % 3 == 0 ? (size_t)rand() % (full + 1) : full;
+                uint8_t *o1 = malloc(cap ? cap : 1), *o2 = malloc(cap ? cap : 1);
+                size_t w1 = 0, w2 = 0;
+                const size_t c1 = adf_b64_encode_lines(a.table, a.tail, in, n, o1, cap, widths[w], crlf, &w1);
+                const size_t c2 = adf_b64_encode_lines_scalar(a.table, in, n, o2, cap, widths[w], crlf, &w2);
+                checks++;
+                if (c1 != c2 || w1 != w2 || w1 > cap || c1 > n || memcmp(o1, o2, w1) != 0) bad++;
+                free(in); free(o1); free(o2);
             }
         }
     }
@@ -122,7 +192,13 @@ static int check(void) {
         printf("base64 kernels, host %s, backend %s: %ld checks, %ld mismatches\n", adf_kernels_backend(), backends[i].name, checks, bad);
         total += bad;
     }
-    return total != 0;
+    long checks = 0;
+    const long bad = check_lines(adf_b64_decode_lines, &checks);
+    printf("base64 lines, host %s: %ld checks, %ld mismatches\n", adf_kernels_backend(), checks, bad);
+    long encodeChecks = 0;
+    const long encodeBad = check_encode_lines(&encodeChecks);
+    printf("base64 encode lines, host %s: %ld checks, %ld mismatches\n", adf_kernels_backend(), encodeChecks, encodeBad);
+    return total + bad + encodeBad != 0;
 }
 
 static double time_it(void (*body)(void *), void *ctx, int reps) {

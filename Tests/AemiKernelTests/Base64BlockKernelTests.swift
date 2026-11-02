@@ -115,4 +115,50 @@ struct Base64BlockKernelTests {
             )
         }
     }
+
+    @Test func wrappedTextWithADamagedByteAnywhereIsReportedLikeTheByteEngine() {
+        var rng = SeededRNG(seed: Seed.named("base64.blocks.wrapped"))
+        let original = Base64Generators.randomBytes(700, &rng)
+        let breakers: [UInt8] = [
+            0x0A, 0x0D, UInt8(ascii: "="), UInt8(ascii: "!"), UInt8(ascii: " "), 0x80, UInt8(ascii: "A")
+        ]
+        for preset in [Base64.Options.mime, .pem] {
+            for ending in [Base64.LineEnding.lf, .crlf] {
+                var options = preset
+                options.lineEnding = ending
+                let encoded = Base64.encode(original, options: options)
+                #expect(outcome(encoded, options, contiguous: true) == "ok \(original)")
+                for position in stride(from: 0, to: encoded.count, by: 3) {
+                    var broken = encoded
+                    broken[position] = breakers[position % breakers.count]
+                    #expect(
+                        outcome(broken, options, contiguous: true) == outcome(broken, options, contiguous: false),
+                        "position \(position)"
+                    )
+                }
+                // A byte removed or inserted shifts every later line.
+                for position in stride(from: 0, to: encoded.count, by: 37) {
+                    var shorter = encoded
+                    shorter.remove(at: position)
+                    var longer = encoded
+                    longer.insert(UInt8(ascii: "Q"), at: position)
+                    for text in [shorter, longer] {
+                        #expect(
+                            outcome(text, options, contiguous: true) == outcome(text, options, contiguous: false),
+                            "position \(position)"
+                        )
+                    }
+                }
+                // Output limits that land inside a line.
+                for limit in stride(from: 0, through: original.count + 3, by: 13) {
+                    var limited = options
+                    limited.maximumDecodedSize = limit
+                    #expect(
+                        outcome(encoded, limited, contiguous: true) == outcome(encoded, limited, contiguous: false),
+                        "limit \(limit)"
+                    )
+                }
+            }
+        }
+    }
 }

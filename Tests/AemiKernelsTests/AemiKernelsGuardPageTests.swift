@@ -39,86 +39,99 @@ struct AemiKernelsGuardPageTests {
     @Test func `byte scans stay inside the input`() {
         for last: UInt8? in [nil, UInt8(ascii: "\"")] {
             Self.each(last: last) { base, count in
-                let quote = UInt8(ascii: "\"")
-                let escape = UInt8(ascii: "\\")
-                #expect(
-                    AemiKernels.firstIndexOfByte(base: base, count: count, needle: quote)
-                        == AemiKernels.firstIndexOfByte(base: base, count: count, needle: quote, backend: .scalar)
-                )
-                #expect(
-                    AemiKernels.firstIndexOfAny(base: base, count: count, quote, escape, 1, 2, 3)
-                        == AemiKernels.firstIndexOfAny(
-                            base: base,
-                            count: count,
-                            quote,
-                            escape,
-                            1,
-                            2,
-                            3,
-                            backend: .scalar
-                        )
-                )
-                #expect(
-                    AemiKernels.indexOfStringStop(base: base, count: count, quote: quote, escape: escape)
-                        == AemiKernels.indexOfStringStop(
-                            base: base,
-                            count: count,
-                            quote: quote,
-                            escape: escape,
-                            backend: .scalar
-                        )
-                )
-                #expect(
-                    AemiKernels.indexOfControlOrAny(base: base, count: count, quote, escape, 1, 2, 3)
-                        == AemiKernels.indexOfControlOrAny(
-                            base: base,
-                            count: count,
-                            quote,
-                            escape,
-                            1,
-                            2,
-                            3,
-                            backend: .scalar
-                        )
-                )
-                #expect(
-                    AemiKernels.firstDisallowedText(base: base, count: count, minAllowed: 0x20, allowTab: true)
-                        == AemiKernels.firstDisallowedText(
-                            base: base,
-                            count: count,
-                            minAllowed: 0x20,
-                            allowTab: true,
-                            backend: .scalar
-                        )
-                )
-                #expect(
-                    AemiKernels.firstInvalidUTF8(base: base, count: count)
-                        == AemiKernels.firstInvalidUTF8(base: base, count: count, backend: .scalar)
-                )
-                #expect(
-                    AemiKernels.firstNonASCII(base: base, count: count)
-                        == AemiKernels.firstNonASCII(base: base, count: count, backend: .scalar)
-                )
-                if let set = AemiKernels.ByteSet([quote, escape, 0x7B]) {
-                    #expect(
-                        AemiKernels.firstIndex(inSet: set, base: base, count: count)
-                            == AemiKernels.firstIndex(inSet: set, base: base, count: count, backend: .scalar)
-                    )
-                }
-                let buffer = UnsafeBufferPointer(start: base, count: count)
-                #expect(
-                    AemiKernels.firstIndex(ofPair: UInt8(ascii: "a"), quote, in: buffer, from: 0)
-                        == (last == nil || count < 2 ? nil : count - 2)
-                )
-                let pairs = AemiKernels.PairSet([(first: UInt8(ascii: "a"), second: quote)])
-                #expect(
-                    pairs.firstCandidate(in: buffer, from: 0)
-                        == pairs.firstCandidate(in: buffer, from: 0, backend: .scalar)
-                )
-                if let small = AemiKernels.SmallByteSet([quote, escape]) {
-                    #expect(small.firstIndex(in: buffer, from: 0) == (last == nil || count == 0 ? nil : count - 1))
-                }
+                Self.checkSearchScans(base, count)
+                Self.checkValidityScans(base, count, endsInQuote: last != nil)
             }
+        }
+    }
+
+    /// The byte, any-of and string-stop scans against their scalar backends (kept apart from the validity scans so that
+    /// each body type-checks quickly).
+    private static func checkSearchScans(_ base: UnsafeMutablePointer<UInt8>, _ count: Int) {
+        let quote = UInt8(ascii: "\"")
+        let escape = UInt8(ascii: "\\")
+        #expect(
+            AemiKernels.firstIndexOfByte(base: base, count: count, needle: quote)
+                == AemiKernels.firstIndexOfByte(base: base, count: count, needle: quote, backend: .scalar)
+        )
+        #expect(
+            AemiKernels.firstIndexOfAny(base: base, count: count, quote, escape, 1, 2, 3)
+                == AemiKernels.firstIndexOfAny(
+                    base: base,
+                    count: count,
+                    quote,
+                    escape,
+                    1,
+                    2,
+                    3,
+                    backend: .scalar
+                )
+        )
+        #expect(
+            AemiKernels.indexOfStringStop(base: base, count: count, quote: quote, escape: escape)
+                == AemiKernels.indexOfStringStop(
+                    base: base,
+                    count: count,
+                    quote: quote,
+                    escape: escape,
+                    backend: .scalar
+                )
+        )
+    }
+
+    /// The control, disallowed-text, UTF-8 and ASCII scans against their scalar backends.
+    private static func checkValidityScans(_ base: UnsafeMutablePointer<UInt8>, _ count: Int, endsInQuote: Bool) {
+        let quote = UInt8(ascii: "\"")
+        let escape = UInt8(ascii: "\\")
+        #expect(
+            AemiKernels.indexOfControlOrAny(base: base, count: count, quote, escape, 1, 2, 3)
+                == AemiKernels.indexOfControlOrAny(
+                    base: base,
+                    count: count,
+                    quote,
+                    escape,
+                    1,
+                    2,
+                    3,
+                    backend: .scalar
+                )
+        )
+        #expect(
+            AemiKernels.firstDisallowedText(base: base, count: count, minAllowed: 0x20, allowTab: true)
+                == AemiKernels.firstDisallowedText(
+                    base: base,
+                    count: count,
+                    minAllowed: 0x20,
+                    allowTab: true,
+                    backend: .scalar
+                )
+        )
+        #expect(
+            AemiKernels.firstInvalidUTF8(base: base, count: count)
+                == AemiKernels.firstInvalidUTF8(base: base, count: count, backend: .scalar)
+        )
+        #expect(
+            AemiKernels.firstNonASCII(base: base, count: count)
+                == AemiKernels.firstNonASCII(base: base, count: count, backend: .scalar)
+        )
+        if let set = AemiKernels.ByteSet([quote, escape, 0x7B]) {
+            #expect(
+                AemiKernels.firstIndex(inSet: set, base: base, count: count)
+                    == AemiKernels.firstIndex(inSet: set, base: base, count: count, backend: .scalar)
+            )
+        }
+        let buffer = UnsafeBufferPointer(start: base, count: count)
+        #expect(
+            AemiKernels.firstIndex(ofPair: UInt8(ascii: "a"), quote, in: buffer, from: 0)
+                == (!endsInQuote || count < 2 ? nil : count - 2)
+        )
+        let pairs = AemiKernels.PairSet([(first: UInt8(ascii: "a"), second: quote)])
+        #expect(
+            pairs.firstCandidate(in: buffer, from: 0)
+                == pairs.firstCandidate(in: buffer, from: 0, backend: .scalar)
+        )
+        if let small = AemiKernels.SmallByteSet([quote, escape]) {
+            #expect(small.firstIndex(in: buffer, from: 0) == (!endsInQuote || count == 0 ? nil : count - 1))
         }
     }
 

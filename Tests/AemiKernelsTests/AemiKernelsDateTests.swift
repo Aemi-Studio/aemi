@@ -14,12 +14,18 @@ struct AemiKernelsDateTests {
     }
 
     @Test func parsesCanonicalAnchors() {
-        #expect(parse("1970-01-01T00:00:00Z") == 0)
-        #expect(parse("1969-12-31T23:59:59Z") == -1)
-        #expect(parse("2000-01-01T00:00:00Z") == 946_684_800)
-        #expect(parse("2020-09-13T12:26:40Z") == 1_600_000_000)
-        #expect(parse("2038-01-19T03:14:07Z") == 2_147_483_647)  // Y2038 boundary
-        #expect(parse("2020-02-29T00:00:00Z") == 1_582_934_400)  // Gregorian leap day
+        let anchors: [(text: String, seconds: Int64)] = [
+            ("1970-01-01T00:00:00Z", 0),
+            ("1969-12-31T23:59:59Z", -1),
+            ("2000-01-01T00:00:00Z", 946_684_800),
+            ("2020-09-13T12:26:40Z", 1_600_000_000),
+            ("2038-01-19T03:14:07Z", 2_147_483_647),  // Y2038 boundary
+            ("2020-02-29T00:00:00Z", 1_582_934_400)  // Gregorian leap day
+        ]
+        for anchor in anchors {
+            let parsed: Int64? = parse(anchor.text)
+            #expect(parsed == anchor.seconds, "\(anchor.text)")
+        }
     }
 
     @Test func handlesBothCalendarEras() {

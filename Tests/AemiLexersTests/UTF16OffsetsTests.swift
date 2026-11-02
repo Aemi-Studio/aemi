@@ -8,11 +8,10 @@ struct UTF16OffsetsTests {
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     @Test
     func `a walk in steps counts the utf16 length of the text before each stop`() {
-        let characters = ["a", " ", "é", "✓", "変", "🙂", "𝔘", "\r\n"]
         var random = SeededRNG(seed: 0x10)
         for _ in 0 ..< 500 {
-            let text = (0 ..< Int(random.next() % 48)).map { _ in characters[Int(random.next() % 8)] }.joined()
-            let bytes = Array(text.utf8)
+            let text: String = Self.randomText(&random)
+            let bytes: [UInt8] = Array(text.utf8)
             var stops: [Int] = [0]
             for character in text { stops.append(stops[stops.count - 1] + character.utf8.count) }
             var byte = 0
@@ -21,10 +20,24 @@ struct UTF16OffsetsTests {
             while stop < stops.count - 1 {
                 stop = min(stop + 1 + Int(random.next() % 12), stops.count - 1)
                 UTF16Offsets.advance(&byte, to: stops[stop], in: bytes.span, counting: &unit)
+                let expectedUnits: Int = Self.utf16Count(bytes, upTo: stops[stop])
                 #expect(byte == stops[stop])
-                #expect(unit == String(decoding: bytes[..<stops[stop]], as: UTF8.self).utf16.count, "\(text)")
+                #expect(unit == expectedUnits, "\(text)")
             }
         }
+    }
+
+    /// Up to 47 characters drawn from a mix of one- to four-byte scalars and CRLF.
+    private static func randomText(_ random: inout SeededRNG) -> String {
+        let characters: [String] = ["a", " ", "é", "✓", "変", "🙂", "𝔘", "\r\n"]
+        var text = ""
+        for _ in 0 ..< Int(random.next() % 48) { text += characters[Int(random.next() % 8)] }
+        return text
+    }
+
+    /// The UTF-16 length of the first `end` bytes, as the standard library counts it.
+    private static func utf16Count(_ bytes: [UInt8], upTo end: Int) -> Int {
+        String(decoding: bytes[..<end], as: UTF8.self).utf16.count
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)

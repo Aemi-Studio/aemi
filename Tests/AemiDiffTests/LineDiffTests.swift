@@ -74,11 +74,17 @@ struct LineDiffTests {
     @Test
     func `line diff ignores carriage returns and a trailing newline`() {
         let model = DiffModel(oldText: "a\r\nb\r\n", newText: "a\nb\nc", tokenRanges: CodeTokenRanges())
-        #expect(model.oldLines == ["a", "b"])
-        #expect(model.newLines == ["a", "b", "c"])
-        #expect(model.unifiedRows.map(\.kind) == [.context, .context, .added])
-        #expect(model.splitRows.map(\.kind) == [.context, .context, .added])
-        #expect(model.unifiedChangeStarts == [2])
+        let oldLines: [Substring] = ["a", "b"]
+        let newLines: [Substring] = ["a", "b", "c"]
+        let kinds: [RowKind] = [.context, .context, .added]
+        let unifiedKinds: [RowKind] = model.unifiedRows.map { (row: DiffRow) -> RowKind in row.kind }
+        let splitKinds: [RowKind] = model.splitRows.map { (row: DiffRow) -> RowKind in row.kind }
+        let changeStarts: [Int] = [2]
+        #expect(model.oldLines == oldLines)
+        #expect(model.newLines == newLines)
+        #expect(unifiedKinds == kinds)
+        #expect(splitKinds == kinds)
+        #expect(model.unifiedChangeStarts == changeStarts)
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)

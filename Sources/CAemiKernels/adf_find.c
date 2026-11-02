@@ -146,11 +146,22 @@ static size_t find_sse2(const uint8_t *hay, size_t hlen, const uint8_t *needle, 
     return find_tail(hay, hlen, needle, nlen, i, &work, budget, resume);
 }
 
-size_t adf_find(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume) {
+size_t adf_find_avx2(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume) {
     *resume = 0;
     if (nlen < 2 || nlen > hlen) return nlen == 0 ? 0 : (nlen > hlen ? SIZE_MAX : adf_find_scalar(hay, hlen, needle, nlen));
-    if (!adf_cpu_has(ADF_CPU_TRANSLATED) && adf_cpu_has(ADF_CPU_AVX2)) return find_avx2(hay, hlen, needle, nlen, resume);
+    return adf_cpu_has(ADF_CPU_AVX2) ? find_avx2(hay, hlen, needle, nlen, resume) : find_sse2(hay, hlen, needle, nlen, resume);
+}
+
+size_t adf_find_sse2(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume) {
+    *resume = 0;
+    if (nlen < 2 || nlen > hlen) return nlen == 0 ? 0 : (nlen > hlen ? SIZE_MAX : adf_find_scalar(hay, hlen, needle, nlen));
     return find_sse2(hay, hlen, needle, nlen, resume);
+}
+
+size_t adf_find(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume) {
+    // As for the other kernels (ADR 0025): a process translated by Rosetta 2 takes the 128-bit path.
+    if (!adf_cpu_has(ADF_CPU_TRANSLATED)) return adf_find_avx2(hay, hlen, needle, nlen, resume);
+    return adf_find_sse2(hay, hlen, needle, nlen, resume);
 }
 
 #else
@@ -162,4 +173,14 @@ size_t adf_find(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t n
     return find_tail(hay, hlen, needle, nlen, 0, &work, find_budget(hlen, nlen), resume);
 }
 
+#endif
+
+#if !defined(__x86_64__)
+// The x86-64 backends by name, for tests: here they are the dispatched kernel.
+size_t adf_find_avx2(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume) {
+    return adf_find(hay, hlen, needle, nlen, resume);
+}
+size_t adf_find_sse2(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume) {
+    return adf_find(hay, hlen, needle, nlen, resume);
+}
 #endif

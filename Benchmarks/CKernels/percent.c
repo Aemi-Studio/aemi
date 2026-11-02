@@ -1,7 +1,7 @@
 //
 //  percent.c
 //  Differential check (--check) and throughput (default) of CAemiKernels' percent-coding kernels against their scalar
-//  references, on exact-size allocations (AddressSanitizer sees any stray access). See Scripts/codec-kernels-check.sh.
+//  references, on exact-size allocations (AddressSanitizer sees any stray access). See Scripts/kernels-check.sh.
 //
 #include "CAemiKernels.h"
 

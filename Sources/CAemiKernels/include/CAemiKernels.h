@@ -295,6 +295,9 @@ size_t adf_percent_decode_scalar(const uint8_t *in, size_t len, uint8_t *out, in
 /// when the candidates' comparisons pass a budget proportional to `hlen` (an adversarial input), with `*resume` the first start not
 /// yet ruled out: the caller finishes with a linear-time search from there. Reads only `hay[0 ..< hlen]` and `needle[0 ..< nlen]`.
 size_t adf_find(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume);
+/// The x86-64 backends by name, for tests (AVX2 falls back to SSE2 without the feature; on other architectures both are `adf_find`).
+size_t adf_find_avx2(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume);
+size_t adf_find_sse2(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen, size_t *resume);
 /// The plain reference: every start, byte by byte (quadratic in the worst case; for tests).
 size_t adf_find_scalar(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen);
 

@@ -19,14 +19,24 @@ static double now(void) {
 }
 
 /// Checks one search: an exact answer equals the reference; a give-up rules out exactly the starts before `resume`.
+typedef size_t (*FindFn)(const uint8_t *, size_t, const uint8_t *, size_t, size_t *);
+static const FindFn finders[] = {adf_find, adf_find_sse2, adf_find_avx2};
+
+/// Checks one search on every backend: an exact answer equals the reference; a give-up rules out exactly the starts before `resume`.
 static int agrees(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen) {
-    size_t resume = 0;
-    const size_t found = adf_find(hay, hlen, needle, nlen, &resume);
     const size_t expected = adf_find_scalar(hay, hlen, needle, nlen);
-    if (found != ADF_FIND_GAVE_UP) return found == expected;
-    // Gave up: no match starts before `resume`, and `resume` is a real start.
-    if (resume + nlen > hlen) return 0;
-    return expected == SIZE_MAX || expected >= resume;
+    for (int f = 0; f < 3; f++) {
+        size_t resume = 0;
+        const size_t found = finders[f](hay, hlen, needle, nlen, &resume);
+        if (found != ADF_FIND_GAVE_UP) {
+            if (found != expected) return 0;
+            continue;
+        }
+        // Gave up: no match starts before `resume`, and `resume` is a real start.
+        if (resume + nlen > hlen) return 0;
+        if (expected != SIZE_MAX && expected < resume) return 0;
+    }
+    return 1;
 }
 
 static int check(void) {
@@ -70,6 +80,29 @@ static int check(void) {
             free(hay);
             free(needle);
         }
+    }
+    // Where the budget runs out, a match must not be skipped: the needle placed at every start around the first give-up.
+    for (size_t nlen = 9; nlen <= 1500; nlen = nlen * 2 + 1) {
+        const size_t hlen = 40000;
+        uint8_t *hay = malloc(hlen), *needle = malloc(nlen);
+        memset(hay, 'a', hlen);
+        memset(needle, 'a', nlen);
+        needle[nlen / 2] = 'b';
+        size_t first = 0;
+        if (adf_find(hay, hlen, needle, nlen, &first) != ADF_FIND_GAVE_UP) {  // a short needle stays inside the budget
+            free(hay);
+            free(needle);
+            continue;
+        }
+        const size_t from = first > 2 * nlen ? first - 2 * nlen : 0;
+        for (size_t at = from; at <= first + 2 * nlen && at + nlen <= hlen; at++) {
+            memset(hay, 'a', hlen);
+            memcpy(hay + at, needle, nlen);
+            checks++;
+            if (!agrees(hay, hlen, needle, nlen)) bad++;
+        }
+        free(hay);
+        free(needle);
     }
     printf("find kernels, host %s: %ld checks, %ld mismatches (%ld adversarial searches gave up, as designed)\n", adf_kernels_backend(),
            checks, bad, gaveUp);

@@ -1,0 +1,99 @@
+# Mutants of the cryptographic kernels (Argon2, BLAKE2b, the secure helpers), for Scripts/kernels-mutate.py. The scalar
+# references are mutated too: the published answers (Scripts/argon2/kat-check.c) must see what a differential check cannot.
+---
+name: blamka-scalar
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_argon2_scalar.c
+old:
+    return x + y + 2u * ((x & low) * (y & low));
+new:
+    return x + y + 2u * ((x & low) * (y & 0x7FFFFFFFu));
+---
+name: blake2b-sigma-scalar
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_argon2_scalar.c
+old:
+    {12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11}, {13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10},
+new:
+    {12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 11, 8}, {13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10},
+---
+name: blake2b-final-flag-scalar
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_argon2_scalar.c
+old:
+    v[14] ^= (uint64_t)0 - (uint64_t)(last != 0);
+new:
+    v[15] ^= (uint64_t)0 - (uint64_t)(last != 0);
+---
+name: argon2-neon-rot24
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_argon2_neon.c
+old:
+static const uint8_t rot24_table[16] = {3, 4, 5, 6, 7, 0, 1, 2, 11, 12, 13, 14, 15, 8, 9, 10};
+new:
+static const uint8_t rot24_table[16] = {3, 4, 5, 6, 7, 0, 1, 2, 11, 12, 13, 14, 15, 8, 10, 9};
+---
+name: argon2-ssse3-rot16
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_argon2_x86.c
+old:
+    case 16: return _mm_shuffle_epi8(v, _mm_setr_epi8(2, 3, 4, 5, 6, 7, 0, 1, 10, 11, 12, 13, 14, 15, 8, 9));
+new:
+    case 16: return _mm_shuffle_epi8(v, _mm_setr_epi8(2, 3, 4, 5, 6, 7, 0, 1, 10, 11, 12, 13, 14, 15, 9, 8));
+---
+name: argon2-reference-area
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_argon2_fill.c
+old:
+    relative = area - 1u - (((uint64_t)area * relative) >> 32);
+new:
+    relative = area - 2u - (((uint64_t)area * relative) >> 32);
+---
+name: argon2-address-counter
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_argon2_fill.c
+old:
+    input[6] += 1;
+new:
+    input[6] += 2;
+---
+name: crypto-equal-ignores-high-bits
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_crypto_secure.c
+old:
+        difference |= (uint32_t)(a[index] ^ b[index]);
+new:
+        difference |= (uint32_t)((a[index] ^ b[index]) & 0x7F);
+---
+name: crypto-equal-result
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_crypto_secure.c
+old:
+    return (int)(1u & ((difference - 1u) >> 8));
+new:
+    return (int)(1u & ((difference - 1u) >> 7));
+---
+name: crypto-equal-early-exit
+check: sh Scripts/argon2/check.sh --timing
+file: Sources/CAemiArgon2/adf_crypto_secure.c
+old:
+        difference |= (uint32_t)(a[index] ^ b[index]);
+new:
+        difference |= (uint32_t)(a[index] ^ b[index]);
+        if (difference) break;
+---
+name: crypto-wipe-short
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_crypto_secure.c
+old:
+    (void)adf_memset(bytes, 0, length);
+new:
+    (void)adf_memset(bytes, 0, length - 1);
+---
+name: crypto-allocate-overflow
+check: sh Scripts/argon2/check.sh
+file: Sources/CAemiArgon2/adf_crypto_secure.c
+old:
+    if (blocks == 0 || blocks > SIZE_MAX / 1024u) {
+new:
+    if (blocks == 0) {

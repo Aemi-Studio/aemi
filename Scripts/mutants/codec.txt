@@ -1,0 +1,253 @@
+# Mutants of the codec and search kernels, for Scripts/kernels-mutate.py (format there): the codec harnesses must kill each.
+---
+name: b64-neon-decode-overread
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+for (; i + 64 <= whole; i += 64) {
+new:
+for (; i + 64 <= whole + 4; i += 64) {
+---
+name: b64-neon-accepts-high-bytes
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+vandq_u8(raw, vdupq_n_u8(0x80))
+new:
+vandq_u8(raw, vdupq_n_u8(0x00))
+---
+name: b64-neon-contiguous-byte-order
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+static const uint8_t order[16] = {2, 1, 0, 6, 5, 4, 10, 9, 8, 14, 13, 12, 255, 255, 255, 255};
+new:
+static const uint8_t order[16] = {2, 1, 0, 6, 5, 4, 10, 9, 8, 14, 12, 13, 255, 255, 255, 255};
+---
+name: b64-neon-decode-tail-past-end
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+        const size_t start = whole - 16;
+        if (b64_decode_contiguous16(lo, hi, in + start, &q) != 0) goto rest;
+new:
+        const size_t start = whole - 12;
+        if (b64_decode_contiguous16(lo, hi, in + start, &q) != 0) goto rest;
+---
+name: b64-neon-encode-skips-short-tail
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+if (i < whole) vst4q_u8(out + (whole - 48) / 3 * 4
+new:
+if (i + 3 < whole) vst4q_u8(out + (whole - 48) / 3 * 4
+---
+name: b64-ssse3-decode-overread
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+    for (; i + 16 <= whole; i += 16) {
+        const __m128i s = b64_dec_sextets128(
+new:
+    for (; i + 16 <= whole + 4; i += 16) {
+        const __m128i s = b64_dec_sextets128(
+---
+name: b64-ssse3-encode-shifted-step
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+const __m128i s = b64_enc_sextets128(_mm_srli_si128(v, 4));
+new:
+const __m128i s = b64_enc_sextets128(_mm_srli_si128(v, 3));
+---
+name: b64-x86-offset-table
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+plus, slash, 65, 0, 0);
+new:
+plus, slash, 66, 0, 0);
+---
+name: b64-lines-crlf-overread
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+} else if (line[width] == 0x0D && len - i > width + 1 && line[width + 1] == 0x0A) {
+new:
+} else if (line[width] == 0x0D && line[width + 1] == 0x0A) {
+---
+name: b64-lines-encode-ending-after-last
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+while (len - i > bytes && out_cap - w >= width + ending) {
+new:
+while (len - i >= bytes && out_cap - w >= width + ending) {
+---
+name: b64-linux-ssse3-inlined-into-baseline
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+    return b64_encode_x86_ssse3_all(table, tail, in, len, out);
+}
+
+size_t adf_b64_encode_blocks(
+new:
+    return b64_encode_x86_ssse3(table, tail, in, len, out, 0);
+}
+
+size_t adf_b64_encode_blocks(
+---
+name: hex-neon-accepts-g
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_hex.c
+old:
+const uint8x16_t isLetter = vcltq_u8(l, vdupq_n_u8(6));
+new:
+const uint8x16_t isLetter = vcltq_u8(l, vdupq_n_u8(7));
+---
+name: hex-neon-encode-tail-past-end
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_hex.c
+old:
+        const size_t p = len - i >= 16 ? i : len - 16;
+        const uint8x16_t a = vld1q_u8(in + p);
+new:
+        const size_t p = i;
+        const uint8x16_t a = vld1q_u8(in + p);
+---
+name: hex-x86-pair-weights
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_hex.c
+old:
+const __m128i weights = _mm_set1_epi16(0x0110);
+new:
+const __m128i weights = _mm_set1_epi16(0x0101);
+---
+name: percent-neon-count-lane-wrap
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_percent.c
+old:
+for (size_t k = 0; k < 255 && len - i >= 16; k++, i += 16)
+new:
+for (size_t k = 0; k < 300 && len - i >= 16; k++, i += 16)
+---
+name: percent-copy-run-overread
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_percent.c
+old:
+if (len - from >= 16 && out_cap - w >= 16) {
+new:
+if (out_cap - w >= 16) {
+---
+name: percent-plus-always-space
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_percent.c
+old:
+out[(*w)++] = (plus && b == '+') ? ' ' : b;
+new:
+out[(*w)++] = (b == '+') ? ' ' : b;
+---
+name: percent-truncated-escape-overread
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_percent.c
+old:
+if (len - i < 3) return SIZE_MAX;
+new:
+if (len - i < 2) return SIZE_MAX;
+---
+name: find-never-gives-up
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_find.c
+old:
+static inline size_t find_budget(size_t hlen, size_t nlen) { return 8 * hlen + 4 * nlen + 4096; }
+new:
+static inline size_t find_budget(size_t hlen, size_t nlen) { return SIZE_MAX + 0 * (hlen + nlen); }
+---
+name: find-neon-overread
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_find.c
+old:
+for (; i + nlen + 15 <= hlen; i += 16) {
+        const uint8x16_t m
+new:
+for (; i + nlen + 14 <= hlen; i += 16) {
+        const uint8x16_t m
+---
+name: find-compare-skips-last-byte
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_find.c
+old:
+    for (; k < n; k++) {
+        if (a[k] != b[k]) {
+new:
+    for (; k + 1 < n; k++) {
+        if (a[k] != b[k]) {
+---
+name: find-resume-skips-a-start
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_find.c
+old:
+        const size_t p = i + lane;
+        if (*work > budget) {
+            *resume = p;
+new:
+        const size_t p = i + lane;
+        if (*work > budget) {
+            *resume = p + 1;
+---
+name: b64-avx2-decode-gather
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+const __m256i gather = _mm256_setr_epi32(0, 1, 2, 4, 5, 6, 7, 7);
+new:
+const __m256i gather = _mm256_setr_epi32(0, 1, 2, 3, 5, 6, 7, 7);
+---
+name: b64-lines-decode-room
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_base64.c
+old:
+while (len - i > width && out_cap - w >= bytes) {
+new:
+while (len - i > width && out_cap - w + 3 >= bytes) {
+---
+name: hex-avx2-lane-order
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_hex.c
+old:
+_mm256_permute2x128_si256(a, b, 0x20)
+new:
+_mm256_permute2x128_si256(a, b, 0x30)
+---
+name: hex-avx2-decode-pack
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_hex.c
+old:
+_mm256_permute4x64_epi64(_mm256_packus_epi16(pairs, pairs), 0x08)
+new:
+_mm256_permute4x64_epi64(_mm256_packus_epi16(pairs, pairs), 0x00)
+---
+name: percent-ssse3-mask-width
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_percent.c
+old:
+return ~_mm_movemask_epi8(_mm_cmpeq_epi8(both, _mm_setzero_si128())) & 0xFFFF;
+new:
+return ~_mm_movemask_epi8(_mm_cmpeq_epi8(both, _mm_setzero_si128())) & 0x7FFF;
+---
+name: find-avx2-overread
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_find.c
+old:
+for (; i + nlen + 31 <= hlen; i += 32) {
+new:
+for (; i + nlen + 30 <= hlen; i += 32) {
+---
+name: find-sse2-lane-bits
+check: KERNELS="base64 hex percent find codec_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_find.c
+old:
+const uint32_t bits = (uint32_t)_mm_movemask_epi8(_mm_and_si128(a, b));
+new:
+const uint32_t bits = (uint32_t)_mm_movemask_epi8(_mm_and_si128(a, b)) & 0x7FFF;

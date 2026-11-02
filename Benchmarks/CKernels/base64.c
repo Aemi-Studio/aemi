@@ -2,7 +2,7 @@
 //  base64.c
 //  Differential check (--check) and throughput (default) of CAemiKernels' Base64 block kernels against their scalar
 //  references. The check allocates every input and output at its exact size, so under AddressSanitizer a load or store
-//  outside the contract is an error; see Scripts/base64-kernels-check.sh.
+//  outside the contract is an error; see Scripts/kernels-check.sh.
 //
 #include "CAemiKernels.h"
 

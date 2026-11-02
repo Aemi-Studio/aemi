@@ -1,7 +1,7 @@
 //
 //  hex.c
 //  Differential check (--check) and throughput (default) of CAemiKernels' hex kernels against their scalar references, on
-//  exact-size allocations so AddressSanitizer sees any access outside the contract. See Scripts/codec-kernels-check.sh.
+//  exact-size allocations so AddressSanitizer sees any access outside the contract. See Scripts/kernels-check.sh.
 //
 #include "CAemiKernels.h"
 

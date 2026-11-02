@@ -1,0 +1,171 @@
+# Mutants of the scanners, folding, UTF-8 and UTF-16, CRC-32C, counts, sets, pair sets and dates, for Scripts/kernels-mutate.py.
+---
+name: scan-neon-loop-overread
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_neon_scan.h
+old:
+    for (; i + 64 <= len; i += 64) {
+new:
+    for (; i + 64 <= len + 8; i += 64) {
+---
+name: scan-neon-tail-misplaced
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_neon_scan.h
+old:
+return bits != 0 ? len - 16 + adf_neon_first_lane(bits) : len;
+new:
+return bits != 0 ? len - 15 + adf_neon_first_lane(bits) : len;
+---
+name: scan-neon-short-lane-split
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_neon_scan.h
+old:
+return lane < 8 ? lane : len - 8 + (lane - 8);
+new:
+return lane < 8 ? lane : len - 8 + (lane - 9);
+---
+name: scan-disallowed-threshold
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_scan.c
+old:
+return min_allowed > 0x80 ? 0x80 : min_allowed;
+new:
+return min_allowed;
+---
+name: scan-disallowed-del
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_scan.c
+old:
+if (b == 0x7F) {
+new:
+if (b == 0x7E) {
+---
+name: utf8-neon-incomplete-at-block-end
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_utf8.c
+old:
+prevIncomplete = vqsubq_u8(input, maxInc);
+new:
+prevIncomplete = zero;
+---
+name: fold-sse2-range
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_fold.c
+old:
+const __m128i vLim = _mm_set1_epi8(25);
+new:
+const __m128i vLim = _mm_set1_epi8(26);
+---
+name: crc-words-tail
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_crc32c.c
+old:
+crc = __crc32cw(crc, word);
+new:
+crc = __crc32cw(crc, word ^ 1u);
+---
+name: crc-fold-constant
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_crc32c.c
+old:
+const poly64_t k0 = 0x6992cea2u, k1 = 0x0d3b6092u;
+new:
+const poly64_t k0 = 0x6992cea3u, k1 = 0x0d3b6092u;
+---
+name: bitcount-neon-overread
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_numeric.c
+old:
+for (; i + 64 <= blockEnd; i += 64) {
+new:
+for (; i + 48 <= blockEnd; i += 64) {
+---
+name: hamming-neon-or
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_numeric.c
+old:
+uint8x16_t x = veorq_u8(vld1q_u8(a + i), vld1q_u8(b + i));
+new:
+uint8x16_t x = vorrq_u8(vld1q_u8(a + i), vld1q_u8(b + i));
+---
+name: utf16-word-mask
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_utf16.c
+old:
+if ((word & 0xFF80FF80FF80FF80u) == 0) {
+new:
+if ((word & 0xFF00FF00FF00FF00u) == 0) {
+---
+name: set-neon-nibble
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_set.c
+old:
+vandq_u8(v, vdupq_n_u8(0x0F))
+new:
+vandq_u8(v, vdupq_n_u8(0x1F))
+---
+name: date-gregorian-leap
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_date.c
+old:
+((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)
+new:
+(year % 4 == 0 && year % 100 != 0)
+---
+name: date-julian-offset
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_date.c
+old:
+common - 32083
+new:
+common - 32082
+---
+name: pairset-neon-tail-overread
+check: bash Scripts/pair-set-check.sh
+file: Sources/CAemiKernels/adf_teddy.c
+old:
+    while (i + 17 <= len) {
+        uint8x16_t c = candidates_neon(&t, h + i);
+new:
+    while (i + 16 <= len) {
+        uint8x16_t c = candidates_neon(&t, h + i);
+---
+name: pairset-neon-second-block
+check: bash Scripts/pair-set-check.sh
+file: Sources/CAemiKernels/adf_teddy.c
+old:
+if (vmaxvq_u8(c1) != 0) return i + 16 + first_lane(c1);
+new:
+if (vmaxvq_u8(c1) != 0) return i + 17 + first_lane(c1);
+---
+name: scan-avx2-string-stop-high
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_scan.c
+old:
+        __m256i stop = _mm256_or_si256(_mm256_or_si256(isCtrl, isHigh), _mm256_or_si256(isQ, isE));
+new:
+        __m256i stop = _mm256_or_si256(isCtrl, _mm256_or_si256(isQ, isE));
+---
+name: utf8-sse-incomplete-at-block-end
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_utf8.c
+old:
+prevIncomplete = _mm_subs_epu8(input, maxInc);
+new:
+prevIncomplete = _mm_setzero_si128();
+---
+name: crc-sse42-byte-tail
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_crc32c.c
+old:
+        narrow = _mm_crc32_u8(narrow, *buf);
+new:
+        narrow = _mm_crc32_u8(narrow, (uint8_t)(*buf ^ 0x80));
+---
+name: pairset-ssse3-lane-mask
+check: bash Scripts/pair-set-check.sh
+file: Sources/CAemiKernels/adf_teddy.c
+old:
+    return (~(unsigned)_mm_movemask_epi8(_mm_cmpeq_epi8(c, _mm_setzero_si128()))) & 0xFFFFu;
+new:
+    return (~(unsigned)_mm_movemask_epi8(_mm_cmpeq_epi8(c, _mm_setzero_si128()))) & 0x7FFFu;

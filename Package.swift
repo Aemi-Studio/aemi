@@ -107,12 +107,15 @@ let isFuzz = Context.environment["AEMI_FUZZ"] != nil
 //   • swift-syntax      — backs AemiMacros and AemiMacroSupport (macro-plugin helpers).
 //   • swift-collections — `HeapModule` backs the AemiTestKit `TestClock` sleeper queue.
 //   • swift-system      — `SystemPackage` backs AemiTestKit's typed temp-file paths.
+//   • swift-crypto      — `Crypto` backs AemiDigest off Apple platforms (CryptoKit on them); aemi implements no
+//                         digest of its own (ADR 0029).
 var packageDependencies: [Package.Dependency] = [
     // 603 builds with the Swift 6.3 toolchain the CI 6.3 lane uses; 604 is the Swift 6.4 release consumers on
     // Xcode 27 pin. Both are accepted so a consumer's pin never conflicts with this range.
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.0" ..< "605.0.0"),
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.7.3"),
-    .package(url: "https://github.com/apple/swift-system.git", from: "1.8.1")
+    .package(url: "https://github.com/apple/swift-system.git", from: "1.8.1"),
+    .package(url: "https://github.com/apple/swift-crypto.git", "4.0.0" ..< "6.0.0")
 ]
 if isDev {
     packageDependencies.append(
@@ -177,6 +180,8 @@ let package = Package(
         .library(name: "AemiLexers", targets: ["AemiLexers"]),
         .library(name: "AemiDiff", targets: ["AemiDiff"]),
         .library(name: "AemiArgon2", targets: ["AemiArgon2"]),
+        // SHA-256 on CryptoKit or swift-crypto; not in the AemiFoundation umbrella, which takes no dependency.
+        .library(name: "AemiDigest", targets: ["AemiDigest"]),
         // Concurrency seams + pools (formerly ADConcurrency).
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
         // Shared swift-syntax helpers for macro compiler plugins. Never re-exported by an umbrella.
@@ -311,6 +316,21 @@ let package = Package(
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
         ),
+        // AemiDigest — content digests from the platform's cryptography: CryptoKit on Apple platforms, swift-crypto
+        // elsewhere (ADR 0029).
+        .target(
+            name: "AemiDigest",
+            dependencies: [
+                "AemiKernel",
+                .product(
+                    name: "Crypto",
+                    package: "swift-crypto",
+                    condition: .when(platforms: [.linux, .android, .windows, .openbsd, .wasi])
+                )
+            ],
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
         // AemiRuntime — zero-dep production seams (TaskProvider/Clock) + ResourcePool /
         // BlockingOffloadPool. Separate from AemiCore's app-level TaskProvider/TaskRole.
         .target(name: "AemiRuntime", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
@@ -428,6 +448,11 @@ let package = Package(
             swiftSettings: testSettings
         ),
         .testTarget(name: "CAemiCPUTests", dependencies: ["CAemiCPU"], swiftSettings: testSettings),
+        .testTarget(
+            name: "AemiDigestTests",
+            dependencies: ["AemiDigest", "AemiKernel"],
+            swiftSettings: testSettings
+        ),
         .testTarget(
             name: "AemiArgon2Tests",
             dependencies: ["AemiArgon2", "CAemiArgon2", "AemiTestKit"],

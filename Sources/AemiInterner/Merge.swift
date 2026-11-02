@@ -1,11 +1,5 @@
 internal import Dispatch
 
-#if canImport(Darwin)
-    internal import Darwin
-#elseif canImport(Glibc)
-    internal import Glibc
-#endif
-
 /// A buffer several workers write at distinct indices, allocated and freed by one owner. The pointer never leaves it.
 @safe struct SharedBuffer<Element>: @unchecked Sendable {
     private let base: UnsafeMutablePointer<Element>
@@ -209,9 +203,7 @@ enum Merge {
     }
 
     private static func same(_ a: UnsafeRawBufferPointer, _ b: UnsafeRawBufferPointer) -> Bool {
-        guard a.count == b.count else { return false }
-        guard a.count > 0, let left = a.baseAddress, let right = b.baseAddress else { return true }
-        return unsafe memcmp(left, right, a.count) == 0
+        unsafe bytesEqual(a, b)
     }
 }
 

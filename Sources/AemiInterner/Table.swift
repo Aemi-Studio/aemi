@@ -1,9 +1,3 @@
-#if canImport(Darwin)
-    internal import Darwin
-#elseif canImport(Glibc)
-    internal import Glibc
-#endif
-
 /// Key bytes in chunks that never move, freed when the last table that points into them goes (ADR 0019). A table and
 /// the tables frozen or merged from it share their arenas instead of copying bytes.
 @safe final class Arena: @unchecked Sendable {
@@ -150,8 +144,8 @@
 
     private func equal(_ symbol: Int, _ key: UnsafeRawBufferPointer) -> Bool {
         guard key.count > 0 else { return true }
-        guard let stored = unsafe starts[symbol], let base = key.baseAddress else { return false }
-        return unsafe memcmp(stored, base, key.count) == 0
+        guard let stored = unsafe starts[symbol] else { return false }
+        return unsafe bytesEqual(UnsafeRawBufferPointer(start: stored, count: key.count), key)
     }
 
     private func grow() {

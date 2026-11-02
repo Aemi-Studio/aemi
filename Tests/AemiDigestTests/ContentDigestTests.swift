@@ -1,6 +1,6 @@
+import AemiDigest
+import AemiKernel
 import Testing
-
-@testable import AemiKernel
 
 private func hex(_ bytes: [UInt8]) -> String { String(decoding: Hex.encode(bytes), as: UTF8.self) }
 
@@ -19,41 +19,37 @@ private func hex(_ bytes: [UInt8]) -> String { String(decoding: Hex.encode(bytes
         )
     ]
 
-    @Test func `the digest matches the published vectors, on both implementations`() {
+    @Test func `the digest matches the published vectors`() {
         for (message, digest) in Self.vectors {
-            #expect(ContentDigest.sha256Hex(Array(message.utf8)) == digest, "\(message)")
-            var portable = PortableSHA256()
-            portable.update(Array(message.utf8)[...])
-            #expect(hex(portable.finalize()) == digest, "\(message)")
+            let actual: String = ContentDigest.sha256Hex(Array(message.utf8))
+            #expect(actual == digest, "\(message)")
+            var hasher = ContentDigest.SHA256()
+            hasher.update(Array(message.utf8))
+            #expect(hex(hasher.finalize()) == digest, "\(message)")
         }
     }
 
     @Test func `a million a's`() {
         let million = [UInt8](repeating: UInt8(ascii: "a"), count: 1_000_000)
         let expected = "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
-        #expect(ContentDigest.sha256Hex(million) == expected)
-        var portable = PortableSHA256()
-        portable.update(million[...])
-        #expect(hex(portable.finalize()) == expected)
+        let actual: String = ContentDigest.sha256Hex(million)
+        #expect(actual == expected)
     }
 
-    @Test func `pieces of any size give the one-shot digest, and the implementations agree on random inputs`() {
+    @Test func `pieces of any size give the one-shot digest`() {
         var generator = SystemRandomNumberGenerator()
         for _ in 0 ..< 200 {
             let count = Int.random(in: 0 ... 700, using: &generator)
             let bytes = (0 ..< count).map { _ in UInt8.random(in: 0 ... 255, using: &generator) }
             let whole = ContentDigest.sha256(bytes)
             var hasher = ContentDigest.SHA256()
-            var portable = PortableSHA256()
             var index = 0
             while index < count {
                 let take = min(count - index, Int.random(in: 1 ... 130, using: &generator))
                 hasher.update(bytes[index ..< index + take])
-                portable.update(bytes[index ..< index + take])
                 index += take
             }
             #expect(hasher.finalize() == whole)
-            #expect(portable.finalize() == whole)
             #expect(ContentDigest.sha256(bytes[...]) == whole)
         }
     }

@@ -42,6 +42,20 @@ public final class PosixFile: Sendable {
         self.closeOnDeinit = true
     }
 
+    /// Creates `path` for reading and writing, refusing anything already there, a link included, dangling or not
+    /// (`O_CREAT | O_EXCL`): `EEXIST` then. The check and the creation are one call, so no other process can create
+    /// the file in between, as it could after an existence check.
+    public init(creatingExclusively path: String, permissions: UInt16 = 0o644) throws(IOError) {
+        let flags = O_RDWR | O_CLOEXEC | O_CREAT | O_EXCL
+        @unsafe func openPath(_ pointer: UnsafePointer<CChar>) -> Int32 {
+            unsafe open(pointer, flags, mode_t(permissions))
+        }
+        let fd = unsafe path.withCString(openPath)
+        guard fd >= 0 else { throw IOError.capturingErrno("open(\(path), exclusive)") }
+        self.fileDescriptor = fd
+        self.closeOnDeinit = true
+    }
+
     /// Wraps an already-open descriptor (ownership not transferred).
     public init(borrowing fd: Int32) {
         self.fileDescriptor = fd
@@ -116,6 +130,37 @@ public final class PosixFile: Sendable {
             if n == 0 { throw IOError(errno: 0, op: "pwrite(zero-length write at \(offset + done))") }
             done += n
         }
+    }
+
+    /// Writes all of `bytes` at `offset`; the safe form of ``pwrite(_:at:)``.
+    public func write(_ bytes: [UInt8], at offset: Int) throws(IOError) {
+        var failure: IOError?
+        bytes.withUnsafeBytes { buffer in
+            do throws(IOError) { try unsafe pwrite(buffer, at: offset) } catch { failure = error }
+        }
+        if let failure { throw failure }
+    }
+
+    /// Writes all of `bytes` at `offset`; the safe form of ``pwrite(_:at:)``.
+    public func write(_ bytes: ArraySlice<UInt8>, at offset: Int) throws(IOError) {
+        var failure: IOError?
+        bytes.withUnsafeBytes { buffer in
+            do throws(IOError) { try unsafe pwrite(buffer, at: offset) } catch { failure = error }
+        }
+        if let failure { throw failure }
+    }
+
+    /// Reads exactly `count` bytes at `offset`; the safe form of ``pread(into:at:)``, which it shares the short-read
+    /// error with.
+    public func read(at offset: Int, count: Int) throws(IOError) -> [UInt8] {
+        guard count > 0 else { return [] }
+        var bytes = [UInt8](repeating: 0, count: count)
+        var failure: IOError?
+        bytes.withUnsafeMutableBytes { buffer in
+            do throws(IOError) { try unsafe pread(into: buffer, at: offset) } catch { failure = error }
+        }
+        if let failure { throw failure }
+        return bytes
     }
 
     public func pwritev(_ buffers: [UnsafeRawBufferPointer], at offset: Int) throws(IOError) {

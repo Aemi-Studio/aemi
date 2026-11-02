@@ -172,6 +172,7 @@ let package = Package(
         .library(name: "AemiFileSystem", targets: ["AemiFileSystem"]),
         .library(name: "AemiInterner", targets: ["AemiInterner"]),
         .library(name: "AemiMetrics", targets: ["AemiMetrics"]),
+        .library(name: "AemiProcess", targets: ["AemiProcess"]),
         // Syntax lexers, whole text or a line at a time; not in the AemiFoundation umbrella.
         .library(name: "AemiLexers", targets: ["AemiLexers"]),
         .library(name: "AemiDiff", targets: ["AemiDiff"]),
@@ -280,6 +281,9 @@ let package = Package(
             plugins: libraryBuildPlugins
         ),
         .target(name: "AemiMetrics", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+        // AemiProcess — the user's process table (sessions, groups, start times, environments, live usage) for
+        // supervising children wherever they went (ADR 0028). Pointer-level syscalls: strict memory safety.
+        .target(name: "AemiProcess", swiftSettings: kernelSettings, plugins: libraryBuildPlugins),
         // AemiLexers — hand-written scanners over borrowed UTF-8 bytes for 20 languages, whole text or a line at a time
         // from each line's entry state. Standard library only. Moved from Atelier's AtelierLexers.
         .target(name: "AemiLexers", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
@@ -316,7 +320,7 @@ let package = Package(
             name: "AemiFoundation",
             dependencies: [
                 "AemiKernel", "AemiKernels", "AemiIO", "AemiText", "AemiUnicode", "AemiMetrics",
-                "AemiRuntime"
+                "AemiProcess", "AemiRuntime"
             ],
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
@@ -417,6 +421,7 @@ let package = Package(
             dependencies: ["AemiMetrics"],
             swiftSettings: testSettings
         ),
+        .testTarget(name: "AemiProcessTests", dependencies: ["AemiProcess"], swiftSettings: testSettings),
         .testTarget(
             name: "AemiLexersTests",
             dependencies: ["AemiLexers", "AemiTestKit"],

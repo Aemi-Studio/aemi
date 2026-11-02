@@ -251,3 +251,43 @@ private func directory(_ path: String) -> DirectoryWalk.Entry {
         #expect(failed)
     }
 }
+
+@Suite struct CancellableWalkTests {
+    /// A tree of `count` directories with one file each.
+    private func tree(_ count: Int) throws -> String {
+        let root = NSTemporaryDirectory() + "aemi-walk-\(getpid())-\(UInt64.random(in: 0 ..< .max))"
+        for index in 0 ..< count {
+            try FileManager.default.createDirectory(atPath: root + "/d\(index)", withIntermediateDirectories: true)
+            try Data().write(to: URL(fileURLWithPath: root + "/d\(index)/f"))
+        }
+        return root
+    }
+
+    @Test func `a walk whose task is cancelled stops and says so`() async throws {
+        let root = try tree(200)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        var policy = DirectoryWalk.Policy()
+        policy.workers = 1
+        // Slow enough that the walk is still running when the task is cancelled.
+        policy.accepts = { _ in
+            usleep(2_000)
+            return true
+        }
+        let walk = Task { try await DirectoryWalk.cancellableWalk(root, policy: policy) }
+        try await Task.sleep(for: .milliseconds(50))
+        walk.cancel()
+        let result = try await walk.value
+        #expect(result.cancelled)
+        #expect(result.entries.count < 400)
+    }
+
+    @Test func `an uncancelled walk is the plain walk`() async throws {
+        let root = try tree(5)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        let walked = try await DirectoryWalk.cancellableWalk(root)
+        let plain = try DirectoryWalk.walk(root)
+        #expect(!walked.cancelled)
+        #expect(walked.entries == plain.entries)
+        await #expect(throws: IOError.self) { try await DirectoryWalk.cancellableWalk(root + "/missing") }
+    }
+}

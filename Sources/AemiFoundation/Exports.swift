@@ -10,6 +10,7 @@
 @_exported import AemiKernel
 @_exported import AemiKernels
 @_exported import AemiMetrics
+@_exported import AemiProcess
 @_exported import AemiRuntime
 @_exported import AemiText
 @_exported import AemiUnicode

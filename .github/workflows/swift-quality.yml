@@ -215,7 +215,7 @@ jobs:
           # The commit the CALLER pinned this workflow to, not main: a caller's canonical config, scripts and
           # analyzer pins then change only when it moves its pin. With `ref: main`, one config edit here failed
           # the drift check in every pinned caller at once (2026-10-23). `main` is only a fallback.
-          ref: ${{ github.job_workflow_sha || 'main' }}
+          ref: ${{ job.workflow_sha || 'main' }}
           path: .aemi-tools
       - name: Config drift (.swift-format + .swiftlint.yml == canonical)
         shell: bash

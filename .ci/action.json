@@ -1,0 +1,40 @@
+{
+  "project": {
+    "linux": false
+  },
+  "swift": {
+    "versions": [
+      "6.4.1",
+      "6.3.3"
+    ],
+    "matrix": [
+      "macos-debug"
+    ],
+    "parallel": false,
+    "xcode": "26.6",
+    "environment": {
+      "AEMI_TYPECHECK_BUDGET_MS": "250"
+    }
+  },
+  "checks": {
+    "macos-address": [],
+    "macos-thread": []
+  },
+  "quality": {
+    "formatters": [
+      "swift-format"
+    ],
+    "analyzers": [],
+    "exclude": [
+      "**/Fixtures/**",
+      "**/Generated/**",
+      ".build/**",
+      "Sources/AemiCore/**",
+      "Sources/AemiUI/**",
+      "Tests/AemiCoreTests/**",
+      "Tests/AemiTestingTests/**",
+      "Tests/LoggableTests/**",
+      "Sources/AemiTesting/**"
+    ]
+  }
+}

@@ -58,7 +58,8 @@ private func procargs(arguments: [String], environment: [String]) -> ArraySlice<
         process.arguments = [
             "-e",
             // The child of a group leader can lead a new session; its own child then leaves the group.
-            "use POSIX; $|=1; if (fork() == 0) { POSIX::setsid() or die; my $c = fork(); if ($c == 0) { setpgrp(0,0); sleep 30; exit 0 } print \"$$ $c\\n\"; sleep 30; exit 0 } sleep 30"
+            // Only the grandchild signals readiness, after setpgrp: the parent printing its pid raced the syscall.
+            "use POSIX; $|=1; if (fork() == 0) { POSIX::setsid() or die; my $c = fork(); if ($c == 0) { setpgrp(0,0) or die; print getppid().\" $$\\n\"; sleep 30; exit 0 } sleep 30; exit 0 } sleep 30"
         ]
         process.environment = ["AEMI_PROCESS_TABLE_TEST": "token-\(getpid())"]
         let pipe = Pipe()

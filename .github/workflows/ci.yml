@@ -4,20 +4,28 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: aemi-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 env:
-  # Match the shared workflow budget for compiler timing on hosted runners.
+  AD_TYPECHECK_BUDGET_MS: "250"
   AEMI_TYPECHECK_BUDGET_MS: "250"
 
 jobs:
+  ci:
+    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@e79543fb62f7494b8a5c2d8898b11005e81ae4b8 # swift-ci e79543f
+    permissions:
+      contents: write # reusable publish permission; no archives are configured for this library
+
   analyzers-script:
     # The family's analyzers script refuses an archive whose SHA-256 is not the lock's (analyzerkit roadmap 0031).
     name: Analyzers script on fake releases
@@ -48,6 +56,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
+      - name: Cache SwiftPM tree
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: spm-linux-${{ runner.os }}-6.4.1-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          restore-keys: spm-linux-${{ runner.os }}-6.4.1-${{ hashFiles('Package.swift', 'Package.resolved') }}-
       # The products analyzerkit, AemiJSON and AemiProtobuf take, which the tools build on Linux. The rest of aemi is
       # not meant for Linux (AemiCore imports Combine).
       - name: Build the products the tools take
@@ -57,48 +71,6 @@ jobs:
             swift build --product "$product"
             echo "::endgroup::"
           done
-
-  test:
-    name: Swift ${{ matrix.swift }} (${{ matrix.configuration }})
-    runs-on: macos-26
-    strategy:
-      fail-fast: false
-      matrix:
-        swift: ['6.3.3', '6.4.1']
-        configuration: [debug, release]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Select the stable SDK
-        run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - name: Install Swift ${{ matrix.swift }}
-        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
-        with:
-          swift-version: ${{ matrix.swift }}
-      - run: swift --version
-      - name: Restore the SwiftPM tree
-        id: spm
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .build
-          key: spm-${{ runner.os }}-${{ matrix.swift }}-${{ matrix.configuration }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
-          restore-keys: spm-${{ runner.os }}-${{ matrix.swift }}-${{ matrix.configuration }}-
-      - name: Resolve remote dependencies
-        run: swift package resolve
-      - name: Build
-        run: swift build -c '${{ matrix.configuration }}'
-      - name: Test
-        # Swift 6.3's `swift test` runs every test module in ONE process, so ~30 stress tests (200-500
-        # iterations each) share a 3-CPU runner's cooperative pool and starve real-time waits: one of them
-        # (ThreadGateTests) timed out on every parallel 6.3 run, while each module alone and the whole
-        # suite with --no-parallel passed (debug and release). 6.4 runs each module separately and passes
-        # in parallel, so only 6.3 is serialized; it costs ~10-15 s.
-        run: swift test -c '${{ matrix.configuration }}' ${{ startsWith(matrix.swift, '6.3') && '--no-parallel' || '' }}
-      - name: Save the SwiftPM tree
-        if: ${{ always() && github.ref == 'refs/heads/main' && steps.spm.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .build
-          key: spm-${{ runner.os }}-${{ matrix.swift }}-${{ matrix.configuration }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
 
   unicode-tables:
     # The categories, scripts and folding orbits are generated from Go's unicode package (aemi ADR 0018; moved from AemiRegex): the
@@ -208,12 +180,12 @@ jobs:
 
   result:
     name: ci result
-    needs: [test, unicode-tables, c-kernels, c-kernels-linux-arm64, c-kernels-linux-x86]
+    needs: [ci, analyzers-script, release-note-lint, linux, unicode-tables, embedded, c-kernels, c-kernels-linux-arm64, c-kernels-linux-x86]
     if: ${{ always() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 2
     steps:
-      - name: Every job passed
+      - name: Every required job passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
         run: |
-          echo '${{ toJSON(needs) }}' > needs.json
-          if grep -E '"result": "(failure|cancelled)"' needs.json; then exit 1; fi
+          if echo "$RESULTS" | grep -E '"result": "(failure|cancelled)"'; then exit 1; fi

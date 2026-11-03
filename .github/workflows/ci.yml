@@ -22,7 +22,7 @@ env:
 
 jobs:
   ci:
-    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@e79543fb62f7494b8a5c2d8898b11005e81ae4b8 # swift-ci e79543f
+    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@1da0e4043a03b3eaf5f053b8b4ecad5c1f68fae3 # swift-ci 1da0e40
     permissions:
       contents: write # reusable publish permission; no archives are configured for this library
 

@@ -22,41 +22,45 @@ env:
 
 jobs:
   ci:
-    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@cdc970cbefe89b356b87b8657612981e747e1430 # swift-ci cdc970c
+    name: Checks
+    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@725d6ab11cfc2b653bdcdd70393817692925ffb0 # swift-ci 725d6ab
     permissions:
       contents: write # reusable publish permission; no archives are configured for this library
 
   analyzers-script:
     # The family's analyzers script refuses an archive whose SHA-256 is not the lock's (analyzerkit roadmap 0031).
-    name: Analyzers script on fake releases
+    name: Tooling · Analyzer Installer Contract
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - run: sh Scripts/tests/analyzers-test.sh
 
   release-note-lint:
     # swift-tool.yml's publish job refuses a release note without the fixed sections (analyzerkit roadmap 0030).
-    name: Release-note lint on its fixtures
+    name: Tooling · Release Notes Contract
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - run: .github/release-note-tests/run.sh
 
   linux:
     # The tools build aemi on Linux (swift-tool.yml's swift:6.4.1-noble). Without this job a Darwin-only spelling
     # (`UnsafeMutablePointer<DIR>`, which Glibc spells `OpaquePointer`) reaches every tool's CI before aemi's.
-    name: Linux build of the products the tools take (swift:6.4.1-noble)
+    name: Compatibility · Linux Products
     runs-on: ubuntu-latest
     container: swift:6.4.1-noble
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - name: Cache SwiftPM tree
+      - name: Cache · Restore SwiftPM
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
@@ -76,19 +80,22 @@ jobs:
     # The categories, scripts and folding orbits are generated from Go's unicode package (aemi ADR 0018; moved from AemiRegex): the
     # table in the repository must be what the generator writes. The binary-property table comes from node's RegExp and is not
     # regenerated here: a newer node carries a newer Unicode, and that table moves with the Go one, by hand, when Go moves.
-    name: Unicode tables are regenerable
+    name: Generated Sources · Unicode
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27"
       - name: Regenerate and compare
         run: |
           go run Scripts/unicode/gen.go > /tmp/UnicodeDataTables.swift
           diff -u Sources/AemiUnicode/Generated/UnicodeDataTables.swift /tmp/UnicodeDataTables.swift
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Setup · Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.4.4"
       - name: Regenerate the tokenizer-parity tables and compare
@@ -101,15 +108,16 @@ jobs:
     # AemiKernels and AemiKernel as Embedded Swift for arm64 and x86_64 macOS, needing libc only: WineKit links them into
     # Wine's ntdll, which cannot carry the Swift runtime or its Unicode tables (ADR 0024). Xcode's compiler has no Embedded
     # standard library, so this uses a swift.org toolchain.
-    name: Embedded Swift, AemiKernel and AemiKernels
+    name: Compatibility · Embedded Swift
     runs-on: macos-26
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - name: Select the stable SDK
+      - name: Setup · Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - name: Install Swift 6.4.1
+      - name: Setup · Install Swift 6.4.1
         uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
         with:
           swift-version: '6.4.1'
@@ -121,11 +129,12 @@ jobs:
     # and the pair-set (Teddy) kernel on arm64 and, under Rosetta, its x86-64 paths: SSE4.2 and SSSE3, then AVX2 with
     # ROSETTA_ADVERTISE_AVX=1, without which Rosetta runs AVX2 but does not report it (ADR 0024). The Swift tests run only the
     # host's own backend. AVX-512 runs nowhere: Rosetta never reports it.
-    name: C kernels, differential under sanitizers
+    name: Kernels · macOS & Rosetta
     runs-on: macos-26
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # bench-c-kernels.sh rebuilds the previous kernels from aff9ca5's parent, which a shallow clone lacks.
           fetch-depth: 0
@@ -145,11 +154,12 @@ jobs:
   c-kernels-linux-arm64:
     # The arm64 paths macOS never builds: the CRC's runtime feature check (HWCAP), and GCC, whose target attributes differ from
     # clang's (aemi diary 2026-10-30-03). The same check, natively, with gcc and clang.
-    name: C kernels, arm64 Linux
+    name: Kernels · Linux ARM64
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: CRC-32C, bit count and UTF-16 kernels with gcc
         run: CC=gcc Scripts/checksum-kernels-check.sh
       - name: Argon2 and BLAKE2b kernels with gcc, SHA3 found at run time
@@ -161,12 +171,13 @@ jobs:
     # Real x86-64 hardware, which the macOS jobs only reach through Rosetta: an SSE2 baseline (where a target-attribute slip that
     # macOS's SSSE3 baseline hides breaks the build) and the runner's AVX2 run natively, with the swift.org clang's sanitizers and
     # libFuzzer (ADR 0027). Every kernel check, then a minute of fuzzing per target.
-    name: C kernels, x86-64 Linux, checks and fuzzing
+    name: Kernels · Linux x86_64
     runs-on: ubuntu-latest
     container: swift:6.4.1-noble
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup · Check Out Sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - name: CAemiKernels, exhaustive and under ThreadSanitizer
         run: bash Scripts/kernels-check.sh
@@ -179,12 +190,12 @@ jobs:
         run: FUZZ_CLANG=clang bash Scripts/kernels-fuzz.sh 60
 
   result:
-    name: ci result
+    name: Gate · Repository
     needs: [ci, analyzers-script, release-note-lint, linux, unicode-tables, embedded, c-kernels, c-kernels-linux-arm64, c-kernels-linux-x86]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - name: Every required job passed
+      - name: Gate · Verify Required Jobs
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |

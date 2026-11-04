@@ -6,7 +6,7 @@
 # from the build's response file on 2026-10-18) plus the package's strict C settings, parsed from
 # Package.swift so this script cannot drift from them. Baselines are the scalar references in their
 # own translation units at -Os, -O2, and -O2 without vectorization; the previous NEON kernel, from
-# aff9ca5's parent, is rebuilt from git. --check builds everything with AddressSanitizer and UBSan.
+# cd4d1c4's parent, is rebuilt from git. --check builds everything with AddressSanitizer and UBSan.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 out=$(mktemp -d)
@@ -33,10 +33,10 @@ for source in $KERNELS_SOURCES $CPU_SOURCES; do
     # shellcheck disable=SC2086
     cc -Os $C_STRICT $C_INCLUDES "$source" -o "$out/$(basename "$source" .c).o"
 done
-git -C "$root" show 'aff9ca5^:Sources/CAemiKernels/adf_fold.c' | sed 's/adf_fold_ascii/prev_fold_ascii/g' > "$out/prev_fold.c"
+git -C "$root" show 'cd4d1c4^:Sources/CAemiKernels/adf_fold.c' | sed 's/adf_fold_ascii/prev_fold_ascii/g' > "$out/prev_fold.c"
 cc -Os -std=c11 -I"$kernels/include" "$out/prev_fold.c" -o "$out/prev_fold.o"
 # The scanners as they were before the small-input work (SMALL_BASE), under other names: "before" in --small.
-SMALL_BASE=5ee18dc^
+SMALL_BASE=9cf6e08^
 git -C "$root" show "$SMALL_BASE:Sources/CAemiKernels/adf_scan.c" | sed 's/adf_index_of/prev_index_of/g; s/adf_first_/prev_first_/g' > "$out/prev_scan.c"
 cc -Os -std=c11 -I"$kernels/include" "$out/prev_scan.c" -o "$out/prev_scan.o"
 cc -O2 -std=c11 -I"$kernels/include" "$root/Benchmarks/CKernels/small_inputs.c" -o "$out/small_inputs.o"

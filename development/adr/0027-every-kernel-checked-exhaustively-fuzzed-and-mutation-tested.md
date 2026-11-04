@@ -13,7 +13,7 @@ rather than assumed. Before this, each family had a differential check against i
 tests (ADR 0021), a Swift libFuzzer target for some scanners (Linux CI only) and the dudect timing check for the constant-time
 code. Three gaps: a check only proves what it was shown, and nobody had measured what its checks miss; a defect shared by a
 kernel and its own scalar reference is invisible to a differential check; and Linux x86-64, where a `target` attribute slip broke
-the build once (aemi 921fd8d), had no runtime check at all.
+the build once (aemi ca34b52), had no runtime check at all.
 
 ## Decision
 

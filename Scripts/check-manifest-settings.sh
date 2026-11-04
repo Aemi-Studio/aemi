@@ -3,7 +3,7 @@
 # swiftSetting. This is the manifest analogue of the `.swift-format` / `.swiftlint.yml` drift checks:
 # SwiftPM cannot share manifest code across packages, so this gate keeps the per-package
 # `strictSettings` blocks from silently diverging (the drift that left ADConcurrency / ADTestKit
-# without the import-visibility upcoming features). Run per-package by the reusable swift-quality.yml.
+# without the import-visibility upcoming features). Run it per package, by hand or from a project's own gate.
 #
 # Usage: Scripts/check-manifest-settings.sh [path/to/Package.swift]   (defaults to ./Package.swift)
 set -eu

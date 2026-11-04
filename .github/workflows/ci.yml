@@ -27,30 +27,8 @@ jobs:
     permissions:
       contents: write # reusable publish permission; no archives are configured for this library
 
-  analyzers-script:
-    # The family's analyzers script refuses an archive whose SHA-256 is not the lock's (analyzerkit roadmap 0031).
-    name: Tooling · Analyzer Installer Contract
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Setup · Check Out Sources
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
-      - run: sh Scripts/tests/analyzers-test.sh
-
-  release-note-lint:
-    # swift-tool.yml's publish job refuses a release note without the fixed sections (analyzerkit roadmap 0030).
-    name: Tooling · Release Notes Contract
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Setup · Check Out Sources
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
-      - run: .github/release-note-tests/run.sh
-
   linux:
-    # The tools build aemi on Linux (swift-tool.yml's swift:6.4.1-noble). Without this job a Darwin-only spelling
+    # The tools build aemi on Linux (swift-ci's Linux jobs, swift:6.4.1-noble). Without this job a Darwin-only spelling
     # (`UnsafeMutablePointer<DIR>`, which Glibc spells `OpaquePointer`) reaches every tool's CI before aemi's.
     name: Compatibility · Linux Products
     runs-on: ubuntu-latest
@@ -191,7 +169,7 @@ jobs:
 
   result:
     name: Gate · Repository
-    needs: [ci, analyzers-script, release-note-lint, linux, unicode-tables, embedded, c-kernels, c-kernels-linux-arm64, c-kernels-linux-x86]
+    needs: [ci, linux, unicode-tables, embedded, c-kernels, c-kernels-linux-arm64, c-kernels-linux-x86]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

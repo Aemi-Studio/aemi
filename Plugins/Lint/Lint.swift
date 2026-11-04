@@ -38,7 +38,7 @@ struct LintPlugin: CommandPlugin {
 
         // 1b. Size/complexity metrics gate — SwiftLint `--strict` over the synced `.swiftlint.yml`
         //     (file/type/function length, cyclomatic complexity, arity, nesting — the metrics
-        //     swift-format cannot express). Mirrors the reusable `swift-quality.yml` CI step so local
+        //     swift-format cannot express). Mirrors the SwiftLint step of swift-ci's quality so local
         //     `swift package lint` and CI agree; enforcing, so any metric warning fails.
         if runSwiftLintMetrics(root: root) != 0 { failed = true }
 
@@ -90,7 +90,7 @@ struct LintPlugin: CommandPlugin {
     }
 
     /// Runs the SwiftLint size/complexity metrics gate (`--strict`) over the package's synced
-    /// `.swiftlint.yml`, matching the reusable `swift-quality.yml` CI step so local `swift package lint`
+    /// `.swiftlint.yml`, matching the SwiftLint step of swift-ci's quality so local `swift package lint`
     /// and CI agree. SwiftLint is a system binary (Homebrew), not a toolchain tool, so it's resolved off
     /// `PATH` via `/usr/bin/env`; the plugin therefore execs an external tool and must be run with
     /// `--disable-sandbox`. A package without a `.swiftlint.yml` skips; a missing `swiftlint` binary is a

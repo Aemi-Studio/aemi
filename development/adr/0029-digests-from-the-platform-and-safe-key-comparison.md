@@ -9,7 +9,7 @@ date: 2026-11-02
 
 ADR 0028 added `ContentDigest.sha256` to `AemiKernel`: CommonCrypto on Apple platforms and a portable FIPS 180-4
 implementation elsewhere, with no package. Two problems followed. CommonCrypto is not libc, so `AemiKernel` stopped
-building as Embedded Swift (CI's `Embedded Swift, AemiKernel and AemiKernels` failed on 6ed7fb7: `CC_SHA256_*` beyond
+building as Embedded Swift (CI's `Embedded Swift, AemiKernel and AemiKernels` failed on 49c08c0: `CC_SHA256_*` beyond
 libc). And the owner's rule for cryptography is to leverage official packages rather than implement it ourselves.
 
 Measured (2026-11-02, M3; SHA-256 of "abc" checked on each):

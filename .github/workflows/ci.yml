@@ -136,7 +136,7 @@ jobs:
       - name: Setup · Check Out Sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # bench-c-kernels.sh rebuilds the previous kernels from aff9ca5's parent, which a shallow clone lacks.
+          # bench-c-kernels.sh rebuilds the previous kernels from cd4d1c4's parent, which a shallow clone lacks.
           fetch-depth: 0
       - name: Rosetta, for the x86-64 path
         run: sudo softwareupdate --install-rosetta --agree-to-license || true

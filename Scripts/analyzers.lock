@@ -1,7 +1,0 @@
-# The g-cqd analyzers Scripts/analyzers.sh installs: tool, version, SHA-256 of the macOS arm64 archive, SHA-256 of the
-# Linux x86_64 one (github.com/g-cqd/<tool>/releases). To upgrade: change a line, run, and read the findings diff.
-arcleak 0.17.5 6c1a83ce06587bd592bf4483e94be315d17a9382b9e732fb13ee8bb362d5f396 e08eb26a3463479f79b22182360f76ddde987b71b30003c322defac891a8f7b4
-deadwood 0.15.4 5e8c28a7de9d9cfe82aad5832af3de699be4df68bbb0e4373c31d5ac1e24e03f 3350a50fee3cfc4d07b11a9ce77c8bc94a609d111699bca4e427092374c59579
-dolly 0.14.4 aceeff75dcce7d4e6aebf634df7bad947f62226f45a65289579b0c292f8af84f ce1ada1a69877a9c8464862d19b32aa595b15d17610100ca1b24dc3c62225946
-fcheck 0.4.8 5f6ec32ecd94c956fe4703690c99590e91dae0f3de8333914345360c7b6bd18d 5eed49fad58d84aec265581647e10310860b36cf3edba4d42383d9bdfb89775c
-modeler 0.4.7 61e2f9ccbb3266f8fa950681b06afb0dffae3101d35a0f7d50cc91148db7450b c9f137af946ff887623013d309104fc6e5f6a89301e2948538f7a267884d7207

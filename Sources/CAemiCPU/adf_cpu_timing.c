@@ -9,8 +9,13 @@
 
 #include "CAemiCPU.h"
 
-#if defined(__APPLE__) && defined(__aarch64__)
+// Apple's `timingsafe` calls where the SDK has them: every device SDK does, no simulator SDK does (an arm64 simulator
+// is `__APPLE__` and `__aarch64__` all the same), so a simulator takes the plain aarch64 DIT path below.
+#if defined(__APPLE__) && defined(__aarch64__) && defined(__has_include)
+#if __has_include(<timingsafe.h>)
 #include <timingsafe.h>
+#define ADF_HAS_TIMINGSAFE 1
+#endif
 #endif
 
 #if defined(__aarch64__)
@@ -27,7 +32,7 @@ static inline void adf_write_dit(uint64_t value) {
 #endif
 
 adf_timing_token_t adf_cpu_timing_safe_begin(void) {
-#if defined(__APPLE__) && defined(__aarch64__)
+#if defined(ADF_HAS_TIMINGSAFE)
     if (__builtin_available(macOS 15.2, iOS 18.2, tvOS 18.2, watchOS 11.2, visionOS 2.2, *)) {
         return timingsafe_enable_if_supported();
     }
@@ -43,7 +48,7 @@ adf_timing_token_t adf_cpu_timing_safe_begin(void) {
 }
 
 void adf_cpu_timing_safe_end(adf_timing_token_t token) {
-#if defined(__APPLE__) && defined(__aarch64__)
+#if defined(ADF_HAS_TIMINGSAFE)
     if (__builtin_available(macOS 15.2, iOS 18.2, tvOS 18.2, watchOS 11.2, visionOS 2.2, *)) {
         timingsafe_restore_if_supported(token);
         return;

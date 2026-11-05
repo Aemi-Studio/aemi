@@ -95,6 +95,21 @@ size_t adf_index_of_any5_scalar(
 /// special characters usually fall; the Swift facade builds the tables and refuses a set that does not fit. Picks the widest available backend.
 size_t adf_index_of_set(const uint8_t *buf, size_t len, const uint8_t lo[16], const uint8_t hi[16]);
 size_t adf_index_of_set_scalar(const uint8_t *buf, size_t len, const uint8_t lo[16], const uint8_t hi[16]);
+/// Index of the first byte `b` of `buf[0..<len]` the set does NOT hold (`lo[b & 15] & hi[b >> 4] == 0`), or `len`: the end of a run
+/// of the set's bytes (spaces, digits, key bytes). Same tables and backends as `adf_index_of_set`.
+size_t adf_index_not_in_set(const uint8_t *buf, size_t len, const uint8_t lo[16], const uint8_t hi[16]);
+size_t adf_index_not_in_set_scalar(const uint8_t *buf, size_t len, const uint8_t lo[16], const uint8_t hi[16]);
+
+// MARK: - Every position of either of two bytes
+
+/// Writes `base + i` to `out` for each `i` with `buf[i] == a || buf[i] == b`, in order, at most `cap` of them, and returns how
+/// many it wrote; `*consumed` is the length of the prefix of `buf` whose every hit was written (`len` unless `out` filled up),
+/// where a caller resumes with fresh room. Positions are 32-bit: a caller keeps `base + len` below 2^32. Picks the widest
+/// available backend.
+size_t adf_positions_of_either(
+    const uint8_t *buf, size_t len, uint8_t a, uint8_t b, uint32_t base, uint32_t *out, size_t cap, size_t *consumed);
+size_t adf_positions_of_either_scalar(
+    const uint8_t *buf, size_t len, uint8_t a, uint8_t b, uint32_t base, uint32_t *out, size_t cap, size_t *consumed);
 
 // MARK: - First non-ASCII byte (ASCII-run skip)
 

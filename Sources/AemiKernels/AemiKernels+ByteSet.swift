@@ -71,6 +71,33 @@ extension AemiKernels {
         }
     }
 
+    /// The offset within `base[0..<count]` of the first byte that is NOT in `set`, or `count` if every byte is: the end of a run of
+    /// the set's bytes (spaces, digits, key bytes), on the same tables and backends (ADR 0031). `.scalar` forces the reference loop.
+    ///
+    /// Owner/bounds: the caller owns `base[0..<count]` for the call.
+    public static func firstIndex(
+        notInSet set: ByteSet,
+        base: UnsafePointer<UInt8>,
+        count: Int,
+        backend: Backend = .fastest
+    ) -> Int {
+        guard count > 0 else { return 0 }
+        var low = set.low
+        var high = set.high
+        return withUnsafeBytes(of: &low) { lowBytes in
+            withUnsafeBytes(of: &high) { highBytes in
+                // SAFETY: each table is 16 bytes, which is what the kernel reads from each pointer.
+                guard let lowBase = lowBytes.baseAddress, let highBase = highBytes.baseAddress else { return count }
+                let lowPointer = unsafe lowBase.assumingMemoryBound(to: UInt8.self)
+                let highPointer = unsafe highBase.assumingMemoryBound(to: UInt8.self)
+                if case .scalar = backend {
+                    return unsafe adf_index_not_in_set_scalar(base, count, lowPointer, highPointer)
+                }
+                return unsafe adf_index_not_in_set(base, count, lowPointer, highPointer)
+            }
+        }
+    }
+
     /// The index in `bytes` of the first byte that is in `set`, or `nil` if none is.
     public static func firstIndex(inSet set: ByteSet, in bytes: [UInt8], backend: Backend = .fastest) -> Int? {
         let count = bytes.count

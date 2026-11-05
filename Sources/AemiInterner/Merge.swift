@@ -147,7 +147,8 @@ enum Merge {
             arenas: inputs.flatMap(\.arenas),
             starts: starts.array(),
             lengths: lengths.array(),
-            hashes: hashes.array()
+            hashes: hashes.array(),
+            hashing: inputs.first?.hashing ?? .fast
         )
         let remaps: [[Symbol]] = inputs.indices.map { input in
             (0 ..< inputs[input].count).map { Symbol(rawValue: globals[input][$0]) }

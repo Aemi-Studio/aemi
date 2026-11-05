@@ -30,4 +30,22 @@ public enum SWAR {
     /// `0x80` in each non-ASCII byte (`>= 0x80`) — exact in every lane, as no arithmetic crosses lanes.
     @inlinable @inline(__always)
     public static func nonASCII(_ v: UInt64) -> UInt64 { v & high }
+
+    /// `0x80` in each lane that is not zero, exactly: unlike ``equals(_:_:)`` no borrow crosses lanes, because adding `0x7F` to a
+    /// lane's low seven bits cannot carry out of it. For "the first byte that is *not* …" (ADR 0031).
+    @inlinable @inline(__always)
+    public static func nonZeroLanes(_ v: UInt64) -> UInt64 {
+        let low: UInt64 = 0x7F7F_7F7F_7F7F_7F7F
+        return (((v & low) &+ low) | v) & high
+    }
+
+    /// `0x80` in each lane equal to `c`, exactly.
+    @inlinable @inline(__always)
+    public static func equalLanes(_ v: UInt64, _ c: UInt8) -> UInt64 { ~nonZeroLanes(v ^ (ones &* UInt64(c))) & high }
+
+    /// `0x80` in each lane equal to neither `a` nor `b`, exactly: the first such lane ends a run of `a` and `b` (indentation).
+    @inlinable @inline(__always)
+    public static func neitherLanes(_ v: UInt64, _ a: UInt8, _ b: UInt8) -> UInt64 {
+        nonZeroLanes(v ^ (ones &* UInt64(a))) & nonZeroLanes(v ^ (ones &* UInt64(b)))
+    }
 }

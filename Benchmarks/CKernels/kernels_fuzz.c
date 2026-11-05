@@ -23,7 +23,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     size -= 7;
     uint8_t *buf = malloc(size ? size : 1);
     if (size) memcpy(buf, data, size);
-    switch (kind % 12) {
+    switch (kind % 14) {
         case 0: {
             const size_t r = adf_index_of_string_stop_scalar(buf, size, p1, p2);
             REQUIRE(adf_index_of_string_stop(buf, size, p1, p2) == r);
@@ -105,6 +105,36 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                 hi[i] = (uint8_t)((p4 >> (i % 8)) & 1 ? p5 : p6);
             }
             REQUIRE(adf_index_of_set(buf, size, lo, hi) == adf_index_of_set_scalar(buf, size, lo, hi));
+            break;
+        }
+        case 12: {
+            // The complement of a set from the parameters.
+            uint8_t lo[16], hi[16];
+            for (int i = 0; i < 16; i++) {
+                lo[i] = (uint8_t)((p1 >> (i % 8)) & 1 ? p2 : p3);
+                hi[i] = (uint8_t)((p4 >> (i % 8)) & 1 ? p5 : p6);
+            }
+            REQUIRE(adf_index_not_in_set(buf, size, lo, hi) == adf_index_not_in_set_scalar(buf, size, lo, hi));
+            break;
+        }
+        case 13: {
+            // Every position of either of two bytes, with an output of any size, resumed until the input is done.
+            const size_t cap = 1 + (size_t)p3 % 80;
+            uint32_t *want = malloc((size + 1) * sizeof(uint32_t)), *got = malloc((size + 1) * sizeof(uint32_t)), *room = malloc(cap * sizeof(uint32_t));
+            size_t want_consumed = 0, total = 0, at = 0;
+            const size_t want_n = adf_positions_of_either_scalar(buf, size, p1, p2, 0, want, size + 1, &want_consumed);
+            while (at < size) {
+                size_t consumed = 0;
+                const size_t n = adf_positions_of_either(buf + at, size - at, p1, p2, (uint32_t)at, room, cap, &consumed);
+                REQUIRE(n <= cap && (n > 0 || consumed == size - at) && total + n <= size);
+                memcpy(got + total, room, n * sizeof(uint32_t));
+                total += n;
+                at += consumed;
+            }
+            REQUIRE(total == want_n && memcmp(got, want, total * sizeof(uint32_t)) == 0);
+            free(want);
+            free(got);
+            free(room);
             break;
         }
         case 10: {

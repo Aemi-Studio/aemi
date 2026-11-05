@@ -164,6 +164,47 @@ public enum ByteScan {
         }
     }
 
+    /// As ``firstIndex(inSet:in:from:to:)-([UInt8],_,_,_)``.
+    public static func firstIndex(
+        inSet set: AemiKernels.ByteSet,
+        in bytes: ContiguousArray<UInt8>,
+        from start: Int,
+        to end: Int = .max
+    ) -> Int {
+        bytes.withUnsafeBufferPointer { buffer in
+            unsafe clamp(buffer, start, end) { base, count in
+                unsafe AemiKernels.firstIndex(inSet: set, base: base, count: count)
+            }
+        }
+    }
+
+    /// As ``firstIndex(notInSet:in:from:to:)-([UInt8],_,_,_)``.
+    public static func firstIndex(
+        notInSet set: AemiKernels.ByteSet,
+        in bytes: ContiguousArray<UInt8>,
+        from start: Int,
+        to end: Int = .max
+    ) -> Int {
+        bytes.withUnsafeBufferPointer { buffer in
+            unsafe clamp(buffer, start, end) { base, count in
+                unsafe AemiKernels.firstIndex(notInSet: set, base: base, count: count)
+            }
+        }
+    }
+
+    /// As ``firstInvalidUTF8(in:from:to:)-([UInt8],_,_)``.
+    public static func firstInvalidUTF8(in bytes: ContiguousArray<UInt8>, from start: Int = 0, to end: Int = .max)
+        -> Int?
+    {
+        let clampedEnd = Swift.min(end, bytes.count)
+        let found = bytes.withUnsafeBufferPointer { buffer in
+            unsafe clamp(buffer, start, end) { base, count in
+                unsafe AemiKernels.firstInvalidUTF8(base: base, count: count)
+            }
+        }
+        return found < clampedEnd ? found : nil
+    }
+
     /// The index in `bytes[start ..< end]` of the first byte that is not part of well-formed UTF-8, or nil when the range is.
     /// A sequence cut by `start` or `end` counts as ill-formed: pass whole characters.
     public static func firstInvalidUTF8(in bytes: [UInt8], from start: Int = 0, to end: Int = .max) -> Int? {

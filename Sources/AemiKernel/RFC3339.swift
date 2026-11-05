@@ -3,7 +3,7 @@
 /// ``Syntax/rfc3339``. Fields a kind does not have are zero; fractional seconds are truncated (not rounded) to nanoseconds, as
 /// TOML requires of extra precision. Ranges are checked: the month's last day in a leap year, hours, minutes, seconds to 60
 /// (a leap second), offsets within a day.
-public struct RFC3339DateTime: Sendable, Hashable, CustomStringConvertible {
+public struct RFC3339DateTime: Sendable, Hashable {
     public enum Kind: Sendable, Hashable {
         case offsetDateTime
         case localDateTime
@@ -55,11 +55,6 @@ public struct RFC3339DateTime: Sendable, Hashable, CustomStringConvertible {
         self = value
     }
 
-    /// As ``init(parsing:syntax:)-(ArraySlice<UInt8>,_)``.
-    public init?(parsing text: String, syntax: Syntax = .rfc3339) {
-        self.init(parsing: Array(text.utf8)[...], syntax: syntax)
-    }
-
     public var hasDate: Bool { kind != .localTime }
     public var hasTime: Bool { kind != .localDate }
 
@@ -78,32 +73,6 @@ public struct RFC3339DateTime: Sendable, Hashable, CustomStringConvertible {
         return days * 86400 + Int64(hour * 3600 + minute * 60 + second) - Int64(offset) * 60
     }
 
-    /// RFC 3339: `T` between date and time, seconds always, the fraction without trailing zeros, `Z` for a zero offset.
-    public var description: String {
-        var text = ""
-        if hasDate { text += Self.pad(year, 4) + "-" + Self.pad(month, 2) + "-" + Self.pad(day, 2) }
-        if hasDate, hasTime { text += "T" }
-        if hasTime {
-            text += Self.pad(hour, 2) + ":" + Self.pad(minute, 2) + ":" + Self.pad(second, 2)
-            if nanosecond > 0 {
-                var fraction = Self.pad(nanosecond, 9)
-                while fraction.last == "0" { fraction.removeLast() }
-                text += "." + fraction
-            }
-        }
-        if let offset = offsetMinutes {
-            text +=
-                offset == 0
-                ? "Z" : (offset < 0 ? "-" : "+") + Self.pad(abs(offset) / 60, 2) + ":" + Self.pad(abs(offset) % 60, 2)
-        }
-        return text
-    }
-
-    static func pad(_ value: Int, _ width: Int) -> String {
-        let digits = String(value)
-        return String(repeating: "0", count: Swift.max(0, width - digits.count)) + digits
-    }
-
     public static func isLeapYear(_ year: Int) -> Bool { year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) }
 
     public static func days(inMonth month: Int, year: Int) -> Int {
@@ -114,6 +83,43 @@ public struct RFC3339DateTime: Sendable, Hashable, CustomStringConvertible {
         }
     }
 }
+
+#if !hasFeature(Embedded)
+    // Text needs the standard library's String support, which Embedded Swift builds go without.
+    extension RFC3339DateTime: CustomStringConvertible {
+        /// As ``init(parsing:syntax:)-(ArraySlice<UInt8>,_)``.
+        public init?(parsing text: String, syntax: Syntax = .rfc3339) {
+            self.init(parsing: Array(text.utf8)[...], syntax: syntax)
+        }
+
+        /// RFC 3339: `T` between date and time, seconds always, the fraction without trailing zeros, `Z` for a zero offset.
+        public var description: String {
+            var text = ""
+            if hasDate { text += Self.pad(year, 4) + "-" + Self.pad(month, 2) + "-" + Self.pad(day, 2) }
+            if hasDate, hasTime { text += "T" }
+            if hasTime {
+                text += Self.pad(hour, 2) + ":" + Self.pad(minute, 2) + ":" + Self.pad(second, 2)
+                if nanosecond > 0 {
+                    var fraction = Self.pad(nanosecond, 9)
+                    while fraction.last == "0" { fraction.removeLast() }
+                    text += "." + fraction
+                }
+            }
+            if let offset = offsetMinutes {
+                text +=
+                    offset == 0
+                    ? "Z"
+                    : (offset < 0 ? "-" : "+") + Self.pad(abs(offset) / 60, 2) + ":" + Self.pad(abs(offset) % 60, 2)
+            }
+            return text
+        }
+
+        static func pad(_ value: Int, _ width: Int) -> String {
+            let digits = String(value)
+            return String(repeating: "0", count: Swift.max(0, width - digits.count)) + digits
+        }
+    }
+#endif
 
 extension RFC3339DateTime {
     struct Reader {

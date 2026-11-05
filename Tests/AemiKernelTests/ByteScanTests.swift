@@ -72,6 +72,14 @@ struct ByteScanTests {
                         ByteScan.firstIndex(notInSet: set, in: bytes, from: start, to: end)
                             == Self.reference(bytes, start, end) { !set.contains($0) }
                     )
+                    #expect(
+                        ByteScan.firstIndex(inSet: set, in: contiguous, from: start, to: end)
+                            == Self.reference(bytes, start, end) { set.contains($0) }
+                    )
+                    #expect(
+                        ByteScan.firstIndex(notInSet: set, in: contiguous, from: start, to: end)
+                            == Self.reference(bytes, start, end) { !set.contains($0) }
+                    )
                 }
                 checked += 1
             }
@@ -94,6 +102,7 @@ struct ByteScanTests {
             let bytes = Self.input(&generator, count: generator.int(300))
             let invalid = AemiKernels.firstInvalidUTF8(bytes)
             #expect(ByteScan.firstInvalidUTF8(in: bytes) == invalid)
+            #expect(ByteScan.firstInvalidUTF8(in: ContiguousArray(bytes)) == invalid)
             var positions: [UInt32] = [7]
             let start = generator.int(bytes.count + 1)
             AemiKernels.appendPositions(ofEither: 0x0A, 0x0D, in: bytes, from: start, into: &positions)

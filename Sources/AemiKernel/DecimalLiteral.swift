@@ -222,26 +222,35 @@ public enum DecimalScanner {
 }
 
 extension DecimalFloat {
-    /// The `Double` nearest to `literal` (written in `bytes`), correctly rounded: Clinger's fast path, then Eisel-Lemire, then the
-    /// literal's digits rewritten short (at most 768 significant digits and a sticky one, separators dropped) for the
-    /// locale-independent `Double(String)`. Never `strtod`.
-    public static func double(_ literal: DecimalLiteral, in bytes: [UInt8], separator: UInt8? = nil) -> Double {
-        if !literal.truncated {
-            if let fast = double(
-                significand: literal.significand,
-                exponent: literal.exponent,
-                negative: literal.negative
-            ) {
-                return fast
-            }
-            if let fast = eiselLemire(
-                significand: literal.significand,
-                exponent: literal.exponent,
-                negative: literal.negative
-            ) {
-                return fast
-            }
+    #if !hasFeature(Embedded)
+        /// The `Double` nearest to `literal` (written in `bytes`), correctly rounded: Clinger's fast path, then Eisel-Lemire, then the
+        /// literal's digits rewritten short (at most 768 significant digits and a sticky one, separators dropped) for the
+        /// locale-independent `Double(String)`. Never `strtod`.
+        public static func double(_ literal: DecimalLiteral, in bytes: [UInt8], separator: UInt8? = nil) -> Double {
+            if let fast = fastDouble(literal) { return fast }
+            return LongDecimal.double(bytes[literal.start ..< literal.end], separator: separator) ?? .nan
         }
-        return LongDecimal.double(bytes[literal.start ..< literal.end], separator: separator) ?? .nan
+
+        /// As ``double(_:in:separator:)-(_,[UInt8],_)``, over a buffer (a parser holding a pointer to its source, AemiJSON).
+        public static func double(
+            _ literal: DecimalLiteral,
+            in bytes: UnsafeBufferPointer<UInt8>,
+            separator: UInt8? = nil
+        )
+            -> Double
+        {
+            if let fast = fastDouble(literal) { return fast }
+            let text = unsafe Array(UnsafeBufferPointer(rebasing: bytes[literal.start ..< literal.end]))
+            return LongDecimal.double(text[...], separator: separator) ?? .nan
+        }
+
+    #endif
+
+    /// Clinger, then Eisel-Lemire; nil when neither can prove the rounding.
+    @inlinable
+    public static func fastDouble(_ literal: DecimalLiteral) -> Double? {
+        guard !literal.truncated else { return nil }
+        return double(significand: literal.significand, exponent: literal.exponent, negative: literal.negative)
+            ?? eiselLemire(significand: literal.significand, exponent: literal.exponent, negative: literal.negative)
     }
 }

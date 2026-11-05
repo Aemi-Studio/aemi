@@ -21,7 +21,9 @@ public struct KeyedHash: Sendable, Hashable {
 
     /// This process's key: random, or zero when the environment sets `SWIFT_DETERMINISTIC_HASHING`.
     public static let process: KeyedHash = {
-        if Environment.isSet("SWIFT_DETERMINISTIC_HASHING") { return KeyedHash(k0: 0, k1: 0) }
+        #if !hasFeature(Embedded)
+            if Environment.isSet("SWIFT_DETERMINISTIC_HASHING") { return KeyedHash(k0: 0, k1: 0) }
+        #endif
         var generator = SystemRandomNumberGenerator()
         return KeyedHash(k0: generator.next(), k1: generator.next())
     }()
@@ -142,17 +144,19 @@ public struct KeyedHash: Sendable, Hashable {
     }
 }
 
-#if canImport(Darwin)
-    internal import Darwin
-#elseif canImport(Glibc)
-    internal import Glibc
-#elseif canImport(Musl)
-    internal import Musl
-#endif
+#if !hasFeature(Embedded)
+    #if canImport(Darwin)
+        internal import Darwin
+    #elseif canImport(Glibc)
+        internal import Glibc
+    #elseif canImport(Musl)
+        internal import Musl
+    #endif
 
-/// Whether a variable is set in the process environment, without Foundation.
-enum Environment {
-    static func isSet(_ name: String) -> Bool {
-        name.withCString { unsafe getenv($0) != nil }
+    /// Whether a variable is set in the process environment, without Foundation.
+    enum Environment {
+        static func isSet(_ name: String) -> Bool {
+            name.withCString { unsafe getenv($0) != nil }
+        }
     }
-}
+#endif

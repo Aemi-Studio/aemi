@@ -34,6 +34,9 @@ struct DecimalLiteralTests {
             let literal = try #require(DecimalScanner.scan(bytes, from: 0), "\(text)")
             #expect(literal.end == bytes.count, "\(text)")
             let value = DecimalFloat.double(literal, in: bytes)
+            #expect(
+                bytes.withUnsafeBufferPointer { DecimalFloat.double(literal, in: $0) }.bitPattern == value.bitPattern
+            )
             let expected = try #require(Double(text))
             #expect(
                 value.bitPattern == expected.bitPattern || (value == 0 && expected == 0),

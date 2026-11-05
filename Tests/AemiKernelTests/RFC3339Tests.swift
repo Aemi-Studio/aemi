@@ -1,4 +1,5 @@
 import AemiKernels
+import Foundation
 import Testing
 
 @testable import AemiKernel
@@ -62,5 +63,21 @@ struct RFC3339Tests {
         }
         #expect(RFC3339DateTime(parsing: "1979-05-27T07:32:00", syntax: .toml10)?.unixSeconds == nil)
         #expect(RFC3339DateTime(parsing: "1970-01-01T01:00:00+01:00")?.unixSeconds == 0)
+    }
+
+    @Test func `coded as its text: every kind comes back as itself, and other text is refused`() throws {
+        let values = [
+            "1979-05-27T07:32:00.5-08:00", "1979-05-27T07:32:00", "1979-05-27", "07:32:00", "2024-02-29T23:59:60Z"
+        ]
+        .compactMap { RFC3339DateTime(parsing: $0, syntax: .toml10) }
+        #expect(values.count == 5)
+        let json = try JSONEncoder().encode(values)
+        #expect(String(decoding: json, as: UTF8.self).contains("\"1979-05-27\""))
+        #expect(try JSONDecoder().decode([RFC3339DateTime].self, from: json) == values)
+        for text in ["\"1979-05-27 07:32:00\"", "\"07:32\"", "\"yesterday\"", "12"] {
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(RFC3339DateTime.self, from: Data(text.utf8))
+            }
+        }
     }
 }

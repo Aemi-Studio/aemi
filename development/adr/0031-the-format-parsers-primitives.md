@@ -40,7 +40,7 @@ Not taken: a "linked arena to child list" utility beside `TapeSlot` (issue item 
 | hash 4,096 short keys | `Hasher` 122 µs | `KeyedHash` 55 µs (`WyHash`, unkeyed: 17) |
 | a tokenizer's stops, one search at a time | kernel call 550 µs | `ByteScan` 314 µs |
 | line starts of 300 KB | `memchr` per line 159 µs | `LineIndex` 84 µs |
-| 20,000 coordinates | `Double(String)` 5.5 ms | `DecimalScanner` + `DecimalFloat` 2.8 ms |
+| 20,000 coordinates | `Double(String)` 5.5 ms | `DecimalScanner` + `DecimalFloat` 2.8 ms; 0.46 ms against 1.49 after the change below |
 | indentation of 4 to 8 spaces | byte loop 191 µs | SWAR 216 µs at p50, 165 at p25: no clear gain at that length |
 | interning 4,096 short keys | fast 370 µs | keyed 410 µs |
 
@@ -48,6 +48,15 @@ Checks: SipHash-2-4 against OpenSSL 3.5.9 and SipHash-1-3 against CPython (`PYTH
 and `Int64(String)` on 40,000 generated literals and the 768-digit tie; dates against the C date kernel on every day of 1890 to
 2110; `kernels-check.sh` (native NEON, SSE4.2 and AVX2 under Rosetta, threads under ThreadSanitizer), 60 s of libFuzzer per
 backend, and the five new mutants all killed.
+
+## Amendment (same day): the decimal scanner's fast pass
+
+On AemiHMMML's numeric benchmark (canada.toml) the first version made parsing slower than the fused reader it replaced (51
+instructions per byte against 42): every digit went through the zero-aware bookkeeping, and a failed eight-digit word was retried
+before each remaining digit. Now, as AemiJSON's `scanDecimal`: one tight pass counts every digit when a number has at most nineteen
+(nearly all), converting a word's leading digits at once (all eight, or the run's last one to seven, shifted into place behind
+ASCII zeros, found by an exact per-lane digit test); the zero-aware pass runs only past nineteen. `sample` on the parse: the digit
+loop went from 2,392 samples to 517.
 
 ## Consequences
 

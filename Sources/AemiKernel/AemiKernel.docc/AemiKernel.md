@@ -22,7 +22,8 @@ rather than aborting the process.
 and `CAemiCPU`'s feature set, into Wine's `ntdll`, which can carry neither the Swift runtime nor the standard library's
 Unicode tables. In these two targets, anything that needs `Synchronization`, Foundation, `Character` or `String`
 processing, existentials or key paths is guarded by `#if !hasFeature(Embedded)` (today `ByteBufferPool`,
-`HTTPDateParser` and the `Character` helpers of `ASCII`). `Scripts/check-embedded.sh`, run by CI, builds both for arm64
+`HTTPDateParser`, the `Character` helpers of `ASCII`, `LongDecimal` and the `DecimalFloat.double(_:in:)` that ends in
+it, `RFC3339DateTime`'s text form, and `KeyedHash.process`'s reading of the environment). `Scripts/check-embedded.sh`, run by CI, builds both for arm64
 and x86_64 and fails when the objects need any symbol beyond libc and compiler-rt's CPU model. A consumer outside
 SwiftPM compiles `Sources/CAemiKernels/*.c` and `Sources/CAemiCPU/adf_cpu_features.c` with both targets' `include`
 directories, and imports `CAemiKernels` through its shipped module map.

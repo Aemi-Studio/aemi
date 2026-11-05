@@ -58,6 +58,18 @@ before each remaining digit. Now, as AemiJSON's `scanDecimal`: one tight pass co
 ASCII zeros, found by an exact per-lane digit test); the zero-aware pass runs only past nineteen. `sample` on the parse: the digit
 loop went from 2,392 samples to 517.
 
+## Amendment (same day): parity with AemiJSON's own number scan
+
+Moving AemiJSON onto the scanner first cost its canada.json value tree 14 % more instructions. A micro-benchmark of canada's
+111,126 numbers against AemiJSON's original `scanDecimal` (copied beside it) led to: a literal of six words instead of fourteen
+fields (flags as bits, counts as 32-bit), built in place and returned once; the fast pass inlinable, the precise pass out of line;
+the run left at the end of an exact-length buffer read with one load of the eight bytes ending there (the overlapping tail of
+aemi's NEON scans); the first three integer digits read one by one, since a word costs more than the bytes for the integer part
+of most numbers; and no trailing-zero retry in `fastDouble` (Eisel-Lemire handles those; the `Float` path keeps it). Per number:
+320 instructions and 17 ns against the original's 320 and 18 ns; scanning alone 232 and 8 ns against 259 and 11. AemiJSON's
+probe, normalised by Foundation's time in the same run (the machine's load varied): every workload within ±3 %, memory the same
+or lower.
+
 ## Consequences
 
 - AemiHMMML's `ByteScan`, `LineIndex`, key hashing and date parsing, AemiMarkdown's `ByteScan`, and AemiJSON's `scanDecimal`,

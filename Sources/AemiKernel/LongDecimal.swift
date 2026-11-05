@@ -21,6 +21,16 @@
         /// The value of `text` (`[+|-] digits [. digits] [(e|E) [+|-] digits]`, `separator` between digits), or nil when it is not
         /// one.
         static func double(_ text: ArraySlice<UInt8>, separator: UInt8? = nil) -> Double? {
+            normalized(text, separator: separator).flatMap { Double($0) }
+        }
+
+        /// As ``double(_:separator:)``, rounded once, straight to `Float` (rounding to `Double` first could round twice).
+        static func float(_ text: ArraySlice<UInt8>, separator: UInt8? = nil) -> Float? {
+            normalized(text, separator: separator).flatMap { Float($0) }
+        }
+
+        /// `<sign><digits>e<exponent>`: at most 768 significant digits and a sticky one; nil when `text` is not a decimal.
+        static func normalized(_ text: ArraySlice<UInt8>, separator: UInt8? = nil) -> String? {
             var index = text.startIndex
             var negative = false
             if index < text.endIndex, text[index] == 0x2B || text[index] == 0x2D {
@@ -34,7 +44,7 @@
                 return nil
             }
             let sign = negative ? "-" : ""
-            if mantissa.kept.isEmpty { return Double(sign + "0") }
+            if mantissa.kept.isEmpty { return sign + "0" }
             mantissa.exponent += exponent + mantissa.seen - mantissa.kept.count
             if mantissa.droppedNonzero {
                 mantissa.kept.append(0x31)
@@ -45,7 +55,7 @@
                     mantissa.exponent += 1
                 }
             }
-            return Double(sign + String(decoding: mantissa.kept, as: UTF8.self) + "e" + String(mantissa.exponent))
+            return sign + String(decoding: mantissa.kept, as: UTF8.self) + "e" + String(mantissa.exponent)
         }
 
         /// The integer and fraction digits from `index`, which stops at the first byte that is neither (nor a separator).

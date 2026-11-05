@@ -43,6 +43,9 @@ struct DecimalLiteralTests {
                 "\(text): \(value) \(expected)"
             )
             if literal.isInteger { #expect(literal.integerValue == Int64(text), "\(text)") }
+            let single = DecimalFloat.float(literal, in: bytes)
+            let wanted = try #require(Float(text))
+            #expect(single.bitPattern == wanted.bitPattern || (single == 0 && wanted == 0), "\(text)")
         }
     }
 

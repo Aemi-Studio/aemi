@@ -79,12 +79,20 @@ How the consolidation landed (2026-11-05), each measured before it was kept:
 | AemiHMMML (TOML) | its ByteScan, LineIndex, key table and hashing, date parser and float reader (all deleted there) | canada.toml 36 instructions per byte against 42 with its own copies; cargo-lock 38 against 40; twitter 50 against 52 |
 | AemiJSON 416b2da | `scanDecimal`, `scanPaddedDecimal`, `LongDecimal` (deleted); duplicate keys hashed with `KeyedHash` | AemiJSONProbe normalised by Foundation's time in the same run: every workload within ±3 %, memory the same or lower |
 | CSVCoder a7604ed | `SWARUtils`' predicates are `SWAR.equals` and `SWAR.equalLanes` | the same arithmetic |
-| AemiMarkdown | nothing yet: its `ByteScan` moved onto this one cost the 998-document corpus 2.6 % more instructions per byte, because these set scans are not `@inlinable` (its own are in-module). Making them inlinable is the next change here, and AemiMarkdown moves then | |
+| AemiMarkdown | nothing, by measurement: with these scans `@inlinable`, its `ByteScan` moved onto them runs the 998-document corpus at the same instructions per byte but 4 to 5 % slower on the largest documents (code layout: the control, its own wrapper on the same aemi, matches the old tree), and the UTF-8 and control check alone about 1 % slower. Its wrapper is thirty lines over the same kernels, so it stays | |
 | AemiProtobuf | nothing: protobuf's `Timestamp` text is stricter than RFC 3339 (uppercase `T` and `Z` only, no leap second, one to nine fraction digits), and its conformance suite checks those refusals | |
 
 The family's graph moved to one aemi revision, leaves first (ADR 0030): AemiRegex af5a281, AemiJSON 416b2da, AemiProtobuf
 49fe950, AemiMermaid 1445545, AemiMarkdown 3ac680f, TerminalKit 0297446, ask 7f3ef750, AemiHMMML 7c39b56. analyzerkit, the
 analyzers, HTTP, litmus and swift-search stay on their own graph (aemi b31f499): none of them duplicates these primitives, and
 their interner keys are trusted, so `.fast` stays right for them.
+
+Function merging. Swift's optimizer folds functions whose IR differs only in constants or callees into one shared body behind
+thunks (symbols ending `Tm`). `firstIndex(notInSet:base:count:)`, added here, differed from `firstIndex(inSet:base:count:)`
+only in the C function called, and the merge cost the set scan, AemiMarkdown's hot path, 23 % more instructions per byte (5.58
+to 6.86 over the corpus; 1.4 % on the whole parse), with the C code unchanged. Reordering the closures did not stop it; a clamp
+of the result (one conditional select) gives the body a shape of its own, and the scan is back at 5.58. Check `nm … | grep Tm`
+when a pair of near-identical entry points is added. `ByteScan`'s set scans and UTF-8 check are now `@inlinable`, so a caller
+inlines them rather than calling the merged out-of-line copy.
 
 - `Interner` gains a parameter with a default, so existing callers are unchanged.

@@ -171,6 +171,7 @@ public enum ByteScan {
     }
 
     /// The index in `bytes[start ..< end]` of the first byte in `set`, or the end.
+    @inlinable
     public static func firstIndex(
         inSet set: AemiKernels.ByteSet,
         in bytes: [UInt8],
@@ -185,6 +186,7 @@ public enum ByteScan {
     }
 
     /// The index in `bytes[start ..< end]` of the first byte NOT in `set`, or the end: the end of a run of the set's bytes.
+    @inlinable
     public static func firstIndex(
         notInSet set: AemiKernels.ByteSet,
         in bytes: [UInt8],
@@ -199,6 +201,7 @@ public enum ByteScan {
     }
 
     /// As ``firstIndex(inSet:in:from:to:)-([UInt8],_,_,_)``.
+    @inlinable
     public static func firstIndex(
         inSet set: AemiKernels.ByteSet,
         in bytes: ContiguousArray<UInt8>,
@@ -213,6 +216,7 @@ public enum ByteScan {
     }
 
     /// As ``firstIndex(notInSet:in:from:to:)-([UInt8],_,_,_)``.
+    @inlinable
     public static func firstIndex(
         notInSet set: AemiKernels.ByteSet,
         in bytes: ContiguousArray<UInt8>,
@@ -227,6 +231,7 @@ public enum ByteScan {
     }
 
     /// As ``firstInvalidUTF8(in:from:to:)-([UInt8],_,_)``.
+    @inlinable
     public static func firstInvalidUTF8(in bytes: ContiguousArray<UInt8>, from start: Int = 0, to end: Int = .max)
         -> Int?
     {
@@ -241,6 +246,7 @@ public enum ByteScan {
 
     /// The index in `bytes[start ..< end]` of the first byte that is not part of well-formed UTF-8, or nil when the range is.
     /// A sequence cut by `start` or `end` counts as ill-formed: pass whole characters.
+    @inlinable
     public static func firstInvalidUTF8(in bytes: [UInt8], from start: Int = 0, to end: Int = .max) -> Int? {
         let clampedEnd = Swift.min(end, bytes.count)
         let found = bytes.withUnsafeBufferPointer { buffer in

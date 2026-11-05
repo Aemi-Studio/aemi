@@ -60,6 +60,28 @@ struct DecimalLiteralTests {
         #expect(try value("-" + half + "1e-324") == -Double.leastNonzeroMagnitude)
     }
 
+    @Test func `generated literals with separators anywhere between digits round as their plain text does`() throws {
+        var generator = SeededRNG(seed: 0x5E9A)
+        for _ in 0 ..< 20_000 {
+            let plain = Self.literal(&generator)
+            var text = ""
+            var previousWasDigit = false
+            for character in plain {
+                let isDigit = character.isASCII && character.isNumber
+                if isDigit, previousWasDigit, generator.int(4) == 0 { text += "_" }
+                text.append(character)
+                previousWasDigit = isDigit
+            }
+            let bytes = Array(text.utf8)
+            let literal = try #require(DecimalScanner.scan(bytes, from: 0, separator: 0x5F), "\(text)")
+            #expect(literal.end == bytes.count, "\(text)")
+            let expected = try #require(Double(plain))
+            let value = DecimalFloat.double(literal, in: bytes, separator: 0x5F)
+            #expect(value.bitPattern == expected.bitPattern || (value == 0 && expected == 0), "\(text)")
+            if literal.isInteger { #expect(literal.integerValue == Int64(plain), "\(text)") }
+        }
+    }
+
     @Test func `separators are read between digits only, and the value ignores them`() throws {
         for (text, plain) in [
             ("1_000", "1000"), ("3.141_592_6", "3.1415926"), ("6.02e2_3", "6.02e23"), ("1_2_3_4_5_6_7_8_9", "123456789")

@@ -106,16 +106,18 @@ struct ByteScanTests {
             var positions: [UInt32] = [7]
             let start = generator.int(bytes.count + 1)
             AemiKernels.appendPositions(ofEither: 0x0A, 0x0D, in: bytes, from: start, into: &positions)
-            let expected =
-                [UInt32(7)]
-                + (start ..< bytes.count).filter { bytes[$0] == 0x0A || bytes[$0] == 0x0D }.map { UInt32($0) }
+            var expected: [UInt32] = [7]
+            for index in start ..< bytes.count where bytes[index] == 0x0A || bytes[index] == 0x0D {
+                expected.append(UInt32(index))
+            }
             #expect(positions == expected)
         }
         // A dense input fills the room the first pass gives, and the rest is resumed.
         let dense = [UInt8](repeating: 0x0A, count: 5000)
         var all: [UInt32] = []
         AemiKernels.appendPositions(ofEither: 0x0A, 0x0D, in: dense, into: &all)
-        #expect(all == (0 ..< 5000).map { UInt32($0) })
+        let every: [UInt32] = (0 ..< 5000).map { UInt32($0) }
+        #expect(all == every)
     }
 
     @Test func `SWAR lane tests are exact in every lane`() {

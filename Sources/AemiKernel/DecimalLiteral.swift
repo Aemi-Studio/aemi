@@ -94,6 +94,109 @@ public enum DecimalScanner {
 
         mutating func read() -> DecimalLiteral? {
             guard index >= 0, index < count else { return nil }
+            let start = index
+            // Most numbers have at most nineteen digits: one tight pass that counts every digit, zeros too, decides them. Past
+            // nineteen, the zero-aware pass below reads it again (AemiJSON's scanDecimal and scanPaddedDecimal, ADR 0031).
+            if let literal = quickRead() { return literal }
+            self = unsafe Reader(bytes: bytes, index: start, separator: separator)
+            return preciseRead()
+        }
+
+        /// The literal when it has at most nineteen digits, or nil (then the precise pass reads it).
+        mutating func quickRead() -> DecimalLiteral? {
+            literal.start = index
+            let sign = byte(index)
+            if sign == 0x2B || sign == 0x2D {
+                literal.signed = true
+                literal.negative = sign == 0x2D
+                index += 1
+            }
+            guard Self.isDigit(byte(index)) else { return nil }
+            literal.leadingZero = byte(index) == 0x30
+            literal.integerDigits = quickDigits()
+            literal.leadingZero = literal.leadingZero && literal.integerDigits > 1
+            if byte(index) == 0x2E, Self.isDigit(byte(index + 1)) {
+                index += 1
+                literal.hasPoint = true
+                literal.fractionDigits = quickDigits()
+                literal.exponent = -literal.fractionDigits
+            }
+            guard literal.integerDigits + literal.fractionDigits <= 19 else { return nil }
+            let marker = byte(index)
+            if marker == 0x65 || marker == 0x45 { readExponent() }
+            literal.end = index
+            return literal
+        }
+
+        /// A run of digits, every one into the significand, eight bytes at a time: a word's leading digits (all eight, or the
+        /// run's last one to seven) are converted at once, shifted into place behind ASCII zeros (ADR 0031).
+        mutating func quickDigits() -> Int {
+            var digits = 0
+            while index + 8 <= count, let base = unsafe bytes.baseAddress {
+                // SAFETY: `index + 8 <= count`, so the eight bytes are inside the buffer.
+                let word = UInt64(littleEndian: unsafe UnsafeRawPointer(base + index).loadUnaligned(as: UInt64.self))
+                let others = Self.nonDigitLanes(word)
+                if others == 0 {
+                    literal.significand = literal.significand &* 100_000_000 &+ Self.eightDigits(word)
+                    digits += 8
+                    index += 8
+                    continue
+                }
+                let run = others.trailingZeroBitCount >> 3
+                if run > 0 {
+                    // The run's digits become the last `run` of eight, behind ASCII zeros.
+                    let shift = UInt64(64 - 8 * run)
+                    let aligned = word << shift | (0x3030_3030_3030_3030 & ((1 << shift) &- 1))
+                    literal.significand = literal.significand &* Self.powerOfTen(run) &+ Self.eightDigits(aligned)
+                    digits += run
+                    index += run
+                }
+                // A separator between two digits continues the run; anything else ends it.
+                guard Int(unsafe base[index]) == separator, digits > 0, Self.isDigit(byte(index + 1)) else {
+                    return digits
+                }
+                index += 1
+            }
+            while true {
+                let value = byte(index)
+                let digit = value &- 0x30
+                if digit >= 0, digit < 10 {
+                    literal.significand = literal.significand &* 10 &+ UInt64(digit)
+                    digits += 1
+                    index += 1
+                } else if value == separator, digits > 0, Self.isDigit(byte(index + 1)) {
+                    index += 1
+                } else {
+                    return digits
+                }
+            }
+        }
+
+        /// `0x80` in each lane that is not an ASCII digit, exactly: `x = byte ^ 0x30` is a digit when below 10, and adding
+        /// `0x76` to its low seven bits sets the high bit from 10 up, with no carry out of the lane.
+        @inline(__always)
+        static func nonDigitLanes(_ word: UInt64) -> UInt64 {
+            let x = word ^ 0x3030_3030_3030_3030
+            return (((x & 0x7F7F_7F7F_7F7F_7F7F) &+ 0x7676_7676_7676_7676) | x) & 0x8080_8080_8080_8080
+        }
+
+        @inline(__always)
+        static func powerOfTen(_ exponent: Int) -> UInt64 {
+            switch exponent {
+                case 1: 10
+                case 2: 100
+                case 3: 1000
+                case 4: 10000
+                case 5: 100_000
+                case 6: 1_000_000
+                case 7: 10_000_000
+                default: 100_000_000
+            }
+        }
+
+        /// The zero-aware pass: zeros count toward the nineteen only between significant digits.
+        mutating func preciseRead() -> DecimalLiteral? {
+            guard index >= 0, index < count else { return nil }
             literal.start = index
             let sign = byte(index)
             if sign == 0x2B || sign == 0x2D {
@@ -121,32 +224,37 @@ public enum DecimalScanner {
 
         /// A run of digits with separators between them; returns how many digits.
         mutating func digits(fraction: Bool) -> Int {
-            var count = 0
+            var digits = 0
+            // Eight digits at a time while they are all digits and fit the nineteen; once a word is not all digits, the rest of
+            // the run goes byte by byte (retrying the word before every digit cost more than it saved).
+            var words = true
             while true {
-                // Eight digits at a time when they are all digits and fit the nineteen.
-                while significantDigits > 0, pendingZeros == 0, significantDigits + 8 <= 19, index + 8 <= count,
+                if words, significantDigits > 0, pendingZeros == 0, significantDigits + 8 <= 19, index + 8 <= count,
                     let base = unsafe bytes.baseAddress
                 {
                     // SAFETY: `index + 8 <= count`, so the eight bytes are inside the buffer.
                     let word = UInt64(
                         littleEndian: unsafe UnsafeRawPointer(base + index).loadUnaligned(as: UInt64.self)
                     )
-                    guard Self.allDigits(word) else { break }
-                    literal.significand = literal.significand &* 100_000_000 &+ Self.eightDigits(word)
-                    significantDigits += 8
-                    if fraction { literal.exponent -= 8 }
-                    count += 8
-                    index += 8
+                    if Self.allDigits(word) {
+                        literal.significand = literal.significand &* 100_000_000 &+ Self.eightDigits(word)
+                        significantDigits += 8
+                        if fraction { literal.exponent -= 8 }
+                        digits += 8
+                        index += 8
+                        continue
+                    }
+                    words = false
                 }
                 let value = byte(index)
                 if Self.isDigit(value) {
                     add(UInt64(value - 0x30), fraction: fraction)
-                    count += 1
+                    digits += 1
                     index += 1
-                } else if value == separator, count > 0, Self.isDigit(byte(index + 1)) {
+                } else if value == separator, digits > 0, Self.isDigit(byte(index + 1)) {
                     index += 1
                 } else {
-                    return count
+                    return digits
                 }
             }
         }

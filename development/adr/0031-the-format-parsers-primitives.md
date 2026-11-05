@@ -72,6 +72,19 @@ or lower.
 
 ## Consequences
 
-- AemiHMMML's `ByteScan`, `LineIndex`, key hashing and date parsing, AemiMarkdown's `ByteScan`, and AemiJSON's `scanDecimal`,
-  `LongDecimal` and duplicate-key hashing move onto these; the consumers repin together (ADR 0030).
+How the consolidation landed (2026-11-05), each measured before it was kept:
+
+| Consumer | What moved onto these primitives | Measured |
+|---|---|---|
+| AemiHMMML (TOML) | its ByteScan, LineIndex, key table and hashing, date parser and float reader (all deleted there) | canada.toml 36 instructions per byte against 42 with its own copies; cargo-lock 38 against 40; twitter 50 against 52 |
+| AemiJSON 416b2da | `scanDecimal`, `scanPaddedDecimal`, `LongDecimal` (deleted); duplicate keys hashed with `KeyedHash` | AemiJSONProbe normalised by Foundation's time in the same run: every workload within ±3 %, memory the same or lower |
+| CSVCoder a7604ed | `SWARUtils`' predicates are `SWAR.equals` and `SWAR.equalLanes` | the same arithmetic |
+| AemiMarkdown | nothing yet: its `ByteScan` moved onto this one cost the 998-document corpus 2.6 % more instructions per byte, because these set scans are not `@inlinable` (its own are in-module). Making them inlinable is the next change here, and AemiMarkdown moves then | |
+| AemiProtobuf | nothing: protobuf's `Timestamp` text is stricter than RFC 3339 (uppercase `T` and `Z` only, no leap second, one to nine fraction digits), and its conformance suite checks those refusals | |
+
+The family's graph moved to one aemi revision, leaves first (ADR 0030): AemiRegex af5a281, AemiJSON 416b2da, AemiProtobuf
+49fe950, AemiMermaid 1445545, AemiMarkdown 3ac680f, TerminalKit 0297446, ask 7f3ef750, AemiHMMML 7c39b56. analyzerkit, the
+analyzers, HTTP, litmus and swift-search stay on their own graph (aemi b31f499): none of them duplicates these primitives, and
+their interner keys are trusted, so `.fast` stays right for them.
+
 - `Interner` gains a parameter with a default, so existing callers are unchanged.

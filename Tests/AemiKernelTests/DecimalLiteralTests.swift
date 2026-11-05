@@ -85,6 +85,22 @@ struct DecimalLiteralTests {
         }
     }
 
+    @Test func `zeros that only pad keep the fast paths, for Double and Float`() throws {
+        for text in ["1.0000000000000000000000", "0.000000000000000000001", "-0.00000000000000000000000012345"] {
+            let literal = try #require(DecimalScanner.scan(Array(text.utf8), from: 0))
+            #expect(DecimalFloat.fastDouble(literal) == Double(text), "\(text)")
+        }
+        for text in ["1.00000000000", "12300000000", "1.25000000000"] {
+            let small = try #require(DecimalScanner.scan(Array(text.utf8), from: 0)).trimmed
+            #expect(small.significand <= 1 << 24, "\(text)")
+            #expect(
+                DecimalFloat.float(significand: UInt32(small.significand), exponent: small.exponent, negative: false)
+                    == Float(text),
+                "\(text)"
+            )
+        }
+    }
+
     @Test func `separators are read between digits only, and the value ignores them`() throws {
         for (text, plain) in [
             ("1_000", "1000"), ("3.141_592_6", "3.1415926"), ("6.02e2_3", "6.02e23"), ("1_2_3_4_5_6_7_8_9", "123456789")

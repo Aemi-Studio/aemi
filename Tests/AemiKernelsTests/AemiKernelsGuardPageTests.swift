@@ -45,6 +45,38 @@ struct AemiKernelsGuardPageTests {
         }
     }
 
+    /// Every position of a quote or an `a` (each byte a hit), into room of every size around the vector steps.
+    private static func checkPositions(_ base: UnsafeMutablePointer<UInt8>, _ count: Int) {
+        for capacity in [1, 15, 16, 17, 64, 65, count + 1] {
+            var fast = [UInt32](repeating: 0, count: capacity)
+            var slow = [UInt32](repeating: 0, count: capacity)
+            let got = fast.withUnsafeMutableBufferPointer { out in
+                AemiKernels.positions(
+                    ofEither: UInt8(ascii: "\""),
+                    UInt8(ascii: "a"),
+                    base: base,
+                    count: count,
+                    offset: 0,
+                    into: out.baseAddress!,
+                    capacity: capacity
+                )
+            }
+            let want = slow.withUnsafeMutableBufferPointer { out in
+                AemiKernels.positions(
+                    ofEither: UInt8(ascii: "\""),
+                    UInt8(ascii: "a"),
+                    base: base,
+                    count: count,
+                    offset: 0,
+                    into: out.baseAddress!,
+                    capacity: capacity,
+                    backend: .scalar
+                )
+            }
+            #expect(got == want && fast == slow)
+        }
+    }
+
     /// The byte, any-of and string-stop scans against their scalar backends (kept apart from the validity scans so that
     /// each body type-checks quickly).
     private static func checkSearchScans(_ base: UnsafeMutablePointer<UInt8>, _ count: Int) {
@@ -120,6 +152,14 @@ struct AemiKernelsGuardPageTests {
                     == AemiKernels.firstIndex(inSet: set, base: base, count: count, backend: .scalar)
             )
         }
+        // The complement over a set holding the filler: the run of `a` ends at the last byte or the end (ADR 0031).
+        if let run = AemiKernels.ByteSet([UInt8(ascii: "a"), 0x20]) {
+            #expect(
+                AemiKernels.firstIndex(notInSet: run, base: base, count: count)
+                    == AemiKernels.firstIndex(notInSet: run, base: base, count: count, backend: .scalar)
+            )
+        }
+        Self.checkPositions(base, count)
         let buffer = UnsafeBufferPointer(start: base, count: count)
         #expect(
             AemiKernels.firstIndex(ofPair: UInt8(ascii: "a"), quote, in: buffer, from: 0)

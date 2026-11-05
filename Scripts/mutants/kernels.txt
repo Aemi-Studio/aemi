@@ -169,3 +169,59 @@ old:
     return (~(unsigned)_mm_movemask_epi8(_mm_cmpeq_epi8(c, _mm_setzero_si128()))) & 0xFFFFu;
 new:
     return (~(unsigned)_mm_movemask_epi8(_mm_cmpeq_epi8(c, _mm_setzero_si128()))) & 0x7FFFu;
+---
+name: not-set-neon-inverted
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_set.c
+old:
+return vceqzq_u8(vandq_u8(low, high));  // 0xFF where the two share no bit: not in the set
+new:
+return vtstq_u8(low, high);  // 0xFF where the two share no bit: not in the set
+---
+name: not-set-scalar-tail-off-by-one
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_set.c
+old:
+        if (!(lo[buf[i] & 15] & hi[buf[i] >> 4])) {
+new:
+        if (i + 1 < len && !(lo[buf[i] & 15] & hi[buf[i] >> 4])) {
+---
+name: positions-neon-room-check
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_positions.c
+old:
+    for (; i + 64 <= len && cap - n >= 64; i += 64) {  // buf[i ..< i + 64] is inside the input
+new:
+    for (; i + 64 <= len && cap - n >= 48; i += 64) {  // buf[i ..< i + 64] is inside the input
+---
+name: positions-neon-lane-offset
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_positions.c
+old:
+                out[n++] = base + (uint32_t)(i + 16 * (size_t)k + (shift >> 2));
+new:
+                out[n++] = base + (uint32_t)(i + 16 * (size_t)k + (shift >> 3));
+---
+name: positions-tail-consumed
+check: KERNELS="kernels_exhaustive" bash Scripts/kernels-check.sh
+file: Sources/CAemiKernels/adf_positions.c
+old:
+            if (n == cap) break;
+            out[n++] = base + (uint32_t)i;
+        }
+    }
+    *consumed = i;
+    return n;
+}
+
+#if defined(__aarch64__)
+new:
+            if (n == cap) break;
+            out[n++] = base + (uint32_t)i;
+        }
+    }
+    *consumed = len;
+    return n;
+}
+
+#if defined(__aarch64__)

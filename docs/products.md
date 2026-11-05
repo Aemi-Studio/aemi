@@ -19,7 +19,7 @@ umbrella when an Apple application needs that whole group.
 
 | Product | Provides |
 | --- | --- |
-| `AemiKernel` | Byte, integer, floating-point, and tape primitives; strict UTF-8 reading, checked byte views, byte bitmaps, sparse sets. |
+| `AemiKernel` | Byte, integer, floating-point, and tape primitives; strict UTF-8 reading, checked byte views, byte bitmaps, sparse sets; for parsers: keyed hashing (`KeyedHash`, `HashIndex`), safe ranged scans with a SWAR front (`ByteScan`), decimal literals (`DecimalScanner`) and RFC 3339 dates (ADR 0031). |
 | `AemiKernels` | Swift access to the C byte-scanning and SIMD kernels: single bytes, sets, pairs and pair sets (Teddy), CRC-32C, buffer bit counts and UTF-16LE ASCII narrowing. |
 | `AemiUnicode` | Unicode primitives: categories, scripts, binary properties and case folding (Unicode 17), scalar sets. |
 | `AemiText` | Text algorithms built on the Unicode and byte primitives. |

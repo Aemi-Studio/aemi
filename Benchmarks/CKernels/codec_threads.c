@@ -86,6 +86,15 @@ static void *work(void *argument) {
         if (adf_utf16le_ascii_prefix(in, n / 2, a) != adf_utf16le_ascii_prefix_scalar(in, n / 2, b)) failed[id] = 1;
         const uint8_t lo[16] = {1, 2}, hi[16] = {3, 3, 3};
         if (adf_index_of_set(in, n, lo, hi) != adf_index_of_set_scalar(in, n, lo, hi)) failed[id] = 1;
+        if (adf_index_not_in_set(in, n, lo, hi) != adf_index_not_in_set_scalar(in, n, lo, hi)) failed[id] = 1;
+        {
+            uint32_t want[512], got[512];
+            size_t cw = 0, cg = 0;
+            const size_t m = n < 512 ? n : 512;
+            const size_t nw = adf_positions_of_either_scalar(in, m, 1, 2, 0, want, 512, &cw);
+            const size_t ng = adf_positions_of_either(in, m, 1, 2, 0, got, 512, &cg);
+            if (nw != ng || cw != cg || memcmp(want, got, nw * sizeof(uint32_t)) != 0) failed[id] = 1;
+        }
         uint8_t table[64] = {0};
         table[3] = 1;
         table[16 + 2] = 1;

@@ -59,8 +59,10 @@
     private(set) var hashes: ContiguousArray<UInt64>
     private var slots: UnsafeMutablePointer<UInt64>
     private var mask: Int
+    let hashing: InternerHashing
 
-    init(capacity: Int, arenas: [Arena]) {
+    init(capacity: Int, arenas: [Arena], hashing: InternerHashing) {
+        self.hashing = hashing
         self.arenas = arenas
         unsafe starts = []
         lengths = []
@@ -79,8 +81,10 @@
         arenas: [Arena],
         starts: ContiguousArray<UnsafeRawPointer?>,
         lengths: ContiguousArray<UInt32>,
-        hashes: ContiguousArray<UInt64>
+        hashes: ContiguousArray<UInt64>,
+        hashing: InternerHashing
     ) {
+        self.hashing = hashing
         self.arenas = arenas
         unsafe self.starts = starts
         self.lengths = lengths
@@ -139,7 +143,7 @@
 
     /// A table that will not see this one's later keys; the bytes are shared.
     func copy() -> Table {
-        unsafe Table(arenas: arenas, starts: starts, lengths: lengths, hashes: hashes)
+        unsafe Table(arenas: arenas, starts: starts, lengths: lengths, hashes: hashes, hashing: hashing)
     }
 
     private func equal(_ symbol: Int, _ key: UnsafeRawBufferPointer) -> Bool {

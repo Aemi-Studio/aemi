@@ -347,7 +347,8 @@ nonisolated(unsafe) let benchmarks = {
             for _ in bm.scaledIterations {
                 blackHole(
                     AemiKernels.indexOfStringStop(content, quote: stopQuote, escape: stopEscape, backend: .fastest)
-                        ?? -1)
+                        ?? -1
+                )
             }
         }
     }
@@ -585,4 +586,6 @@ nonisolated(unsafe) let benchmarks = {
             for _ in bm.scaledIterations { blackHole(mergedIntern(stream, workers: 4)) }
         }
     }
+
+    registerParsingPrimitives()
 }

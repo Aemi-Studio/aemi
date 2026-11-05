@@ -60,6 +60,10 @@ typedef size_t (*Scan2)(const uint8_t *, size_t, uint8_t, uint8_t);
 typedef size_t (*Scan0)(const uint8_t *, size_t);
 
 /// Every byte value at every position (every 7th past 300) of a filler that matches nothing, for each scanner and backend.
+/// The set {'a'} plus `lo`/`hi` of `scanners`: 'a' is 0x61, row 6, column 1.
+static const uint8_t filler_lo[16] = {1, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 0, 0, 0},
+                     filler_hi[16] = {0, 0, 1, 0, 0, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
 static void scanners(void) {
     const uint8_t lo[16] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 0, 0, 0}, hi[16] = {0, 0, 1, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     const Scan2 stops[] = {adf_index_of_string_stop, adf_index_of_string_stop_sse2, adf_index_of_string_stop_avx2,
@@ -97,6 +101,9 @@ static void scanners(void) {
                     EXPECT(adf_index_of_byte(buf.bytes, len, (uint8_t)(v ^ 1)) == adf_index_of_byte_scalar(buf.bytes, len, (uint8_t)(v ^ 1)),
                            "byte len %zu pos %zu byte %d", len, p, v);
                     EXPECT(adf_index_of_set(buf.bytes, len, lo, hi) == adf_index_of_set_scalar(buf.bytes, len, lo, hi), "set len %zu pos %zu byte %d", len, p, v);
+                    // The complement: a set holding the filler 'a' (and the set above), so only a placed byte can end the run.
+                    EXPECT(adf_index_not_in_set(buf.bytes, len, filler_lo, filler_hi) == adf_index_not_in_set_scalar(buf.bytes, len, filler_lo, filler_hi),
+                           "not in set len %zu pos %zu byte %d", len, p, v);
                 }
                 buf.bytes[p] = 'a';
             }
@@ -359,8 +366,55 @@ static void dates(void) {
     release(buf);
 }
 
+/// Every position of either of two bytes, against the scalar reference: inputs of every length class flush against a guard page,
+/// hits at every density (none, one at each position, every k-th, all), and every output size around the vector steps, both in
+/// one call and resumed from `consumed` until the input is done.
+static void positions(void) {
+    for (size_t k = 0; k < LENGTHS; k++) {
+        const size_t len = lengths[k];
+        uint32_t *want = malloc((len + 1) * sizeof(uint32_t)), *got = malloc((len + 1) * sizeof(uint32_t));
+        for (int end = 0; end < 2; end++) {
+            Guarded buf = guarded(len, end);
+            for (int every = 0; every <= 9; every++) {
+                for (size_t single = 0; single <= (every == 0 ? len : 0); single++) {
+                    for (size_t i = 0; i < len; i++) {
+                        const int hit = every == 0 ? (i + 1 == single) : (i % (size_t)every == 0);
+                        buf.bytes[i] = hit ? (i % 2 ? '\n' : '\r') : (uint8_t)('a' + i % 13);
+                    }
+                    size_t want_consumed = 0;
+                    const size_t want_n = adf_positions_of_either_scalar(buf.bytes, len, '\n', '\r', 7, want, len + 1, &want_consumed);
+                    EXPECT(want_consumed == len, "positions reference len %zu", len);
+                    static const size_t caps[] = {1, 2, 15, 16, 17, 31, 32, 33, 63, 64, 65, 200, SIZE_MAX};
+                    for (size_t c = 0; c < sizeof caps / sizeof caps[0]; c++) {
+                        const size_t cap = caps[c] == SIZE_MAX ? len + 1 : caps[c];
+                        size_t total = 0, at = 0, rounds = 0;
+                        uint32_t *room = malloc(cap * sizeof(uint32_t));
+                        while (at < len && rounds++ <= len + 1) {
+                            size_t consumed = 0;
+                            const size_t n = adf_positions_of_either(buf.bytes + at, len - at, '\n', '\r', 7 + (uint32_t)at, room, cap, &consumed);
+                            EXPECT(n <= cap && consumed <= len - at, "positions bounds len %zu cap %zu", len, cap);
+                            EXPECT(n > 0 || consumed == len - at, "positions progress len %zu cap %zu", len, cap);
+                            if (total + n <= len + 1) memcpy(got + total, room, n * sizeof(uint32_t));
+                            total += n;
+                            at += consumed;
+                            if (n == 0 && consumed == 0) break;
+                        }
+                        EXPECT(at == len && total == want_n && memcmp(got, want, want_n * sizeof(uint32_t)) == 0,
+                               "positions len %zu every %d single %zu cap %zu", len, every, single, cap);
+                        free(room);
+                    }
+                }
+            }
+            release(buf);
+        }
+        free(want);
+        free(got);
+    }
+}
+
 int main(void) {
     scanners();
+    positions();
     printf("scanners (host %s): %ld checks\n", adf_kernels_backend(), checks);
     folding();
     utf8();

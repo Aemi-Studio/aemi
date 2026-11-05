@@ -1,4 +1,4 @@
-internal import AemiKernel
+public import AemiKernel
 
 /// An interned key: a dense number from 0, in the order keys were first interned.
 public struct Symbol: Hashable, Comparable, Sendable {
@@ -19,8 +19,30 @@ public enum InternerFormatError: Error, Equatable, Sendable {
     case duplicateKey(Symbol)
 }
 
+/// How an interner hashes its keys (ADR 0031).
+public enum InternerHashing: Sendable, Equatable {
+    /// ``WyHash``, unseeded: the fastest, for keys the program chose (identifiers, USRs, symbol names). A file written to make its
+    /// keys collide can make lookups quadratic, so not for keys read from untrusted input.
+    case fast
+    /// ``KeyedHash`` (SipHash-1-3) under a secret key: for keys read from files and the network (configuration keys, JSON object
+    /// keys, header names), where collisions must not be choosable.
+    case keyed(KeyedHash)
+
+    /// ``keyed(_:)`` under this process's random key (``KeyedHash/process``).
+    public static var keyedForProcess: Self { .keyed(.process) }
+
+    @inline(__always)
+    func hash(_ bytes: UnsafeRawBufferPointer) -> UInt64 {
+        switch self {
+            case .fast: unsafe WyHash.hash(bytes)
+            case .keyed(let key): unsafe key.hash(bytes)
+        }
+    }
+}
+
 /// Interns UTF-8 keys as ``Symbol``s, for one owner (ADR 0019): key bytes copied into chunks that never move, an
-/// open-addressing table hashed with ``WyHash``. Never makes a `String` unless asked for one.
+/// open-addressing table hashed with ``WyHash``, or with ``KeyedHash`` for untrusted keys (``InternerHashing``). Never makes a
+/// `String` unless asked for one.
 ///
 /// Not `Sendable`: give each task its own, then ``merge(_:workers:)`` them or ``freeze()`` one for readers.
 public final class Interner {
@@ -28,17 +50,20 @@ public final class Interner {
     private let arena: Arena
 
     /// An interner with room for `capacity` keys and `byteCapacity` bytes of them before it allocates again.
-    public init(capacity: Int = 0, byteCapacity: Int = 0) {
+    public init(capacity: Int = 0, byteCapacity: Int = 0, hashing: InternerHashing = .fast) {
         arena = Arena(byteCapacity: byteCapacity)
-        table = Table(capacity: capacity, arenas: [arena])
+        table = Table(capacity: capacity, arenas: [arena], hashing: hashing)
     }
+
+    /// How its keys are hashed.
+    public var hashing: InternerHashing { table.hashing }
 
     /// How many distinct keys it holds.
     public var count: Int { table.count }
 
     /// `bytes`' symbol, interning them if new.
     public func intern(_ bytes: UnsafeRawBufferPointer) -> Symbol {
-        let hash = unsafe WyHash.hash(bytes)
+        let hash = unsafe table.hashing.hash(bytes)
         let found = unsafe table.find(bytes, hash: hash)
         if let symbol = found.symbol { return Symbol(rawValue: UInt32(truncatingIfNeeded: symbol)) }
         let start = unsafe arena.store(bytes)
@@ -77,9 +102,9 @@ public final class Interner {
     public func serialized() -> [UInt8] { table.serialized() }
 
     /// Reads ``serialized()``'s bytes back: the same keys under the same symbols.
-    public convenience init(serialized bytes: [UInt8]) throws(InternerFormatError) {
+    public convenience init(serialized bytes: [UInt8], hashing: InternerHashing = .fast) throws(InternerFormatError) {
         let layout = try SerializedLayout(bytes)
-        self.init(capacity: layout.lengths.count, byteCapacity: layout.keyBytes)
+        self.init(capacity: layout.lengths.count, byteCapacity: layout.keyBytes, hashing: hashing)
         // The first key that interned to an earlier symbol, if any.
         let duplicate: Int? = bytes.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Int? in
             var offset = layout.keysStart
@@ -93,11 +118,16 @@ public final class Interner {
         if let duplicate { throw .duplicateKey(Symbol(rawValue: UInt32(duplicate))) }
     }
 
-    /// Interners filled in input order, merged on `workers` threads: the symbols one interner reading every input in
+    /// Interners filled in input order, all with the same ``hashing``, merged on `workers` threads: the symbols one interner reading every input in
     /// order would give, whatever `workers` is, and for each input the merged symbol of each of its local symbols. The
     /// inputs' key bytes are shared, not copied.
     public static func merge(_ interners: [Interner], workers: Int = 4) -> MergedInterner {
-        Merge.run(interners.map(\.table), workers: workers)
+        // The merge places keys by their stored hashes, so every input must have hashed the same way.
+        precondition(
+            interners.allSatisfy { $0.hashing == interners.first?.hashing },
+            "interners merged together must share their hashing"
+        )
+        return Merge.run(interners.map(\.table), workers: workers)
     }
 }
 
@@ -133,7 +163,7 @@ public final class FrozenInterner: Sendable {
 
 extension Table {
     func lookup(_ bytes: UnsafeRawBufferPointer) -> Symbol? {
-        let found = unsafe find(bytes, hash: WyHash.hash(bytes))
+        let found = unsafe find(bytes, hash: hashing.hash(bytes))
         return found.symbol.map { Symbol(rawValue: UInt32(truncatingIfNeeded: $0)) }
     }
 

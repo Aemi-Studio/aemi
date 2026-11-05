@@ -1,4 +1,5 @@
 import AemiInterner
+import AemiKernel
 import AemiTestKit
 import Dispatch
 import Testing
@@ -192,4 +193,31 @@ private final class Counter: @unchecked Sendable {
     var value: Int { lock.sync { count } }
 
     func increment() { lock.sync { count += 1 } }
+}
+
+/// Keyed hashing (ADR 0031): the same symbols as the fast hash, whatever the key, through every entry point.
+struct InternerKeyedHashingTests {
+    static let keys = (0 ..< 3000).map { "key-\($0 % 2000)-\($0 % 7)" }
+
+    @Test func `keyed and fast interners give the same symbols, freeze, serialize and merge alike`() throws {
+        let fast = Interner()
+        let keyed = Interner(hashing: .keyed(KeyedHash(k0: 1, k1: 2)))
+        let process = Interner(hashing: .keyedForProcess)
+        for key in Self.keys {
+            let symbol = fast.intern(key)
+            #expect(keyed.intern(key) == symbol)
+            #expect(process.intern(key) == symbol)
+        }
+        #expect(keyed.hashing == .keyed(KeyedHash(k0: 1, k1: 2)))
+        let frozen = keyed.freeze()
+        for key in Self.keys { #expect(frozen.symbol(for: key) == fast.symbol(for: key)) }
+        let restored = try Interner(serialized: keyed.serialized(), hashing: .keyedForProcess)
+        for key in Self.keys { #expect(restored.symbol(for: key) == fast.symbol(for: key)) }
+
+        let halves = [Interner(hashing: .keyedForProcess), Interner(hashing: .keyedForProcess)]
+        for (index, key) in Self.keys.enumerated() { _ = halves[index % 2].intern(key) }
+        let merged = Interner.merge(halves, workers: 2)
+        #expect(merged.interner.count == fast.count)
+        for key in Self.keys { #expect(merged.interner.symbol(for: key) != nil) }
+    }
 }

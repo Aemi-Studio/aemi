@@ -51,6 +51,14 @@ struct ByteScanTests {
                 #expect(
                     ByteScan.firstIndexOfAny(in: contiguous, from: start, to: end, 0x22, 0x5C, 0x0A, 0x0D, 0x7B) == any
                 )
+                let viaBuffer = bytes.withUnsafeBufferPointer { buffer in
+                    ByteScan.firstIndexOfAny(in: buffer, from: start, to: end, 0x22, 0x5C, 0x0A, 0x0D, 0x7B)
+                }
+                #expect(viaBuffer == any)
+                let quoteViaBuffer = bytes.withUnsafeBufferPointer {
+                    ByteScan.firstIndex(of: 0x22, in: $0, from: start, to: end)
+                }
+                #expect(quoteViaBuffer == Self.reference(bytes, start, end) { $0 == 0x22 })
                 #expect(
                     ByteScan.firstIndex(of: 0x5C, in: bytes, from: start, to: end)
                         == Self.reference(bytes, start, end) { $0 == 0x5C }

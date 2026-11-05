@@ -352,6 +352,32 @@ extension DecimalFloat {
             return LongDecimal.double(text[...], separator: separator) ?? .nan
         }
 
+        /// The `Float` nearest to `literal`, rounded once (through `Double`, some short decimals round twice; AemiJSON decodes
+        /// `Float` this way): Clinger at `Float` width, then `Float(String)` on the literal's short form.
+        public static func float(
+            _ literal: DecimalLiteral,
+            in bytes: UnsafeBufferPointer<UInt8>,
+            separator: UInt8? = nil
+        )
+            -> Float
+        {
+            if !literal.truncated, literal.significand <= 1 << 24,
+                let fast = float(
+                    significand: UInt32(truncatingIfNeeded: literal.significand),
+                    exponent: literal.exponent,
+                    negative: literal.negative
+                )
+            {
+                return fast
+            }
+            let text = unsafe Array(UnsafeBufferPointer(rebasing: bytes[literal.start ..< literal.end]))
+            return LongDecimal.float(text[...], separator: separator) ?? .nan
+        }
+
+        /// As ``float(_:in:separator:)-(_,UnsafeBufferPointer<UInt8>,_)``.
+        public static func float(_ literal: DecimalLiteral, in bytes: [UInt8], separator: UInt8? = nil) -> Float {
+            bytes.withUnsafeBufferPointer { unsafe float(literal, in: $0, separator: separator) }
+        }
     #endif
 
     /// Clinger, then Eisel-Lemire; nil when neither can prove the rounding.

@@ -65,6 +65,23 @@ public enum ByteScan {
         }
     }
 
+    /// As ``firstIndexOfAny(in:from:to:_:_:_:_:_:)-([UInt8],_,_,_,_,_,_,_)``, over a buffer: for a parser that holds a pointer to
+    /// its source (CSVCoder's fields, AemiJSON's tape builder).
+    @inlinable
+    // swiftlint:disable:next function_parameter_count
+    public static func firstIndexOfAny(
+        in buffer: UnsafeBufferPointer<UInt8>,
+        from start: Int,
+        to end: Int = .max,
+        _ n0: UInt8,
+        _ n1: UInt8,
+        _ n2: UInt8,
+        _ n3: UInt8,
+        _ n4: UInt8
+    ) -> Int {
+        unsafe anyOf(buffer, start, end, n0, n1, n2, n3, n4)
+    }
+
     // MARK: One byte
 
     /// The index in `bytes[start ..< end]` of the first byte equal to `needle`, or the end.
@@ -76,6 +93,23 @@ public enum ByteScan {
             } kernel: { base, count in
                 unsafe AemiKernels.firstIndexOfByte(base: base, count: count, needle: needle)
             }
+        }
+    }
+
+    /// As ``firstIndex(of:in:from:to:)-(_,[UInt8],_,_)``, over a buffer.
+    @inlinable
+    public static func firstIndex(
+        of needle: UInt8,
+        in buffer: UnsafeBufferPointer<UInt8>,
+        from start: Int,
+        to end: Int = .max
+    )
+        -> Int
+    {
+        unsafe front(buffer, start, end) {
+            SWAR.equals($0, needle)
+        } kernel: { base, count in
+            unsafe AemiKernels.firstIndexOfByte(base: base, count: count, needle: needle)
         }
     }
 

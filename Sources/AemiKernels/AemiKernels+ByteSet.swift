@@ -84,7 +84,7 @@ extension AemiKernels {
         guard count > 0 else { return 0 }
         var low = set.low
         var high = set.high
-        return withUnsafeBytes(of: &low) { lowBytes in
+        let index = withUnsafeBytes(of: &low) { lowBytes in
             withUnsafeBytes(of: &high) { highBytes in
                 // SAFETY: each table is 16 bytes, which is what the kernel reads from each pointer.
                 guard let lowBase = lowBytes.baseAddress, let highBase = highBytes.baseAddress else { return count }
@@ -96,6 +96,11 @@ extension AemiKernels {
                 return unsafe adf_index_not_in_set(base, count, lowPointer, highPointer)
             }
         }
+        // The kernel never returns more than `count`; the clamp (one conditional select) also gives this body a shape of its own.
+        // Without it, Swift's function merging folds it with `firstIndex(inSet:base:count:)`, whose body differs only in the C
+        // function called, into one shared body behind a thunk, and the set scan, AemiMarkdown's hot path, paid 23 % more
+        // instructions per byte (5.58 to 6.86, measured; ADR 0031).
+        return index < count ? index : count
     }
 
     /// The index in `bytes` of the first byte that is in `set`, or `nil` if none is.

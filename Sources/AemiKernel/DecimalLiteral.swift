@@ -35,6 +35,18 @@ public struct DecimalLiteral: Sendable, Equatable {
     /// No point, no exponent.
     public var isInteger: Bool { !hasPoint && !hasExponent }
 
+    /// The same value with the significand's trailing zeros moved into the exponent: the smallest significand, which a fast path
+    /// bounded by the significand's size (Clinger, a `Float`'s 2^24) accepts more often. `12300000000` is `123e8`.
+    @inlinable
+    public var trimmed: DecimalLiteral {
+        var literal = self
+        while literal.significand != 0, literal.significand % 10 == 0 {
+            literal.significand /= 10
+            literal.exponent += 1
+        }
+        return literal
+    }
+
     /// The literal's value as an integer when it is one and fits 64 bits with its sign: `-9223372036854775808` fits, one more does
     /// not. Nil for a fraction, an exponent, or an overflow.
     public var integerValue: Int64? {
@@ -222,30 +234,11 @@ public enum DecimalScanner {
             return literal
         }
 
-        /// A run of digits with separators between them; returns how many digits.
+        /// A run of digits with separators between them, zero-aware (the precise pass: a number of more than nineteen digits);
+        /// returns how many digits. Byte by byte: an eight-digit word would fold padding zeros into the significand.
         mutating func digits(fraction: Bool) -> Int {
             var digits = 0
-            // Eight digits at a time while they are all digits and fit the nineteen; once a word is not all digits, the rest of
-            // the run goes byte by byte (retrying the word before every digit cost more than it saved).
-            var words = true
             while true {
-                if words, significantDigits > 0, pendingZeros == 0, significantDigits + 8 <= 19, index + 8 <= count,
-                    let base = unsafe bytes.baseAddress
-                {
-                    // SAFETY: `index + 8 <= count`, so the eight bytes are inside the buffer.
-                    let word = UInt64(
-                        littleEndian: unsafe UnsafeRawPointer(base + index).loadUnaligned(as: UInt64.self)
-                    )
-                    if Self.allDigits(word) {
-                        literal.significand = literal.significand &* 100_000_000 &+ Self.eightDigits(word)
-                        significantDigits += 8
-                        if fraction { literal.exponent -= 8 }
-                        digits += 8
-                        index += 8
-                        continue
-                    }
-                    words = false
-                }
                 let value = byte(index)
                 if Self.isDigit(value) {
                     add(UInt64(value - 0x30), fraction: fraction)
@@ -361,11 +354,12 @@ extension DecimalFloat {
         )
             -> Float
         {
-            if !literal.truncated, literal.significand <= 1 << 24,
+            let small = literal.trimmed
+            if !small.truncated, small.significand <= 1 << 24,
                 let fast = float(
-                    significand: UInt32(truncatingIfNeeded: literal.significand),
-                    exponent: literal.exponent,
-                    negative: literal.negative
+                    significand: UInt32(truncatingIfNeeded: small.significand),
+                    exponent: small.exponent,
+                    negative: small.negative
                 )
             {
                 return fast
@@ -384,7 +378,20 @@ extension DecimalFloat {
     @inlinable
     public static func fastDouble(_ literal: DecimalLiteral) -> Double? {
         guard !literal.truncated else { return nil }
-        return double(significand: literal.significand, exponent: literal.exponent, negative: literal.negative)
-            ?? eiselLemire(significand: literal.significand, exponent: literal.exponent, negative: literal.negative)
+        if let clinger = double(
+            significand: literal.significand,
+            exponent: literal.exponent,
+            negative: literal.negative
+        ) {
+            return clinger
+        }
+        if literal.significand % 10 == 0, literal.significand != 0 {
+            let small = literal.trimmed
+            if let clinger = double(significand: small.significand, exponent: small.exponent, negative: small.negative)
+            {
+                return clinger
+            }
+        }
+        return eiselLemire(significand: literal.significand, exponent: literal.exponent, negative: literal.negative)
     }
 }

@@ -119,6 +119,28 @@ public struct RFC3339DateTime: Sendable, Hashable {
             return String(repeating: "0", count: Swift.max(0, width - digits.count)) + digits
         }
     }
+
+    /// Coded as its ``description``, and read back from exactly that form of each kind (a parse with the local forms allowed), so a
+    /// local date stays a local date through JSON, TOML or a property list.
+    extension RFC3339DateTime: Codable {
+        public init(from decoder: any Decoder) throws {
+            let text = try decoder.singleValueContainer().decode(String.self)
+            guard let value = Self(parsing: text, syntax: [.localDateTime, .localDate, .localTime]) else {
+                throw DecodingError.dataCorrupted(
+                    DecodingError.Context(
+                        codingPath: decoder.codingPath,
+                        debugDescription: "\(text.debugDescription) is not an RFC 3339 date, time or date-time"
+                    )
+                )
+            }
+            self = value
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(description)
+        }
+    }
 #endif
 
 extension RFC3339DateTime {

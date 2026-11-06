@@ -106,7 +106,7 @@ public enum SyntaxHighlighter {
     ) -> [Output] {
         switch language {
             case .swift, .objectiveC, .kotlin, .java, .javascript, .typescript, .c, .cpp, .python, .shell, .fish,
-                .rust, .go, .ruby, .lua:
+                .rust, .go, .ruby, .lua, .tla, .lean:
                 CodeScanner(language: language).scan(bytes, as: Output.self)
             case .html:
                 HTMLScanner().scan(bytes, as: Output.self)

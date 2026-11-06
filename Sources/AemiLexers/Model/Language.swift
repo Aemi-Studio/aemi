@@ -20,6 +20,10 @@ public enum Language: Sendable, Equatable, CaseIterable {
     case go
     case ruby
     case lua
+    /// TLA+ and PlusCal (`\\*` and nesting `(* *)` comments).
+    case tla
+    /// Lean 4 (`--` and nesting `/- -/` comments).
+    case lean
     case plain
 
     public init(fileExtension: String) {
@@ -132,6 +136,8 @@ public enum Language: Sendable, Equatable, CaseIterable {
             case .go: "go"
             case .ruby: "ruby"
             case .lua: "lua"
+            case .tla: "tla"
+            case .lean: "lean"
             case .plain: "plain"
         }
     }
@@ -162,6 +168,10 @@ public enum Language: Sendable, Equatable, CaseIterable {
         names["rs"] = .rust
         names["golang"] = .go
         names["rb"] = .ruby
+        names["tla+"] = .tla
+        names["tlaplus"] = .tla
+        names["pluscal"] = .tla
+        names["lean4"] = .lean
         names["text"] = .plain
         names["plaintext"] = .plain
         return names
@@ -189,6 +199,8 @@ public enum Language: Sendable, Equatable, CaseIterable {
         "go": .go,
         "rb": .ruby, "rake": .ruby, "gemspec": .ruby, "podspec": .ruby,
         "lua": .lua,
+        "tla": .tla,
+        "lean": .lean,
         "txt": .plain, "md": .plain, "markdown": .plain, "strings": .plain, "gitignore": .plain, "env": .plain
     ]
 }

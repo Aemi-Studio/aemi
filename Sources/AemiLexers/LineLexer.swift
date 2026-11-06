@@ -32,7 +32,7 @@ public struct LexicalLineLexer: LineLexer {
         scanner =
             switch language {
                 case .swift, .objectiveC, .kotlin, .java, .javascript, .typescript, .c, .cpp, .python, .shell, .fish,
-                    .rust, .go, .ruby, .lua:
+                    .rust, .go, .ruby, .lua, .tla, .lean:
                     .code(CodeScanner(language: language))
                 case .html: .markup(HTMLScanner())
                 case .css: .style(CSSScanner())

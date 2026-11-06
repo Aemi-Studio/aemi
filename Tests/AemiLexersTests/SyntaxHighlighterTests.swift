@@ -169,6 +169,19 @@ struct AddedLanguageScannerTests {
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     @Test
+    @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+    func `tla and lean are named, found by extension, and scanned as code`() {
+        #expect(Language(fileExtension: "tla") == .tla && Language(fileExtension: "lean") == .lean)
+        #expect(Language(name: "TLA+") == .tla && Language(name: "pluscal") == .tla && Language(name: "lean4") == .lean)
+        #expect(
+            Language.tla.name == "tla" && Language.lean.name == "lean" && Language(path: "docs/formal/Spec.tla") == .tla
+        )
+        #expect(kinds("VARIABLES x \\* c", .tla) == [.keyword, .comment])
+        #expect(kinds("def x := 1 -- c", .lean) == [.keyword, .number, .comment])
+    }
+
+    @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+    @Test
     func `lua comments are double dashes and block comments are bracketed`() {
         #expect(kinds("local x = 1 -- c", .lua) == [.keyword, .number, .comment])
         #expect(kinds("--[[ a\nb ]] return", .lua) == [.comment, .keyword])

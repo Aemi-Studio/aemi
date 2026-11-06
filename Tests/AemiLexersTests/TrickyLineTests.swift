@@ -93,6 +93,22 @@ struct TrickyLineTests {
         ),
         Case(.lua, "f[[x]] t[i] --[[ block ]] -- line", ["string=[[x]]", "comment=--[[ block ]]", "comment=-- line"]),
         Case(
+            .tla,
+            "x == IF a \\in s THEN \"q\\\"r\" ELSE 12 \\* note",
+            ["keyword=IF", "keyword=THEN", "string=\"q\\\"r\"", "keyword=ELSE", "number=12", "comment=\\* note"]
+        ),
+        Case(.tla, "(* a (* b *) c *) x' = x \\* d", ["comment=(* a (* b *) c *)", "comment=\\* d"]),
+        Case(
+            .lean,
+            "theorem t (h' : a = b) : b = a := by simp [h'] -- c",
+            ["keyword=theorem", "keyword=by", "keyword=simp", "comment=-- c"]
+        ),
+        Case(
+            .lean,
+            "/- a /- b -/ c -/ def x := \"s\" 2",
+            ["comment=/- a /- b -/ c -/", "keyword=def", "string=\"s\"", "number=2"]
+        ),
+        Case(
             .shell,
             "echo \"$HOME ${x:-y}\" 'single' # c && ls",
             ["keyword=echo", "string=\"$HOME ${x:-y}\"", "string='single'", "comment=# c && ls"]

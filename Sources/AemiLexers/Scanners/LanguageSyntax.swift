@@ -40,6 +40,8 @@ struct LanguageSyntax: Sendable {
             case .go: go
             case .ruby: ruby
             case .lua: lua
+            case .tla: tla
+            case .lean: lean
             default: LanguageSyntax(keywords: [])
         }
     }
@@ -239,5 +241,37 @@ struct LanguageSyntax: Sendable {
         blockComment: (Array("--[[".utf8), Array("]]".utf8)),
         quotes: [ASCII.quote, ASCII.apostrophe],
         hasLongStrings: true
+    )
+
+    /// TLA+ and PlusCal: `\\*` to the end of the line, `(* *)` nesting (a PlusCal algorithm, inside one, reads as a comment, as
+    /// the TLA+ tools read it).
+    static let tla = LanguageSyntax(
+        keywords: [
+            "MODULE", "EXTENDS", "CONSTANT", "CONSTANTS", "VARIABLE", "VARIABLES", "ASSUME", "ASSUMPTION", "AXIOM",
+            "THEOREM", "LEMMA", "PROPOSITION", "COROLLARY", "PROOF", "BY", "OBVIOUS", "OMITTED", "QED", "DEF", "DEFS",
+            "USE", "HIDE", "HAVE", "TAKE", "WITNESS", "PICK", "SUFFICES", "LET", "IN", "IF", "THEN", "ELSE", "CASE",
+            "OTHER", "CHOOSE", "EXCEPT", "UNION", "SUBSET", "DOMAIN", "ENABLED", "UNCHANGED", "INSTANCE", "WITH",
+            "LOCAL", "RECURSIVE", "LAMBDA", "TRUE", "FALSE", "BOOLEAN", "STRING", "SF_", "WF_"
+        ],
+        lineComments: [Array("\\*".utf8)],
+        blockComment: (Array("(*".utf8), Array("*)".utf8)),
+        nestsBlockComments: true
+    )
+
+    /// Lean 4: `--` to the end of the line, `/- -/` nesting (doc comments `/-- -/` among them), `@word` as an attribute. `'` is
+    /// not a quote: names such as `h'` use it.
+    static let lean = LanguageSyntax(
+        keywords: [
+            "def", "theorem", "lemma", "example", "abbrev", "axiom", "structure", "class", "instance", "inductive",
+            "where", "extends", "namespace", "section", "end", "open", "import", "export", "variable", "universe",
+            "fun", "let", "in", "have", "show", "from", "by", "do", "if", "then", "else", "match", "with", "return",
+            "mut", "for", "unless", "calc", "deriving", "noncomputable", "private", "protected", "partial", "unsafe",
+            "macro", "syntax", "attribute", "set_option", "termination_by", "decreasing_by", "mutual", "opaque",
+            "Type", "Prop", "Sort", "true", "false", "sorry", "rfl", "simp", "omega", "exact", "intro", "apply"
+        ],
+        lineComments: [Array("--".utf8)],
+        blockComment: (Array("/-".utf8), Array("-/".utf8)),
+        nestsBlockComments: true,
+        hasAnnotations: true
     )
 }

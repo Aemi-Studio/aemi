@@ -19,7 +19,8 @@ enum LexerCorpus {
     private static let fragments: [Language: [String]] = [
         .swift: swift, .json: json, .yaml: yaml, .toml: toml, .html: html, .css: css, .objectiveC: objectiveC,
         .kotlin: kotlin, .java: java, .javascript: javascript, .typescript: typescript, .c: c, .cpp: cpp,
-        .python: python, .shell: shell, .fish: fish, .rust: rust, .go: go, .ruby: ruby, .lua: lua
+        .python: python, .shell: shell, .fish: fish, .rust: rust, .go: go, .ruby: ruby, .lua: lua, .tla: tla,
+        .lean: lean
     ]
 
     private static let swift = [
@@ -242,6 +243,26 @@ enum LexerCorpus {
         "$global = 1; @instance = nil; value = 0x1F\n",
         "items.each do |item| yield item unless item.nil? end\n",
         "if defined?(Rails) then puts 'rails' end\n"
+    ]
+
+    private static let tla = [
+        "---- MODULE Tables ----\n",
+        "EXTENDS Naturals, Sequences \\* a comment é\n",
+        "(* a block (* nested *) comment\nover two lines *) VARIABLES tables, keys\n",
+        "Init == /\\ tables = {} /\\ keys = << >>\n",
+        "Next == \\E k \\in Keys : IF k \\notin keys THEN keys' = Append(keys, k) ELSE UNCHANGED keys\n",
+        "Name == \"a \\\"quoted\\\" name\" Spec == Init /\\ [][Next]_<<keys>> /\\ WF_keys(Next)\n",
+        "THEOREM Spec => []TypeOK  \\* 42 and 0x1F\n"
+    ]
+
+    private static let lean = [
+        "import Mathlib.Data.Nat.Basic -- a comment é\n",
+        "/-- A doc comment\nover two lines. -/ def double (n : Nat) : Nat := 2 * n\n",
+        "/- a block /- nested -/ comment -/ theorem two (h' : a = b) : b = a := by simp [h']\n",
+        "@[simp] theorem double_zero : double 0 = 0 := rfl\n",
+        "structure Point where x : Float := 1.5 deriving Repr\n",
+        "def greet (name : String) : String := s!\"hi {name} \\\"x\\\"\"\n",
+        "instance : Inhabited Point := ⟨{ x := 0 }⟩\n"
     ]
 
     private static let lua = [

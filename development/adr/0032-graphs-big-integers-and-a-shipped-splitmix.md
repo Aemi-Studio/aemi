@@ -44,3 +44,12 @@ In `AemiKernel`, Foundation-free:
 - Consumers, before and after, the same aemi otherwise: arcleak on a 20,000-type ownership ring, 9.577G against 9.575G instructions,
   output byte for byte the same; dolly on AemiHMMML's sources, 1.400G against 1.400G, the same findings, and its MinHash,
   prefix-index and embedding tests pass.
+
+## Amendment, 2026-11-06: `BigInt` builds as Embedded Swift
+
+The first version broke ADR 0024's gate (`Scripts/check-embedded.sh`): AemiKernel must need libc only, and `BigInt` needed
+`__udivti3`, through `dividingFullWidth`, and the standard library's grapheme tables, through `String.count` on a digit string.
+Division is now Hacker's Delight's `divlu` (two 64-by-32-bit steps, `BigInt.divide128`), and digits are counted as UTF-8 bytes. The
+gate passes again for arm64 and x86-64. `divide128` agrees with `dividingFullWidth` at every edge and on 200,000 random cases; a
+mutant without its first correction step is killed. The 2,000 Python operations agree again. The API is unchanged, so consumers
+pinned at 409c647 keep working and pick this up at the next repin.

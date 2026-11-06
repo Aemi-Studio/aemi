@@ -1,6 +1,7 @@
-import AemiKernel
 import AemiTestKit
 import Testing
+
+@testable import AemiKernel
 
 @Suite("BigInt")
 struct BigIntTests {
@@ -65,6 +66,27 @@ struct BigIntTests {
         #expect(
             BigInt("zz", radix: 36) == 1295 && BigInt("FF", radix: 16)?.toString(radix: 16, uppercase: true) == "FF"
         )
+    }
+
+    @Test func `the 128-by-64 division agrees with the standard library's at every edge and on random values`() {
+        var generator = SeededRNG(seed: 21)
+        let edges: [UInt64] = [1, 2, 3, 0xFFFF_FFFF, 0x1_0000_0000, 0x8000_0000_0000_0000, .max - 1, .max]
+        var cases: [(UInt64, UInt64, UInt64)] = []
+        for divisor in edges {
+            for low in [0, 1, divisor &- 1, .max] { cases.append((divisor - 1, low, divisor)) }
+        }
+        for _ in 0 ..< 200_000 {
+            let divisor = generator.next() >> UInt64(generator.uniform(64)) | 1
+            cases.append((generator.next() % divisor, generator.next(), divisor))
+        }
+        for (high, low, divisor) in cases {
+            let mine = BigInt.divide128(high, low, by: divisor)
+            let standard = divisor.dividingFullWidth((high, low))
+            #expect(
+                mine.quotient == standard.quotient && mine.remainder == standard.remainder,
+                "\(high) \(low) / \(divisor)"
+            )
+        }
     }
 
     @Test func `powers, limb edges and conversions`() {

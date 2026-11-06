@@ -64,7 +64,8 @@ public struct BigInt: Sendable, Hashable, Comparable, CustomStringConvertible, E
         var text = negative ? "-" : ""
         for (position, value) in chunks.reversed().enumerated() {
             let digits = String(value, radix: radix, uppercase: uppercase)
-            if position > 0 { text += String(repeating: "0", count: chunk - digits.count) }
+            // Digits are ASCII: counted as bytes, not characters, so no Unicode table is linked (ADR 0024, Embedded Swift).
+            if position > 0 { text += String(repeating: "0", count: chunk - digits.utf8.count) }
             text += digits
         }
         return text
@@ -202,10 +203,38 @@ extension BigInt {
     static func divide(_ limbs: inout [UInt64], by divisor: UInt64) -> UInt64 {
         var remainder: UInt64 = 0
         for index in limbs.indices.reversed() {
-            (limbs[index], remainder) = divisor.dividingFullWidth((remainder, limbs[index]))
+            (limbs[index], remainder) = divide128(remainder, limbs[index], by: divisor)
         }
         while limbs.last == 0 { limbs.removeLast() }
         return remainder
+    }
+
+    /// `(high, low) / divisor` where `high < divisor`: Hacker's Delight's `divlu`, two 64-by-32-bit steps. `dividingFullWidth` would
+    /// do the same with the runtime's 128-bit division (`__udivti3`), which Embedded Swift does not carry (ADR 0024).
+    static func divide128(_ high: UInt64, _ low: UInt64, by divisor: UInt64) -> (quotient: UInt64, remainder: UInt64) {
+        let base: UInt64 = 1 << 32
+        let shift = UInt64(divisor.leadingZeroBitCount)
+        let v = divisor << shift
+        let (v1, v0) = (v >> 32, v & 0xFFFF_FFFF)
+        let u32 = shift == 0 ? high : (high << shift) | (low >> (64 - shift))
+        let u10 = low << shift
+        let (u1, u0) = (u10 >> 32, u10 & 0xFFFF_FFFF)
+        var q1 = u32 / v1
+        var rhat = u32 - q1 * v1
+        while q1 >= base || q1 * v0 > base * rhat + u1 {
+            q1 -= 1
+            rhat += v1
+            if rhat >= base { break }
+        }
+        let u21 = u32 &* base &+ u1 &- q1 &* v
+        var q0 = u21 / v1
+        rhat = u21 - q0 * v1
+        while q0 >= base || q0 * v0 > base * rhat + u0 {
+            q0 -= 1
+            rhat += v1
+            if rhat >= base { break }
+        }
+        return (q1 * base + q0, (u21 &* base &+ u0 &- q0 &* v) >> shift)
     }
 
     static func compare(_ a: [UInt64], _ b: [UInt64]) -> Int {
@@ -287,7 +316,7 @@ extension BigInt {
                 qhat = .max
                 (rhat, rhatOverflow) = u[j + n - 1].addingReportingOverflow(v[n - 1])
             } else {
-                (qhat, rhat) = v[n - 1].dividingFullWidth((u[j + n], u[j + n - 1]))
+                (qhat, rhat) = divide128(u[j + n], u[j + n - 1], by: v[n - 1])
             }
             while !rhatOverflow {
                 let (high, low) = qhat.multipliedFullWidth(by: v[n - 2])

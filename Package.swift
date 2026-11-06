@@ -371,7 +371,7 @@ let package = Package(
         // oracles, TestClock/AsyncProbe, gates).
         .target(
             name: "AemiTestKit",
-            dependencies: ["AemiTestKitSeams", "CAemiTestKitMalloc", heapModule, systemPackage],
+            dependencies: ["AemiKernel", "AemiTestKitSeams", "CAemiTestKitMalloc", heapModule, systemPackage],
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
         ),

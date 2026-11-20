@@ -75,10 +75,11 @@ struct UnifiedPatchTests {
     func `reconstructed texts place hunks at their line numbers and omit missing sides`() {
         let patch = UnifiedPatch(parsing: Self.gitPatch)
 
+        // `\ No newline at end of file` after a context line: neither side ends with a line break.
         Self.expectTexts(
             of: patch.files[0],
-            old: "\n\nlet a = 1\nlet b = 2\nlet c = 4\n",
-            new: "\n\nlet a = 1\nlet b = 3\nlet c = 4\n"
+            old: "\n\nlet a = 1\nlet b = 2\nlet c = 4",
+            new: "\n\nlet a = 1\nlet b = 3\nlet c = 4"
         )
         Self.expectTexts(of: patch.files[1], old: nil, new: "line one\nline two\n")
         Self.expectTexts(of: patch.files[2], old: "gone\n", new: nil)
@@ -156,6 +157,137 @@ struct UnifiedPatchTests {
         #expect(file.hunks[0].newStart == UnifiedPatch.maximumLineNumber)
         let texts = file.reconstructedTexts
         #expect((texts.new ?? "").utf8.count <= UnifiedPatch.maximumLineNumber + 2)
+    }
+
+    @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+    @Test
+    func `a side that gains or loses its final line break is told apart from the other`() {
+        let patch = UnifiedPatch(
+            parsing: """
+                diff --git a/a.txt b/a.txt
+                --- a/a.txt
+                +++ b/a.txt
+                @@ -1 +1 @@
+                -a
+                \\ No newline at end of file
+                +a
+                diff --git a/b.txt b/b.txt
+                --- a/b.txt
+                +++ b/b.txt
+                @@ -1 +1 @@
+                -b
+                +b
+                \\ No newline at end of file
+
+                """
+        )
+
+        Self.expectTexts(of: patch.files[0], old: "a", new: "a\n")
+        Self.expectTexts(of: patch.files[1], old: "b\n", new: "b")
+    }
+
+    @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+    @Test
+    func `paths git quotes with C escapes are decoded`() {
+        let patch = UnifiedPatch(
+            parsing: """
+                diff --git "a/caf\\303\\251.txt" "b/caf\\303\\251.txt"
+                index 1111111..2222222 100644
+                Binary files "a/caf\\303\\251.txt" and "b/caf\\303\\251.txt" differ
+                diff --git "a/tab\\there.txt" b/plain.txt
+                similarity index 100%
+                rename from "tab\\there.txt"
+                rename to plain.txt
+                diff --git "a/x\\"y.txt" "b/x\\"y.txt"
+                --- "a/x\\"y.txt"
+                +++ "b/x\\"y.txt"
+                @@ -1 +1 @@
+                -1
+                +2
+
+                """
+        )
+
+        Self.expectPaths(
+            of: patch.files,
+            old: ["café.txt", "tab\there.txt", "x\"y.txt"],
+            new: ["café.txt", "plain.txt", "x\"y.txt"]
+        )
+    }
+
+    @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+    @Test
+    func `modes and object ids come from the extended headers`() {
+        let patch = UnifiedPatch(
+            parsing: """
+                diff --git a/run.sh b/run.sh
+                old mode 100644
+                new mode 100755
+                diff --git a/a.txt b/a.txt
+                index 1111111..2222222 100644
+                --- a/a.txt
+                +++ b/a.txt
+                @@ -1 +1 @@
+                -1
+                +2
+                diff --git a/new.sh b/new.sh
+                new file mode 100755
+                index 0000000..3333333
+                --- /dev/null
+                +++ b/new.sh
+                @@ -0,0 +1 @@
+                +x
+
+                """
+        )
+        let files: [UnifiedPatch.FileChange] = patch.files
+        let oldModes: [String?] = files.map { (file: UnifiedPatch.FileChange) -> String? in file.oldMode }
+        let newModes: [String?] = files.map { (file: UnifiedPatch.FileChange) -> String? in file.newMode }
+        let oldIDs: [String?] = files.map { (file: UnifiedPatch.FileChange) -> String? in file.oldObjectID }
+        let newIDs: [String?] = files.map { (file: UnifiedPatch.FileChange) -> String? in file.newObjectID }
+        let expectedOldModes: [String?] = ["100644", "100644", nil]
+        let expectedNewModes: [String?] = ["100755", "100644", "100755"]
+        let expectedOldIDs: [String?] = [nil, "1111111", "0000000"]
+        let expectedNewIDs: [String?] = [nil, "2222222", "3333333"]
+
+        #expect(oldModes == expectedOldModes)
+        #expect(newModes == expectedNewModes)
+        #expect(oldIDs == expectedOldIDs)
+        #expect(newIDs == expectedNewIDs)
+        #expect(files[0].hunks.isEmpty)
+    }
+
+    @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
+    @Test
+    func `a merge's combined diff reads against its first parent`() {
+        let patch = UnifiedPatch(
+            parsing: """
+                diff --cc a.txt
+                index 1111111,2222222..3333333
+                --- a/a.txt
+                +++ b/a.txt
+                @@@ -1,2 -1,3 +1,3 @@@
+                  same
+                - ours
+                 -theirs
+                ++merged
+                + from theirs
+                diff --git a/next.txt b/next.txt
+                --- a/next.txt
+                +++ b/next.txt
+                @@ -1 +1 @@
+                -n
+                +m
+
+                """
+        )
+        let file = patch.files[0]
+
+        #expect(patch.files.count == 2)
+        #expect(file.isCombined)
+        #expect(file.oldPath == "a.txt" && file.newPath == "a.txt")
+        Self.expectTexts(of: file, old: "same\nours\n", new: "same\nmerged\nfrom theirs\n")
+        Self.expectTexts(of: patch.files[1], old: "n\n", new: "m\n")
     }
 
     /// Each file's old and new paths.

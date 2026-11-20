@@ -27,9 +27,7 @@ struct AsyncLatchTests {
             for _ in 0 ..< 4 {
                 group.addTask { try await latch.wait() }
             }
-            while latch.waiterCount < 4 {
-                await Task.yield()
-            }
+            try await waitUntil { latch.waiterCount >= 4 }
 
             latch.open()  // one call, all four proceed — the AsyncGate contrast
             try await group.waitForAll()
@@ -60,9 +58,7 @@ struct AsyncLatchTests {
     func `a cancelled waiter throws and unregisters`() async throws {
         let latch = AsyncLatch()
         let waiter = Task { try await latch.wait() }
-        while latch.waiterCount < 1 {
-            await Task.yield()
-        }
+        try await waitUntil { latch.waiterCount >= 1 }
 
         waiter.cancel()
         await #expect(throws: CancellationError.self) { try await waiter.value }
@@ -75,9 +71,7 @@ struct AsyncLatchTests {
         let latch = AsyncLatch()
         let doomed = Task { try await latch.wait() }
         let survivor = Task { try await latch.wait() }
-        while latch.waiterCount < 2 {
-            await Task.yield()
-        }
+        try await waitUntil { latch.waiterCount >= 2 }
 
         doomed.cancel()
         await #expect(throws: CancellationError.self) { try await doomed.value }
@@ -92,10 +86,8 @@ struct AsyncLatchTests {
     func `waiting on an already-cancelled task throws before parking`() async {
         let latch = AsyncLatch()
         let waiter = Task {
-            // Cancel before the first suspension point so `wait()` takes its pre-park check.
-            while !Task.isCancelled {
-                await Task.yield()
-            }
+            // Cancelled before the first suspension point, by itself, so `wait()` takes its pre-park check.
+            withUnsafeCurrentTask { $0?.cancel() }
             try await latch.wait()
         }
         waiter.cancel()

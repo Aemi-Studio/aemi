@@ -14,7 +14,6 @@ struct AsyncEventProbeTests {
         func start(emitting values: [Int]) {
             Task {
                 for value in values {
-                    await Task.yield()
                     onEmit(value)
                 }
             }
@@ -62,7 +61,7 @@ struct AsyncEventProbeTests {
     func `wait returns the events as they were when the target was reached`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiter = Task { try await probe.wait(forAtLeast: 2) }
-        await Self.waitUntilParked(1, on: probe)
+        try await Self.waitUntilParked(1, on: probe)
 
         probe.record(10)
         probe.record(20)
@@ -77,7 +76,7 @@ struct AsyncEventProbeTests {
     func `one record wakes every waiter whose threshold it crosses`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiters = (1 ... 3).map { target in Task { try await probe.wait(forAtLeast: target) } }
-        await Self.waitUntilParked(3, on: probe)
+        try await Self.waitUntilParked(3, on: probe)
 
         probe.record(1)
         probe.record(2)
@@ -96,9 +95,9 @@ struct AsyncEventProbeTests {
         let waiter = Task { try await probe.wait(forAtLeast: 3, within: .seconds(30), clock: clock) }
         try await clock.waitForUntrackedSleepers(atLeast: 1)
 
-        for _ in 0 ..< 50 { await Task.yield() }
         clock.advance(by: .seconds(29))
-        for _ in 0 ..< 50 { await Task.yield() }
+        // Advancing resumes what is due before it returns: the timeout still parked is the wait not timed out.
+        #expect(clock.untrackedSleeperCount == 1, "29 s is not the 30 s timeout")
         clock.advance(by: .seconds(1))
 
         let error = await #expect(throws: AsyncEventProbeTimeoutError.self) { try await waiter.value }
@@ -122,7 +121,7 @@ struct AsyncEventProbeTests {
     func `cancelling the awaiting task throws CancellationError`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiter = Task { try await probe.wait(forAtLeast: 1, timeout: .seconds(30)) }
-        await Self.waitUntilParked(1, on: probe)
+        try await Self.waitUntilParked(1, on: probe)
 
         waiter.cancel()
 
@@ -137,7 +136,7 @@ struct AsyncEventProbeTests {
         let count = 3000
         let probe = AsyncEventProbe<Int>()
         let waiters = (1 ... count).map { target in Task { try await probe.wait(forAtLeast: target) } }
-        await Self.waitUntilParked(count, on: probe)
+        try await Self.waitUntilParked(count, on: probe)
 
         var reallocations = 0
         var previous: UInt = 0
@@ -158,7 +157,7 @@ struct AsyncEventProbeTests {
     func `a wait that parked returns exactly the events up to its threshold`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiter = Task { try await probe.wait(forAtLeast: 2) }
-        await Self.waitUntilParked(1, on: probe)
+        try await Self.waitUntilParked(1, on: probe)
 
         probe.record(1)
         probe.record(2)
@@ -167,8 +166,8 @@ struct AsyncEventProbeTests {
         #expect(try await waiter.value == [1, 2])
     }
 
-    /// Yields until `count` waits are parked on the probe, so a record that follows cannot race a wait's registration.
-    private static func waitUntilParked(_ count: Int, on probe: AsyncEventProbe<some Sendable>) async {
-        while probe.waiterCount < count { await Task.yield() }
+    /// Returns once `count` waits are parked on the probe, so a record that follows cannot race a wait's registration.
+    private static func waitUntilParked(_ count: Int, on probe: AsyncEventProbe<some Sendable>) async throws {
+        try await waitUntil { probe.waiterCount >= count }
     }
 }

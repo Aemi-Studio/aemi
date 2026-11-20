@@ -1,6 +1,8 @@
 import Synchronization
 import Testing
 
+import func AemiTestKit.waitUntil
+
 @testable import AemiTesting
 
 /// The parts of `TestClock` that mirror `AemiTestKit`'s clock: the live count, `advance(to:)`, `runToLastSleeper`,
@@ -110,8 +112,8 @@ struct TestClockParityTests {
         let sleeper = park(60, on: clock)
         try await clock.waitForSleepers(atLeast: 1)
         // Both waiters are queued once the clock holds them; the sleeper rendezvous above only orders the sleeper.
-        while clock.description.contains("rendezvous waiters: 0") { await Task.yield() }
-        while !clock.description.contains("rendezvous waiters: 2") { await Task.yield() }
+        try await waitUntil { !clock.description.contains("rendezvous waiters: 0") }
+        try await waitUntil { clock.description.contains("rendezvous waiters: 2") }
 
         #expect(clock.drain() == 3)
 
@@ -151,7 +153,8 @@ struct TestClockParityTests {
             try await clock.waitForSleepers(atLeast: 1)
             satisfied.withLock { $0 = true }
         }
-        for _ in 0 ..< 100 { await Task.yield() }
+        // Parked, not released: an untracked sleeper does not count.
+        try await waitUntil { clock.description.contains("rendezvous waiters: 1") }
         #expect(!satisfied.withLock { $0 }, "an untracked park does not satisfy a sleeper rendezvous")
 
         clock.advance(by: .seconds(5))
@@ -177,7 +180,8 @@ struct TestClockParityTests {
             try await clock.waitForSleepers(1, after: mark)
             counted.withLock { $0 = true }
         }
-        for _ in 0 ..< 100 { await Task.yield() }
+        // Parked, not released: an untracked sleeper does not count.
+        try await waitUntil { clock.description.contains("rendezvous waiters: 1") }
         #expect(!counted.withLock { $0 })
 
         let production = park(5, on: clock)

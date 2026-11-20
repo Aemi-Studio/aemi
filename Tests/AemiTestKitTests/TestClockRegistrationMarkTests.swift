@@ -89,7 +89,7 @@ struct TestClockRegistrationMarkTests {
             park(1, on: clock, in: &group)
             try await clock.waitForSleepers(atLeast: 1)
             let waiter = Task { try await clock.waitForAdditionalSleepers(2) }
-            while clock.additionalWaiterCount < 1 { await Task.yield() }
+            try await waitUntil { clock.additionalWaiterCount >= 1 }
 
             park(2, on: clock, in: &group)
 

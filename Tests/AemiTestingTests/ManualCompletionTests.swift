@@ -62,8 +62,8 @@ struct ManualCompletionTests {
         let request = Task { try await completion.receive() }
         try await completion.requests.wait(forAtLeast: 1)
 
+        // A cancellation handler runs within `cancel()`: whatever it would drop is dropped when this returns.
         request.cancel()
-        for _ in 0 ..< 50 { await Task.yield() }
         #expect(completion.pendingCount == 1, "a cancelled service may still return a result")
 
         try completion.complete(at: 0, returning: 5)

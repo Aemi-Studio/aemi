@@ -48,7 +48,7 @@ struct TaskProviderSpyTests {
         let spy = TaskProviderSpy()
         let gate = AsyncGate()
         spy.task { try? await gate.waitUntilOpen() }
-        while gate.waiterCount < 1 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 1 }
         #expect(spy.liveCount == 1)
 
         gate.open()
@@ -142,7 +142,7 @@ struct TaskProviderSpyTests {
     func `waitForSpawnedTasks suspends until a task is spawned`() async throws {
         let spy = TaskProviderSpy()
         let boundary = Task { try await spy.waitForSpawnedTasks(atLeast: 1) }
-        while spy.spawnWaiterCount < 1 { await Task.yield() }
+        try await waitUntil { spy.spawnWaiterCount >= 1 }
 
         spy.task {}
 
@@ -191,7 +191,7 @@ struct TaskProviderSpyTests {
         let spy = TaskProviderSpy()
         let gate = AsyncGate()
         spy.task(role: .observation) { try? await gate.waitUntilOpen() }
-        while gate.waiterCount < 1 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 1 }
 
         gate.open()
         try await spy.waitForObservationsToFinish()
@@ -223,7 +223,7 @@ struct TaskProviderSpyTests {
         let spy = TaskProviderSpy()
         let gate = AsyncGate()
         let observer = spy.task(role: .observation) { () async throws -> Void in try await gate.waitUntilOpen() }
-        while gate.waiterCount < 1 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 1 }
 
         spy.cancelObservations()
 
@@ -237,7 +237,7 @@ struct TaskProviderSpyTests {
         let spy = TaskProviderSpy()
         let gate = AsyncGate()
         let work = spy.task { () async throws -> Void in try await gate.waitUntilOpen() }
-        while gate.waiterCount < 1 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 1 }
 
         spy.cancelPendingWork()
 
@@ -274,7 +274,7 @@ struct TaskProviderSpyTests {
             .task(role: .observation) {
                 do { try await gate.waitUntilOpen() } catch { cancelled.record("observation") }
             }
-        while gate.waiterCount < 2 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 2 }
 
         spy = nil
 

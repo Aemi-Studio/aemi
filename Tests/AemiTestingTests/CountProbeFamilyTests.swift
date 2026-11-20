@@ -1,6 +1,8 @@
 import Synchronization
 import Testing
 
+import func AemiTestKit.waitUntil
+
 @testable import AemiTesting
 
 /// `CountProbe`'s side of the probe family contract it shares with `AemiTestKit`'s `AsyncEventProbe`: clock-injected
@@ -43,9 +45,9 @@ struct CountProbeFamilyTests {
         let waiter = Task { try await probe.wait(forAtLeast: 3, within: .seconds(30), clock: clock) }
         try await clock.waitForUntrackedSleepers(atLeast: 1)
 
-        for _ in 0 ..< 50 { await Task.yield() }
         clock.advance(by: .seconds(29))
-        for _ in 0 ..< 50 { await Task.yield() }
+        // Advancing resumes what is due before it returns: the timeout still parked is the wait not timed out.
+        #expect(clock.untrackedSleeperCount == 1, "29 s is not the 30 s timeout")
         clock.advance(by: .seconds(1))
 
         let error = await #expect(throws: CountProbeTimeoutError<String>.self) { try await waiter.value }
@@ -157,10 +159,10 @@ struct CountProbeFamilyTests {
                 timeout: .seconds(30)
             )
         }
-        while seen.withLock({ $0.count }) < 1 { await Task.yield() }
+        try await waitUntil { seen.withLock({ $0.count }) >= 1 }
         for event in ["a", "b", "done"] {
             probe.record(event)
-            while seen.withLock({ $0.last }) != probe.count { await Task.yield() }
+            try await waitUntil { seen.withLock({ $0.last }) == probe.count }
         }
         try await waiter.value
         #expect(seen.withLock { $0 } == [0, 1, 2, 3])
@@ -178,7 +180,7 @@ struct CountProbeFamilyTests {
                 timeout: .seconds(30)
             )
         }
-        while probe.waiterCount < 1 { await Task.yield() }
+        try await waitUntil { probe.waiterCount >= 1 }
 
         for event in 1 ... 6 { probe.record(event) }
         try await waiter.value
@@ -213,10 +215,10 @@ struct CountProbeFamilyTests {
                     order.append(name)
                 }
             }
-        while probe.waiterCount < 3 { await Task.yield() }
+        try await waitUntil { probe.waiterCount >= 3 }
 
         probe.record()
-        while order.snapshot.count < 1 { await Task.yield() }
+        try await waitUntil { order.snapshot.count >= 1 }
         probe.record()
         for waiter in waiters { try await waiter.value }
 
@@ -250,14 +252,14 @@ struct CountProbeFamilyTests {
         let probe = CountProbe<Int>()
         let byCount = Task { try await probe.wait(forAtLeast: 5, timeout: .seconds(30)) }
         let byCondition = Task { try await probe.wait(until: { $0.count >= 5 }, timeout: .seconds(30)) }
-        while probe.waiterCount < 2 { await Task.yield() }
+        try await waitUntil { probe.waiterCount >= 2 }
 
         byCount.cancel()
         byCondition.cancel()
 
         await #expect(throws: CancellationError.self) { try await byCount.value }
         await #expect(throws: CancellationError.self) { try await byCondition.value }
-        while probe.waiterCount > 0 { await Task.yield() }
+        try await waitUntil { probe.waiterCount == 0 }
         #expect(probe.waiterCount == 0)
     }
 
@@ -280,7 +282,7 @@ struct CountProbeFamilyTests {
         let probe = CountProbe<Int>()
         let waiters = (1 ... count)
             .map { target in Task { try await probe.wait(forAtLeast: target, timeout: .seconds(60)) } }
-        while probe.waiterCount < count { await Task.yield() }
+        try await waitUntil { probe.waiterCount >= count }
 
         var reallocations = 0
         var previous: UInt = 0

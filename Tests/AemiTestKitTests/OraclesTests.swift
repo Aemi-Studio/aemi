@@ -71,8 +71,7 @@ struct OraclesTests {
     @Test
     func `async form catches a matching typed error`() async {
         let caught = await expectThrows(
-            {
-                try await Task.sleep(for: .nanoseconds(1))
+            { () async throws in
                 throw SampleError.runtime(code: 9)
             },
             where: { (error: SampleError) in

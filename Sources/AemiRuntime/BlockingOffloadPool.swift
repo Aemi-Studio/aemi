@@ -97,6 +97,9 @@ public final class BlockingOffloadPool: Sendable {
     }
 
     private let state = Mutex(State())
+
+    /// How many jobs wait for a worker: a test knows a job is queued instead of guessing how long it takes.
+    var queuedCount: Int { state.withLock { $0.queue.count } }
     /// Counting wakeup: signalled 1:1 per accepted enqueue and per stop-wake; waited once per loop
     /// turn. One-to-one accounting is what makes wakeups lost-wakeup-free (cf. `WriterThread`).
     private let wakeup = DispatchSemaphore(value: 0)

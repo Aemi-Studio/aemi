@@ -48,7 +48,7 @@ struct TestClockRendezvousTests {
     @Test(.timeLimit(.minutes(1)))
     func `atLeast resumes when a later sleeper reaches the target`() async throws {
         let clock = TestClock()
-        await withTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             parkSleepers(1, on: clock, in: &group)
             try? await clock.waitForSleepers(atLeast: 1)
 
@@ -56,7 +56,7 @@ struct TestClockRendezvousTests {
             // sleeper only once it has: a waiter that first ran after `runToLastSleeper()` emptied the clock
             // would wait for two sleepers that never come, and the group would never finish.
             group.addTask { try? await clock.waitForSleepers(atLeast: 2) }
-            while clock.rendezvousWaiterCount < 1 { await Task.yield() }
+            try await waitUntil { clock.rendezvousWaiterCount >= 1 }
             parkSleepers(1, on: clock, in: &group)
 
             try? await clock.waitForSleepers(atLeast: 2)
@@ -81,15 +81,13 @@ struct TestClockRendezvousTests {
             }
             // The baseline is taken when the waiter first runs, so park nothing until it has registered:
             // a sleeper that won the race would be absorbed into the baseline and the wait would hang.
-            while clock.additionalWaiterCount < 1 { await Task.yield() }
+            try await waitUntil { clock.additionalWaiterCount >= 1 }
             parkSleepers(1, on: clock, in: &group)
             try? await clock.waitForSleepers(atLeast: 3)
 
-            // Give it every chance to resume if it were going to, then assert it did not: one
-            // further registration is not two. (`atLeast: 2` would have returned long ago.)
-            for _ in 0 ..< 100 {
-                await Task.yield()
-            }
+            // A registration settles the waits it satisfies before it returns: the waiter still registered is the
+            // wait not released. One further registration is not two (`atLeast: 2` has returned).
+            #expect(clock.additionalWaiterCount == 1)
             #expect(!released.withLock { $0 })
 
             parkSleepers(1, on: clock, in: &group)
@@ -141,7 +139,7 @@ struct TestClockRendezvousTests {
         // The cumulative baseline did NOT fall back, so "one more" means one genuinely new park.
         try await withThrowingTaskGroup(of: Void.self) { group in
             let waiter = Task { try await clock.waitForAdditionalSleepers(1) }
-            while clock.additionalWaiterCount < 1 { await Task.yield() }
+            try await waitUntil { clock.additionalWaiterCount >= 1 }
             parkSleepers(1, on: clock, in: &group)
             try await waiter.value
             clock.runToLastSleeper()

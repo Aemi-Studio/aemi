@@ -384,7 +384,7 @@ let package = Package(
         ),
         .testTarget(
             name: "AemiTestingTests",
-            dependencies: ["AemiCore", "AemiTesting"],
+            dependencies: ["AemiCore", "AemiTesting", "AemiTestKit"],
             swiftSettings: appSettings
         ),
         .testTarget(

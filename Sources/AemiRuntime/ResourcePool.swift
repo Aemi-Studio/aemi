@@ -47,6 +47,9 @@ public final class ResourcePool<Resource: Sendable>: Sendable {
     /// The number of resources the pool was built with (its maximum concurrent checkouts).
     public let count: Int
 
+    /// How many tasks are waiting in ``acquire()``: a test knows a waiter is queued instead of guessing how long it takes.
+    var waiterCount: Int { state.withLock { $0.waiters.count } }
+
     /// Build a pool of `max(1, count)` resources from `make`, called with each index in order; the first error it
     /// throws is rethrown and no pool is built. The factory form for resources that are not opened from a path (a
     /// worker slot, a scratch directory per index).

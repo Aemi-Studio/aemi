@@ -19,6 +19,7 @@ The two kits follow the same rules, so a test reads the same against either:
 | Clock | `TestClock`: `sleeperCount`, `waitForSleepers(atLeast:)`, registration marks (`registrationMark()`, `waitForSleepers(_:after:)`), `advance(to:)`, `runToLastSleeper()`, `drain()`, untracked harness timers | `TestClock`: the same; sleepers resume in queued order rather than deadline order |
 | Task provider spy | `TaskProviderSpy`: work and observation tracking, `cancelPendingWork()`, `cancelObservations()`, a `deinit` safety net, clock-injectable waits, a 30 s default timeout | `TaskProviderSpy`: the same, for `AemiCore`'s provider |
 | Doubles and helpers | `ManualCompletion`, `deallocationProbe(of:)`, `waitForObservedState` | the same |
+| Waits for what has no event | `waitUntil` (a poll on any clock that throws `AsyncEventProbeTimeoutError` at the call site), `withDeadline` (an answer or `nil`, its deadline untracked on a `TestClock`), `KeyValueProbe` (key-value observing as `AsyncEventProbe` events) | through `import func AemiTestKit.waitUntil` |
 | Measurement | per-thread `mallocDelta` and `AllocationWindow`, `recordBenchmark`, the `.bench` tag | |
 
 `AemiMetrics` adds `measureRate(units:rounds:_:)`, the best of several rounds by wall time and retired

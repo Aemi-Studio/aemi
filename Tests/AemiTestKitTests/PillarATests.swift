@@ -26,7 +26,7 @@ struct PillarATests {
             woke.record(1)
         }
         // sleeperCount lets us sequence without a yield-guess: wait for it to park.
-        while clock.sleeperCount == 0 { await Task.yield() }
+        try await clock.waitForSleepers(atLeast: 1)
         #expect(clock.sleeperCount == 1)
         #expect(woke.count == 0)
 
@@ -66,13 +66,13 @@ struct PillarATests {
         let probe = AsyncEventProbe<Int>()
         // Advance only after the timeout has armed on the clock (an untracked sleeper).
         let advancer = Task {
-            while clock.untrackedSleeperCount == 0 { await Task.yield() }
+            try await clock.waitForUntrackedSleepers(atLeast: 1)
             clock.advance(by: .seconds(5))
         }
         await #expect(throws: AsyncEventProbeTimeoutError.self) {
             try await probe.wait(forAtLeast: 1, within: .seconds(5), clock: clock)
         }
-        await advancer.value
+        try await advancer.value
     }
 
     // MARK: - TaskProviderSpy
@@ -128,13 +128,13 @@ struct PillarATests {
             try? await Task.sleep(for: .seconds(86_400))  // never completes during the test
         }
         let advancer = Task {
-            while clock.untrackedSleeperCount == 0 { await Task.yield() }
+            try await clock.waitForUntrackedSleepers(atLeast: 1)
             clock.advance(by: .seconds(5))
         }
         await #expect(throws: AsyncEventProbeTimeoutError.self) {
             try await spy.waitForAllTasks(within: .seconds(5), clock: clock)
         }
-        await advancer.value
+        try await advancer.value
         hanging.cancel()
     }
 
@@ -148,7 +148,7 @@ struct PillarATests {
             try await clock.sleep(until: TestClock.Instant(offset: .seconds(10)))
             woke.record(1)
         }
-        while clock.sleeperCount == 0 { await Task.yield() }
+        try await clock.waitForSleepers(atLeast: 1)
         clock.advance(to: TestClock.Instant(offset: .seconds(10)))
         try await sleeper.value
         #expect(woke.events == [1])
@@ -168,7 +168,7 @@ struct PillarATests {
                 woke.record(seconds)
             }
         }
-        while clock.sleeperCount < 3 { await Task.yield() }
+        try await clock.waitForSleepers(atLeast: 3)
         clock.runToLastSleeper()
         _ = try await woke.wait(forAtLeast: 3)
         #expect(Set(woke.events) == [5, 20, 100])
@@ -184,18 +184,18 @@ struct PillarATests {
             try await clock.sleep(until: TestClock.Instant(offset: .seconds(1000)))
         }
         _ = try await parked.wait(forAtLeast: 1)
-        while clock.sleeperCount == 0 { await Task.yield() }
+        try await clock.waitForSleepers(atLeast: 1)
         sleeper.cancel()
         await #expect(throws: CancellationError.self) { try await sleeper.value }
-        while clock.sleeperCount != 0 { await Task.yield() }
+        try await waitUntil { clock.sleeperCount == 0 }
         #expect(clock.sleeperCount == 0)
     }
 
     @Test
-    func `a cancelled probe.wait resumes with CancellationError`() async {
+    func `a cancelled probe.wait resumes with CancellationError`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiter = Task { try await probe.wait(forAtLeast: 5, timeout: .seconds(60)) }
-        await Task.yield()
+        try await waitUntil { probe.waiterCount >= 1 }
         waiter.cancel()
         await #expect(throws: CancellationError.self) { _ = try await waiter.value }
     }

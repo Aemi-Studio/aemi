@@ -1,3 +1,4 @@
+import AemiTestKit
 import Synchronization
 import Testing
 
@@ -17,6 +18,7 @@ private struct Slot: Sendable, Equatable {
                 value += 1
                 peak.withLock { $0 = max($0, value) }
             }
+            // Uneven durations, so that the items end out of order: the pacing is the test's input, not a wait.
             try await Task.sleep(for: .milliseconds(UInt64(item % 5)))
             running.withLock { $0 -= 1 }
             return item * 2
@@ -45,11 +47,14 @@ private struct Slot: Sendable, Equatable {
 
     @Test func `results are handled in completion order, not submission order`() async throws {
         var order: [Int] = []
+        // The first item ends only once the second has been handled.
+        let secondHandled = AsyncLatch()
         try await forEachConcurrently([0, 1], limit: 2) { item in
-            if item == 0 { try await Task.sleep(for: .milliseconds(200)) }
+            if item == 0 { try await secondHandled.wait() }
             return item
         } each: { index, _ in
             order.append(index)
+            if index == 1 { secondHandled.open() }
         }
         #expect(order == [1, 0])
     }
@@ -83,13 +88,13 @@ private struct Slot: Sendable, Equatable {
             order.withLock { $0.append(1) }
             pool.checkin(slot)
         }
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil { pool.waiterCount == 1 }
         let second = Task { @Sendable in
             let slot = try await pool.acquire()
             order.withLock { $0.append(2) }
             pool.checkin(slot)
         }
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil { pool.waiterCount == 2 }
         #expect(order.withLock { $0 }.isEmpty)
         pool.checkin(held)
         try await first.value
@@ -102,7 +107,7 @@ private struct Slot: Sendable, Equatable {
         let pool = ResourcePool(count: 1) { Slot(index: $0) }
         let held = try #require(pool.checkout())
         let waiter = Task { try await pool.acquire() }
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil { pool.waiterCount == 1 }
         waiter.cancel()
         await #expect(throws: CancellationError.self) { try await waiter.value }
         pool.checkin(held)

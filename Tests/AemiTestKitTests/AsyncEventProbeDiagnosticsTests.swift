@@ -32,7 +32,7 @@ struct AsyncEventProbeDiagnosticsTests {
         let probe = AsyncEventProbe()  // resolves to AsyncEventProbe<Never>
         #expect(probe.isEmpty)
         let waiter = Task { try await probe.wait(forAtLeast: 2) }
-        while probe.waiterCount < 1 { await Task.yield() }
+        try await waitUntil { probe.waiterCount >= 1 }
 
         probe.record()
         probe.record()
@@ -132,7 +132,7 @@ struct AsyncEventProbeDiagnosticsTests {
     func `a condition wait returns the events as they were when it first held`() async throws {
         let probe = AsyncEventProbe<Int>()
         let waiter = Task { try await probe.wait(until: { $0.contains(3) }) }
-        while probe.waiterCount < 1 { await Task.yield() }
+        try await waitUntil { probe.waiterCount >= 1 }
 
         for event in 1 ... 6 { probe.record(event) }
 
@@ -150,10 +150,10 @@ struct AsyncEventProbeDiagnosticsTests {
                 return events.last == "done"
             })
         }
-        while seen.withLock({ $0.count }) < 1 { await Task.yield() }
+        try await waitUntil { seen.withLock({ $0.count }) >= 1 }
         for event in ["a", "b", "done"] {
             probe.record(event)
-            while seen.withLock({ $0.last }) != probe.count { await Task.yield() }
+            try await waitUntil { seen.withLock({ $0.last }) == probe.count }
         }
         #expect(try await waiter.value == ["a", "b", "done"])
         #expect(seen.withLock { $0 } == [0, 1, 2, 3])
@@ -210,14 +210,14 @@ struct AsyncEventProbeDiagnosticsTests {
         let probe = AsyncEventProbe<Int>()
         let byCount = Task { try await probe.wait(forAtLeast: 5, timeout: .seconds(30)) }
         let byCondition = Task { try await probe.wait(until: { $0.count >= 5 }, timeout: .seconds(30)) }
-        while probe.waiterCount < 2 { await Task.yield() }
+        try await waitUntil { probe.waiterCount >= 2 }
 
         byCount.cancel()
         byCondition.cancel()
 
         await #expect(throws: CancellationError.self) { try await byCount.value }
         await #expect(throws: CancellationError.self) { try await byCondition.value }
-        while probe.waiterCount > 0 { await Task.yield() }
+        try await waitUntil { probe.waiterCount <= 0 }
         #expect(probe.waiterCount == 0)
     }
 

@@ -58,22 +58,20 @@ struct ContinuationRegistryTests {
 
         /// Suspend until `n` continuations are parked — the rendezvous `AsyncGate.waiterCount`
         /// exists for, so a test never races the park.
-        func waitUntilParked(_ n: Int) async {
-            while count < n {
-                await Task.yield()
-            }
+        func waitUntilParked(_ n: Int) async throws {
+            try await waitUntil { count >= n }
         }
     }
 
     @Test
-    func `wake releases every key at or below the bound and leaves the rest parked`() async {
+    func `wake releases every key at or below the bound and leaves the rest parked`() async throws {
         let parking = Parking()
-        await withTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             for key in [30, 10, 40, 20] {
                 let id = parking.makeID()
                 group.addTask { _ = try? await parking.park(id: id, key: key) }
             }
-            await parking.waitUntilParked(4)
+            try await parking.waitUntilParked(4)
 
             // The bound is INCLUSIVE: 10, 20 and 30 are due; 40 is not.
             #expect(parking.wake(upTo: 30, with: 1) == 3)
@@ -87,13 +85,13 @@ struct ContinuationRegistryTests {
     }
 
     @Test
-    func `wakeOne releases in ascending key order, then by park order within a key`() async {
+    func `wakeOne releases in ascending key order, then by park order within a key`() async throws {
         let parking = Parking()
         let resumeOrder = Mutex<[Int]>([])
         // Two entries share key 5 so the id tie-break is observable: the one parked FIRST must win.
         let keys = [9, 5, 5, 1]
 
-        await withTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             for (offset, key) in keys.enumerated() {
                 let id = parking.makeID()
                 group.addTask { @Sendable in
@@ -101,16 +99,14 @@ struct ContinuationRegistryTests {
                     resumeOrder.withLock { $0.append(offset) }
                 }
                 // Park strictly one at a time so "first parked" is well-defined for the tied keys.
-                await parking.waitUntilParked(offset + 1)
+                try await parking.waitUntilParked(offset + 1)
             }
 
             // Release one at a time, awaiting each resumption before the next, so the observed
             // order is the registry's and not the scheduler's.
             for released in 0 ..< keys.count {
                 #expect(parking.wakeOne(with: 0))
-                while resumeOrder.withLock({ $0.count }) <= released {
-                    await Task.yield()
-                }
+                try await waitUntil { resumeOrder.withLock { $0.count } > released }
             }
         }
 
@@ -129,7 +125,7 @@ struct ContinuationRegistryTests {
 
         let survivor = Task { try await parking.park(id: survivorID, key: 10) }
         let doomed = Task { try await parking.park(id: doomedID, key: 5) }
-        await parking.waitUntilParked(2)
+        try await parking.waitUntilParked(2)
 
         doomed.cancel()
         await #expect(throws: CancellationError.self) { try await doomed.value }
@@ -154,7 +150,7 @@ struct ContinuationRegistryTests {
         // The doomed waiter holds the LOWEST key, so a naive wakeOne would return its stale slot.
         let doomed = Task { try await parking.park(id: doomedID, key: 1) }
         let survivor = Task { try await parking.park(id: survivorID, key: 2) }
-        await parking.waitUntilParked(2)
+        try await parking.waitUntilParked(2)
 
         doomed.cancel()
         await #expect(throws: CancellationError.self) { try await doomed.value }
@@ -188,7 +184,7 @@ struct ContinuationRegistryTests {
         for _ in 0 ..< 500 {
             let id = parking.makeID()
             let task = Task { try await parking.park(id: id, key: 1_000_000) }
-            await parking.waitUntilParked(1)
+            try await parking.waitUntilParked(1)
             task.cancel()
             await #expect(throws: CancellationError.self) { try await task.value }
         }
@@ -205,7 +201,7 @@ struct ContinuationRegistryTests {
             let id = parking.makeID()
             let task = Task { try await parking.park(id: id, key: key) }
             if key.isMultiple(of: 10) { survivors.append(task) } else { doomed.append(task) }
-            await parking.waitUntilParked(key)
+            try await parking.waitUntilParked(key)
         }
         for task in doomed { task.cancel() }
         for task in doomed { _ = await task.result }

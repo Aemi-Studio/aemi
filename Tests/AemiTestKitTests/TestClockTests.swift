@@ -211,7 +211,7 @@ struct TestClockTests {
             try await clock.waitForSleepers(atLeast: 1)
             resumed.withLock { $0 = true }
         }
-        for _ in 0 ..< 50 { await Task.yield() }
+        try await waitUntil { clock.rendezvousWaiterCount >= 1 }
         #expect(!resumed.withLock { $0 }, "no sleeper has registered yet")
 
         let sleeper = Task { try await clock.sleep(until: clock.now.advanced(by: .seconds(60))) }
@@ -262,7 +262,7 @@ struct TestClockTests {
             Task { try await clock.sleep(until: clock.now.advanced(by: .seconds(60))) }
         }
         try await clock.waitForUntrackedSleepers(atLeast: 1)
-        while clock.rendezvousWaiterCount < 3 { await Task.yield() }
+        try await waitUntil { clock.rendezvousWaiterCount >= 3 }
 
         #expect(clock.drain() == 4)
 

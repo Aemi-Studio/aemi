@@ -1,5 +1,7 @@
 import Testing
 
+import func AemiTestKit.waitUntil
+
 @testable import AemiTesting
 
 /// Coverage for the two "further sleepers" rendezvous of `TestClock`: the delta form
@@ -70,7 +72,7 @@ struct TestClockRegistrationMarkTests {
             // The delta form's baseline is taken when the wait first runs, so park nothing until the wait
             // has registered: a sleeper that won the race would be absorbed into the baseline.
             let waited = Task { try await clock.waitForAdditionalSleepers(2) }
-            while !clock.description.contains("rendezvous waiters: 1") { await Task.yield() }
+            try await waitUntil { clock.description.contains("rendezvous waiters: 1") }
             park(2, on: clock, in: &group)
             try await waited.value
             try await clock.waitForSleepers(count: 3)

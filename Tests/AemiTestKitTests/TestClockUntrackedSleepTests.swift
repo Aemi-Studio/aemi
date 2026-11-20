@@ -34,7 +34,8 @@ struct TestClockUntrackedSleepTests {
             try await clock.waitForSleepers(atLeast: 1)
             satisfied.withLock { $0 = true }
         }
-        for _ in 0 ..< 100 { await Task.yield() }
+        // Parked, not released: an untracked sleeper does not count.
+        try await waitUntil { clock.rendezvousWaiterCount >= 1 }
         #expect(!satisfied.withLock { $0 }, "only the timeout is parked")
 
         let production = Task { try await clock.sleep(until: clock.now.advanced(by: .seconds(5))) }
@@ -87,7 +88,8 @@ struct TestClockUntrackedSleepTests {
             try await clock.waitForSleepers(1, after: mark)
             counted.withLock { $0 = true }
         }
-        for _ in 0 ..< 100 { await Task.yield() }
+        // Parked, not released: an untracked sleeper does not count.
+        try await waitUntil { clock.rendezvousWaiterCount >= 1 }
         #expect(!counted.withLock { $0 }, "an untracked park is not a registration")
 
         // Nothing tracked is parked, so there is nothing to run to: the harness timer stays armed.

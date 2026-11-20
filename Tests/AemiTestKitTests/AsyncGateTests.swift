@@ -27,7 +27,7 @@ struct AsyncGateTests {
             try await gate.waitUntilOpen()
             passed.record(1)
         }
-        while gate.waiterCount == 0 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 1 }
         #expect(passed.count == 0)  // parked, not yet released
         gate.open()
         _ = try await passed.wait(forAtLeast: 1)
@@ -43,12 +43,12 @@ struct AsyncGateTests {
             try await gate.waitUntilOpen()
             released.record(1)
         }
-        while gate.waiterCount < 1 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 1 }
         let b = Task {
             try await gate.waitUntilOpen()
             released.record(2)
         }
-        while gate.waiterCount < 2 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 2 }
 
         gate.open()
         _ = try await released.wait(forAtLeast: 1)
@@ -69,10 +69,10 @@ struct AsyncGateTests {
             try await gate.waitUntilOpen()
         }
         _ = try await parked.wait(forAtLeast: 1)
-        while gate.waiterCount == 0 { await Task.yield() }
+        try await waitUntil { gate.waiterCount >= 1 }
         holder.cancel()
         await #expect(throws: CancellationError.self) { try await holder.value }
-        while gate.waiterCount != 0 { await Task.yield() }
+        try await waitUntil { gate.waiterCount == 0 }
         #expect(gate.waiterCount == 0)
     }
 

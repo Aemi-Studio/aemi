@@ -118,10 +118,10 @@ private func withDeadline<T: Sendable>(
                 release.wait()
             }
         }
-        while !started.load(ordering: .acquiring) { try await Task.sleep(for: .milliseconds(5)) }
+        try await waitUntil { started.load(ordering: .acquiring) }
 
         let queued = Task { try await pool.run { 123 } }
-        try await Task.sleep(for: .milliseconds(50))  // ensure `queued` has enqueued
+        try await waitUntil { pool.queuedCount == 1 }
         queued.cancel()
         await #expect(throws: CancellationError.self) { _ = try await queued.value }
 

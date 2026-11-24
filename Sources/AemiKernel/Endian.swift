@@ -121,6 +121,12 @@ extension Array where Element == UInt8 {
 // load/store lowering; the reads stay `unsafe` (the strict-memory-safety mode flags
 // `unsafeLoadUnaligned`), the bounds-checked `storeBytes` does not.
 extension RawSpan {
+    /// Bounds-checked single-byte load (`UInt8`) from `offset`, encapsulating `unsafeLoad`.
+    @inlinable
+    public func loadU8(_ offset: Int) -> UInt8 {
+        precondition(offset >= 0 && offset < byteCount, "RawSpan.loadU8 offset out of range")
+        return unsafe unsafeLoad(fromByteOffset: offset, as: UInt8.self)
+    }
     @inlinable
     public func loadLE16(_ offset: Int) -> UInt16 {
         unsafe UInt16(littleEndian: unsafeLoadUnaligned(fromByteOffset: offset, as: UInt16.self))
@@ -144,6 +150,16 @@ extension RawSpan {
     @inlinable
     public func loadBE64(_ offset: Int) -> UInt64 {
         unsafe UInt64(bigEndian: unsafeLoadUnaligned(fromByteOffset: offset, as: UInt64.self))
+    }
+    /// Materializes a copy of the borrowed span into an owned `[UInt8]`.
+    @inlinable
+    public func copyBytes() -> [UInt8] {
+        withUnsafeBytes { unsafe Array($0) }
+    }
+    /// Appends the borrowed span into `destination` without an intermediate `[UInt8]`.
+    @inlinable
+    public func appendBytes(to destination: inout [UInt8]) {
+        withUnsafeBytes { unsafe destination.append(contentsOf: $0) }
     }
 }
 

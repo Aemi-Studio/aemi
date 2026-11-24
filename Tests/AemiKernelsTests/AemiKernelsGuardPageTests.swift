@@ -19,11 +19,18 @@ struct AemiKernelsGuardPageTests {
         }
     }
 
-    @Test func `checksums, bit counts and UTF-16 narrowing stay inside the input`() {
+    @Test func `checksums, XOR masks, bit counts and UTF-16 narrowing stay inside the input`() {
         Self.each { base, count in
             #expect(
                 AemiKernels.crc32c(7, base, count: count) == AemiKernels.crc32c(7, base, count: count, backend: .scalar)
             )
+            #expect(
+                AemiKernels.crc32IEEE(7, base, count: count)
+                    == AemiKernels.crc32IEEE(7, base, count: count, backend: .scalar)
+            )
+            let mask: UInt32 = 0xA55A_3CC3
+            AemiKernels.xorMask4(base, count: count, mask: mask, backend: .fastest)
+            AemiKernels.xorMask4(base, count: count, mask: mask, backend: .scalar)
             #expect(
                 AemiKernels.bitCount(base, count: count) == AemiKernels.bitCount(base, count: count, backend: .scalar)
             )

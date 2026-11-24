@@ -20,6 +20,46 @@ extension AemiKernels {
         return unsafe adf_crc32c_update(crc, base, count)
     }
 
+    /// IEEE 802.3 / ISO-HDLC / gzip CRC-32 (RFC 1952 §8; reflected polynomial `0xEDB88320`) of
+    /// `base[0..<count]` continued from `crc`: raw, no inversion (caller supplies `0xFFFFFFFF` seed
+    /// and performs final `^ 0xFFFFFFFF`). `.scalar` forces the slicing-by-8 reference.
+    ///
+    /// Owner/bounds: the caller owns `base[0..<count]` for the call.
+    public static func crc32IEEE(
+        _ crc: UInt32,
+        _ base: UnsafePointer<UInt8>,
+        count: Int,
+        backend: Backend = .fastest
+    ) -> UInt32 {
+        guard count > 0 else { return crc }
+        if case .scalar = backend { return unsafe adf_crc32_ieee_update_scalar(crc, base, count) }
+        return unsafe adf_crc32_ieee_update(crc, base, count)
+    }
+
+    /// Applies a repeating 4-byte XOR mask in place (`base[i] ^= mask[i & 3]`) using NEON/SSE2
+    /// (64 bytes per iteration). `mask` is passed as a big-endian packed `UInt32` whose bytes
+    /// `(mask >> 24, mask >> 16, mask >> 8, mask)` are XORed at offsets `0, 1, 2, 3` respectively
+    /// (matching RFC 6455 §5.3 network-order masking keys). `.scalar` forces the byte-by-byte reference.
+    ///
+    /// Owner/bounds: the caller owns `base[0..<count]` mutably for the call.
+    public static func xorMask4(
+        _ base: UnsafeMutablePointer<UInt8>,
+        count: Int,
+        mask: UInt32,
+        backend: Backend = .fastest
+    ) {
+        guard count > 0 else { return }
+        var key = mask.bigEndian
+        withUnsafeBytes(of: &key) { raw in
+            guard let ptr = unsafe raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+            if case .scalar = backend {
+                unsafe adf_xor_mask4_scalar(base, count, ptr)
+            } else {
+                unsafe adf_xor_mask4(base, count, ptr)
+            }
+        }
+    }
+
     /// The number of set bits in `base[0..<count]`. `.scalar` forces the reference.
     public static func bitCount(_ base: UnsafePointer<UInt8>, count: Int, backend: Backend = .fastest) -> Int {
         guard count > 0 else { return 0 }

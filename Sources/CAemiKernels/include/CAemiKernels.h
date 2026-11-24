@@ -316,4 +316,14 @@ size_t adf_find_sse2(const uint8_t *hay, size_t hlen, const uint8_t *needle, siz
 /// The plain reference: every start, byte by byte (quadratic in the worst case; for tests).
 size_t adf_find_scalar(const uint8_t *hay, size_t hlen, const uint8_t *needle, size_t nlen);
 
+/// IEEE 802.3 / ISO-HDLC / gzip CRC-32 (RFC 1952 §8, reflected polynomial 0xEDB88320), raw update.
+/// Same raw-state contract as `adf_crc32c_update`: start at `0xFFFFFFFFu`, fold chunks, then XOR with `0xFFFFFFFFu`.
+uint32_t adf_crc32_ieee_update(uint32_t crc, const uint8_t *buf, size_t len);
+uint32_t adf_crc32_ieee_update_scalar(uint32_t crc, const uint8_t *buf, size_t len);
+
+/// Applies a repeating 4-byte XOR mask in place (`buf[i] ^= mask[i & 3]`), NEON/SSE2 vectorized (64 B/iter).
+/// Used by RFC 6455 WebSocket frame masking/unmasking and other 32-bit repeating-key transforms.
+void adf_xor_mask4(uint8_t *buf, size_t len, const uint8_t mask[4]);
+void adf_xor_mask4_scalar(uint8_t *buf, size_t len, const uint8_t mask[4]);
+
 #endif /* CADFKERNELS_H */

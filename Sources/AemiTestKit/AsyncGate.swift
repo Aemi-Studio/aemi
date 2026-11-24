@@ -17,6 +17,8 @@ public final class AsyncGate: Sendable {
         var permits: Int
         /// Suspended holders, all parked at key 0 so `wakeOne()` releases them FIFO (by id).
         var waiters = ContinuationRegistry<Int, Void>()
+        /// Waiters parked in ``waitForWaiters(atLeast:)``, keyed by the holder-count threshold.
+        var countWaiters = ContinuationRegistry<Int, Void>()
     }
 
     private let state: Mutex<State>
@@ -40,15 +42,18 @@ public final class AsyncGate: Sendable {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation {
                 (continuation: CheckedContinuation<Void, any Error>) in
-                let action = state.withLock { s -> Action in
-                    if Task.isCancelled { return .cancelled }
+                let (action, countResumes) = state.withLock {
+                    s -> (Action, [(CheckedContinuation<Void, any Error>, Void)]) in
+                    if Task.isCancelled { return (.cancelled, []) }
                     if s.permits > 0 {
                         s.permits -= 1
-                        return .proceed
+                        return (.proceed, [])
                     }
                     s.waiters.park(id: id, key: 0, continuation)
-                    return .suspended
+                    let ready = s.countWaiters.wake(upTo: s.waiters.count, with: ())
+                    return (.suspended, ready)
                 }
+                for (waiter, _) in countResumes { waiter.resume() }
                 switch action {
                     case .proceed: continuation.resume()
                     case .cancelled: continuation.resume(throwing: CancellationError())
@@ -57,6 +62,32 @@ public final class AsyncGate: Sendable {
             }
         } onCancel: {
             state.withLock { $0.waiters.remove(id: id) }?.resume(throwing: CancellationError())
+        }
+    }
+
+    /// Suspends until at least `count` holders are parked on the gate, then returns — the
+    /// deterministic replacement for `while waiterCount < count { await Task.yield() }`.
+    public func waitForWaiters(atLeast count: Int) async throws {
+        if count <= 0 { return }
+        let id = state.withLock { $0.countWaiters.makeID() }
+        enum Action { case ready, cancelled, suspended }
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Void, any Error>) in
+                let action = state.withLock { s -> Action in
+                    if Task.isCancelled { return .cancelled }
+                    if s.waiters.count >= count { return .ready }
+                    s.countWaiters.park(id: id, key: count, continuation)
+                    return .suspended
+                }
+                switch action {
+                    case .ready: continuation.resume()
+                    case .cancelled: continuation.resume(throwing: CancellationError())
+                    case .suspended: break
+                }
+            }
+        } onCancel: {
+            state.withLock { $0.countWaiters.remove(id: id) }?.resume(throwing: CancellationError())
         }
     }
 

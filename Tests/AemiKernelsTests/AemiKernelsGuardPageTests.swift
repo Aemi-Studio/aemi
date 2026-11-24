@@ -31,6 +31,13 @@ struct AemiKernelsGuardPageTests {
             let mask: UInt32 = 0xA55A_3CC3
             AemiKernels.xorMask4(base, count: count, mask: mask, backend: .fastest)
             AemiKernels.xorMask4(base, count: count, mask: mask, backend: .scalar)
+            var scratch = [UInt8](repeating: 0x5A, count: count)
+            scratch.withUnsafeMutableBufferPointer { dst in
+                guard let dstBase = dst.baseAddress else { return }
+                AemiKernels.xorAccumulate(into: dstBase, from: base, count: count, backend: .fastest)
+                AemiKernels.xorAccumulate(into: dstBase, from: base, count: count, backend: .scalar)
+            }
+            #expect(scratch.allSatisfy { $0 == 0x5A })
             #expect(
                 AemiKernels.bitCount(base, count: count) == AemiKernels.bitCount(base, count: count, backend: .scalar)
             )

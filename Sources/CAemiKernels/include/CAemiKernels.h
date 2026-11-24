@@ -326,4 +326,10 @@ uint32_t adf_crc32_ieee_update_scalar(uint32_t crc, const uint8_t *buf, size_t l
 void adf_xor_mask4(uint8_t *buf, size_t len, const uint8_t mask[4]);
 void adf_xor_mask4_scalar(uint8_t *buf, size_t len, const uint8_t mask[4]);
 
+/// XOR-accumulates `src[0..<len]` into `dst[0..<len]` in place (`dst[i] ^= src[i]`), vectorized
+/// with NEON (64 B/iter on arm64) and SSE2 (64 B/iter on x86-64). Used for XOR-FEC parity
+/// generation/recovery, RAID/erasure parity, and delta masking. `dst` and `src` must not overlap.
+void adf_xor_accumulate(uint8_t *dst, const uint8_t *src, size_t len);
+void adf_xor_accumulate_scalar(uint8_t *dst, const uint8_t *src, size_t len);
+
 #endif /* CADFKERNELS_H */

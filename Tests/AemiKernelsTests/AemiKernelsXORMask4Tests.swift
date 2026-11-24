@@ -40,4 +40,49 @@ struct AemiKernelsXORMask4Tests {
             }
         }
     }
+
+    @Test func xorAccumulateMatchesScalarAcrossLengthsAndAlignments() {
+        var state: UInt64 = 0x9E37_79B9_7F4A_7C15
+        let src = (0 ..< 1600)
+            .map { _ -> UInt8 in
+                state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+                return UInt8(truncatingIfNeeded: state >> 33)
+            }
+        let seed = (0 ..< 1600)
+            .map { _ -> UInt8 in
+                state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+                return UInt8(truncatingIfNeeded: state >> 33)
+            }
+
+        for dstOff in [0, 1, 3, 7] {
+            for srcOff in [0, 2, 5] {
+                for length in Array(0 ... 140) + [255, 256, 512, 1384, 1400] {
+                    var fast = Array(seed[0 ..< (dstOff + length)])
+                    var slow = fast
+                    src.withUnsafeBufferPointer { sBuf in
+                        guard let sBase = sBuf.baseAddress else { return }
+                        fast.withUnsafeMutableBufferPointer { dBuf in
+                            guard let dBase = dBuf.baseAddress else { return }
+                            AemiKernels.xorAccumulate(
+                                into: dBase + dstOff,
+                                from: sBase + srcOff,
+                                count: length,
+                                backend: .fastest
+                            )
+                        }
+                        slow.withUnsafeMutableBufferPointer { dBuf in
+                            guard let dBase = dBuf.baseAddress else { return }
+                            AemiKernels.xorAccumulate(
+                                into: dBase + dstOff,
+                                from: sBase + srcOff,
+                                count: length,
+                                backend: .scalar
+                            )
+                        }
+                    }
+                    #expect(fast == slow, "mismatch len=\(length) dstOff=\(dstOff) srcOff=\(srcOff)")
+                }
+            }
+        }
+    }
 }

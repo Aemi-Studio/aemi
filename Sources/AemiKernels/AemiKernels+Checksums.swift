@@ -60,6 +60,26 @@ extension AemiKernels {
         }
     }
 
+    /// XOR-accumulates `source[0..<count]` into `destination[0..<count]` in place
+    /// (`destination[i] ^= source[i]`) using NEON/SSE2 (64 bytes per iteration). `.scalar` forces
+    /// the byte-by-byte reference.
+    ///
+    /// Owner/bounds: the caller owns `destination[0..<count]` mutably and `source[0..<count]`
+    /// immutably (non-overlapping) for the call.
+    public static func xorAccumulate(
+        into destination: UnsafeMutablePointer<UInt8>,
+        from source: UnsafePointer<UInt8>,
+        count: Int,
+        backend: Backend = .fastest
+    ) {
+        guard count > 0 else { return }
+        if case .scalar = backend {
+            unsafe adf_xor_accumulate_scalar(destination, source, count)
+        } else {
+            unsafe adf_xor_accumulate(destination, source, count)
+        }
+    }
+
     /// The number of set bits in `base[0..<count]`. `.scalar` forces the reference.
     public static func bitCount(_ base: UnsafePointer<UInt8>, count: Int, backend: Backend = .fastest) -> Int {
         guard count > 0 else { return 0 }

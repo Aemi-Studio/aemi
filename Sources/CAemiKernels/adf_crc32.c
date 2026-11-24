@@ -278,3 +278,85 @@ void adf_xor_mask4(uint8_t *buf, size_t len, const uint8_t mask[4]) {
         buf[i] ^= mask[i];
     }
 }
+
+// MARK: - Buffer XOR accumulate (`dst[i] ^= src[i]`, NEON / SSE2 / scalar, 64 B/iter)
+
+void adf_xor_accumulate_scalar(uint8_t *dst, const uint8_t *src, size_t len) {
+    if (dst == NULL || src == NULL || len == 0) {
+        return;
+    }
+    for (size_t i = 0; i < len; ++i) {
+        dst[i] ^= src[i];
+    }
+}
+
+void adf_xor_accumulate(uint8_t *dst, const uint8_t *src, size_t len) {
+    if (dst == NULL || src == NULL || len == 0) {
+        return;
+    }
+#if defined(__aarch64__)
+    while (len >= 64) {
+        uint8x16_t d0 = veorq_u8(vld1q_u8(dst + 0), vld1q_u8(src + 0));
+        uint8x16_t d1 = veorq_u8(vld1q_u8(dst + 16), vld1q_u8(src + 16));
+        uint8x16_t d2 = veorq_u8(vld1q_u8(dst + 32), vld1q_u8(src + 32));
+        uint8x16_t d3 = veorq_u8(vld1q_u8(dst + 48), vld1q_u8(src + 48));
+        vst1q_u8(dst + 0, d0);
+        vst1q_u8(dst + 16, d1);
+        vst1q_u8(dst + 32, d2);
+        vst1q_u8(dst + 48, d3);
+        dst += 64;
+        src += 64;
+        len -= 64;
+    }
+    while (len >= 16) {
+        vst1q_u8(dst, veorq_u8(vld1q_u8(dst), vld1q_u8(src)));
+        dst += 16;
+        src += 16;
+        len -= 16;
+    }
+#elif defined(__x86_64__) || defined(__i386__)
+    while (len >= 64) {
+        _mm_storeu_si128(
+            (__m128i *)(void *)(dst + 0),
+            _mm_xor_si128(_mm_loadu_si128((const __m128i *)(const void *)(dst + 0)),
+                          _mm_loadu_si128((const __m128i *)(const void *)(src + 0))));
+        _mm_storeu_si128(
+            (__m128i *)(void *)(dst + 16),
+            _mm_xor_si128(_mm_loadu_si128((const __m128i *)(const void *)(dst + 16)),
+                          _mm_loadu_si128((const __m128i *)(const void *)(src + 16))));
+        _mm_storeu_si128(
+            (__m128i *)(void *)(dst + 32),
+            _mm_xor_si128(_mm_loadu_si128((const __m128i *)(const void *)(dst + 32)),
+                          _mm_loadu_si128((const __m128i *)(const void *)(src + 32))));
+        _mm_storeu_si128(
+            (__m128i *)(void *)(dst + 48),
+            _mm_xor_si128(_mm_loadu_si128((const __m128i *)(const void *)(dst + 48)),
+                          _mm_loadu_si128((const __m128i *)(const void *)(src + 48))));
+        dst += 64;
+        src += 64;
+        len -= 64;
+    }
+    while (len >= 16) {
+        _mm_storeu_si128(
+            (__m128i *)(void *)dst,
+            _mm_xor_si128(_mm_loadu_si128((const __m128i *)(const void *)dst),
+                          _mm_loadu_si128((const __m128i *)(const void *)src)));
+        dst += 16;
+        src += 16;
+        len -= 16;
+    }
+#endif
+    while (len >= 8) {
+        uint64_t d, s;
+        memcpy(&d, dst, 8);
+        memcpy(&s, src, 8);
+        d ^= s;
+        memcpy(dst, &d, 8);
+        dst += 8;
+        src += 8;
+        len -= 8;
+    }
+    for (size_t i = 0; i < len; ++i) {
+        dst[i] ^= src[i];
+    }
+}

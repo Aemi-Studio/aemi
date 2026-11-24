@@ -15,11 +15,15 @@ extern adtk_malloc_logger_t *malloc_logger;
 /// `MALLOC_LOG_TYPE_ALLOCATE` in libmalloc's stack-logging encoding (a malloc/calloc/realloc-new).
 #define ADTK_MALLOC_LOG_TYPE_ALLOCATE 2
 
+/// `MALLOC_LOG_TYPE_DEALLOCATE`. Set alongside ALLOCATE for realloc, moving requested size to `arg3`.
+#define ADTK_MALLOC_LOG_TYPE_DEALLOCATE 4
+
 /* Shared between `begin`/`end` and the hook, which runs on whichever thread allocates: every access
    is atomic, so none of them races. Relaxed is enough — the only values published are the hook to
    chain to and the owning thread, and any value the hook can read for either is valid: a stale owner
    only means a thread outside the window is not counted, which is the intent. */
 static _Atomic(uint64_t) adtk_alloc_count = 0;
+static _Atomic(uint64_t) adtk_alloc_bytes = 0;
 static _Atomic(adtk_malloc_logger_t *) adtk_prev_logger = 0;
 static _Atomic(int) adtk_active = 0;
 /* The thread being counted: the one that opened the window, or the one a window named. Only its
@@ -34,6 +38,8 @@ static void adtk_counting_logger(uint32_t type, uintptr_t arg1, uintptr_t arg2, 
     if ((type & ADTK_MALLOC_LOG_TYPE_ALLOCATE) &&
         pthread_equal(atomic_load_explicit(&adtk_owner, memory_order_relaxed), pthread_self())) {
         atomic_fetch_add_explicit(&adtk_alloc_count, 1, memory_order_relaxed);
+        uint64_t sz = (type & ADTK_MALLOC_LOG_TYPE_DEALLOCATE) ? (uint64_t)arg3 : (uint64_t)arg2;
+        atomic_fetch_add_explicit(&adtk_alloc_bytes, sz, memory_order_relaxed);
     }
     /* Chain to whatever hook was already installed (e.g. Instruments) so we don't disrupt it. The
        counting hook itself must not allocate — it does not. */
@@ -54,6 +60,7 @@ static void adtk_begin_counting(pthread_t thread) {
         return;
     }
     atomic_store_explicit(&adtk_alloc_count, 0, memory_order_relaxed);
+    atomic_store_explicit(&adtk_alloc_bytes, 0, memory_order_relaxed);
     atomic_store_explicit(&adtk_owner, thread, memory_order_relaxed);
     atomic_store_explicit(&adtk_prev_logger, current, memory_order_relaxed);
     atomic_store_explicit(&adtk_active, 1, memory_order_relaxed);
@@ -65,14 +72,23 @@ void adtk_malloc_count_begin(void) { adtk_begin_counting(pthread_self()); }
 /* `thread` is a `pthread_self()` value carried as an integer by the Swift side. */
 void adtk_malloc_window_begin(uintptr_t thread) { adtk_begin_counting((pthread_t)thread); }
 
-uint64_t adtk_malloc_count_end(void) {
+void adtk_malloc_count_stop(uint64_t *count, uint64_t *bytes) {
     if (!atomic_exchange_explicit(&adtk_active, 0, memory_order_relaxed)) {
-        return 0;
+        if (count) { *count = 0; }
+        if (bytes) { *bytes = 0; }
+        return;
     }
     __atomic_store_n(
         &malloc_logger, atomic_load_explicit(&adtk_prev_logger, memory_order_relaxed), __ATOMIC_RELAXED);
     atomic_store_explicit(&adtk_owner, (pthread_t)0, memory_order_relaxed);
-    return atomic_load_explicit(&adtk_alloc_count, memory_order_relaxed);
+    if (count) { *count = atomic_load_explicit(&adtk_alloc_count, memory_order_relaxed); }
+    if (bytes) { *bytes = atomic_load_explicit(&adtk_alloc_bytes, memory_order_relaxed); }
+}
+
+uint64_t adtk_malloc_count_end(void) {
+    uint64_t count = 0;
+    adtk_malloc_count_stop(&count, 0);
+    return count;
 }
 
 #else /* non-Darwin: counting unavailable — the ordo-one benchmark malloc metric covers Linux CI. */
@@ -81,5 +97,9 @@ int adtk_malloc_counting_available(void) { return 0; }
 void adtk_malloc_count_begin(void) {}
 void adtk_malloc_window_begin(uintptr_t thread) { (void)thread; }
 uint64_t adtk_malloc_count_end(void) { return 0; }
+void adtk_malloc_count_stop(uint64_t *count, uint64_t *bytes) {
+    if (count) { *count = 0; }
+    if (bytes) { *bytes = 0; }
+}
 
 #endif

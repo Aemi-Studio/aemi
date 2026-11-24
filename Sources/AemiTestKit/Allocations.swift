@@ -191,3 +191,42 @@ public func expectAllocations(
     }
     return count
 }
+
+/// Counts the cumulative heap octets requested on the calling thread during `body`.
+///
+/// Same rules as ``mallocDelta(_:)`` (synchronous body, warm up first, serialized across threads).
+/// The total is cumulative requested size, not peak residency — the right oracle for bounded-growth
+/// guards where sizing straight to a large cap must be caught (CWE-409).
+public func mallocByteDelta(_ body: () -> Void) -> Int? {
+    guard allocationCountingAvailable else {
+        body()
+        return nil
+    }
+    Measurements.acquire()
+    defer { Measurements.release() }
+    var bytes: UInt64 = 0
+    adtk_malloc_count_begin()
+    body()
+    adtk_malloc_count_stop(nil, &bytes)
+    return Int(bytes)
+}
+
+/// Asserts `body` requests at most `limit` cumulative heap octets — the bounded-growth guard.
+///
+/// Trips when a routine sizes a buffer straight to its worst-case cap instead of growing into it
+/// (CWE-409). Where counting is unavailable it runs `body` and records nothing.
+@discardableResult
+public func expectAllocatedBytes(
+    noMoreThan limit: Int,
+    sourceLocation: SourceLocation = #_sourceLocation,
+    _ body: () -> Void
+) -> Int? {
+    guard let bytes = mallocByteDelta(body) else { return nil }
+    if bytes > limit {
+        Issue.record(
+            "expected at most \(limit) allocated octet(s), measured \(bytes)",
+            sourceLocation: sourceLocation
+        )
+    }
+    return bytes
+}

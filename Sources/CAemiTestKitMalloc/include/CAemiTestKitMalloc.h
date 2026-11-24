@@ -38,4 +38,8 @@ void adtk_malloc_window_begin(uintptr_t thread);
 /// Restore the previous hook and return the allocations the counted thread made since `begin`.
 uint64_t adtk_malloc_count_end(void);
 
+/// Restore the previous hook and optionally output both the allocation count and cumulative
+/// requested byte total (`bytes` may be NULL; `count` may be NULL).
+void adtk_malloc_count_stop(uint64_t *count, uint64_t *bytes);
+
 #endif /* CADTESTKIT_MALLOC_H */

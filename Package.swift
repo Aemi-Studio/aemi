@@ -2,44 +2,6 @@
 import CompilerPluginSupport
 import PackageDescription
 
-// Aemi — the kernel package of the Aemi ecosystem.
-//
-// ONE package, MANY small targets (link exactly what you need), with two umbrella products:
-//   • `import AemiFoundation` — every zero-dependency RUNTIME tier (byte/number kernel, Unicode,
-//     text, POSIX IO, process metrics, and the concurrency seams/pools).
-//   • the `AemiTestKit` product — the deterministic-testing kit (AemiTestKit + AemiTestKitSeams).
-// Plus the pre-existing app-level tiers: Aemi, AemiCore, AemiUI, AemiTesting, InternedStrings,
-// Loggable. Absorbed from ADFoundation (runtime tiers + test kit) and ADBuildTools (Format/Lint/
-// LintBuild plugins, canonical configs, quality scripts), with modules renamed AD* → Aemi*.
-//
-// NOTE: AemiRuntime (kernel-tier pools/seams) and AemiCore (app-level TaskProvider/TaskRole) are
-// deliberately SEPARATE modules and are never both re-exported from a single umbrella target.
-// Likewise AemiTesting (app-level) and AemiTestKit (kernel test kit) stay separate products.
-
-// ── Settings tiers (kernel targets, absorbed from ADFoundation) ──
-// Strict, dependency-safe settings applied to every kernel-tier Swift target. `.v6` turns on
-// complete strict-concurrency checking; the upcoming features tighten existentials (`any`) and
-// import visibility.
-// ── C strictness ──────────────────────────────────────────────────────────────────────────────
-// The C tiers are hand-written SIMD over raw bytes, which is precisely where an implicit narrowing
-// or a signed/unsigned slip becomes a wrong answer on the fast path and nowhere else. These flags
-// are chosen so that class of defect cannot compile.
-//
-//   -std=c11                    a defined language, not whatever the compiler defaults to
-//   -Wall -Wextra               the usual pair, as errors below
-//   -Wpedantic                  reject anything the standard does not guarantee
-//   -Wconversion                the important one: every implicit narrowing must be written down
-//   -Wsign-conversion           a signed byte compared against 0xFF is a real bug in these kernels
-//   -Wcast-qual                 a cast that drops const is almost never intended
-//   -Wstrict-prototypes         `(int)` not `()` — an unprototyped declaration accepts anything
-//   -Wmissing-prototypes        a non-static function must have a declaration somewhere
-//   -Wshadow -Wundef            no hidden shadowing; no undefined macro treated as defined
-//   -Wvla                       no variable-length arrays on the stack
-//   -Wwrite-strings             string literals are const, so a write is diagnosed
-//   -Wformat=2 -Wswitch-enum    format strings checked hard; a switch must cover its enum
-//   -Wimplicit-fallthrough      fallthrough is always a mistake in a kernel
-//   -Wdouble-promotion          no silent float64 in a byte kernel
-//   -Werror                     all of the above are errors, not advice
 let strictCSettings: [CSetting] = [
     .unsafeFlags([
         "-std=c11", "-Wall", "-Wextra", "-Wpedantic", "-Wconversion", "-Wsign-conversion",
@@ -58,11 +20,6 @@ let strictSettings: [SwiftSetting] = [
     .enableUpcomingFeature("MemberImportVisibility")
 ]
 
-// The byte/IO kernel additionally adopts SE-0458 strict memory safety + the compile-time-only
-// `Lifetimes` feature. Applied to the pointer/POSIX targets (AemiKernel, AemiKernels, AemiIO).
-// Swift 6.3 reports `Span.withUnsafeBufferPointer`-style calls as unsafe where 6.4 treats them as
-// safe, and 6.4 rejects the `unsafe` marker 6.3 would need. No source spelling satisfies both, so
-// strict memory safety is enforced from 6.4 on and the 6.3 floor still builds and runs the tests.
 #if compiler(>=6.4)
     let kernelSettings: [SwiftSetting] =
         strictSettings + [.strictMemorySafety(), .enableExperimentalFeature("Lifetimes")]
@@ -71,10 +28,6 @@ let strictSettings: [SwiftSetting] = [
         strictSettings + [.enableExperimentalFeature("Lifetimes")]
 #endif
 
-// Compile-time type-check timing warnings — unsafe flags, so they live only on test targets.
-// The budget is env-tunable (AEMI_TYPECHECK_BUDGET_MS) because `treatAllWarnings(as: .error)`
-// turns an overrun into a HARD build error while the measured quantity is type-check WALL TIME —
-// structurally flaky on shared CI runners. CI exports a higher budget; unset it stays 100.
 let typeCheckBudgetMS = Context.environment["AEMI_TYPECHECK_BUDGET_MS"].flatMap { Int($0) } ?? 100
 let timingWarningFlags: [SwiftSetting] = [
     .unsafeFlags([
@@ -83,35 +36,20 @@ let timingWarningFlags: [SwiftSetting] = [
     ])
 ]
 
-// Kernel tests: strict + timing warnings + runtime actor data-race checks.
 let testSettings: [SwiftSetting] =
     strictSettings + timingWarningFlags + [.unsafeFlags(["-enable-actor-data-race-checks"])]
 
-// Settings for the pre-existing app-level targets (Aemi, AemiCore, AemiUI, AemiTesting,
-// InternedStrings, Loggable) — preserved as-is from the original Aemi manifest.
 let appSettings: [SwiftSetting] = [
     .strictMemorySafety(),
     .enableExperimentalFeature("StrictConcurrency"),
     .swiftLanguageMode(.v6)
 ]
 
-// Dev-only tooling is gated behind `AEMI_DEV` so consumers never resolve it.
 let isDev = Context.environment["AEMI_DEV"] != nil
 
-// The libFuzzer kernel target is gated behind `AEMI_FUZZ` so the default build never links a
-// `main`-less `-sanitize=fuzzer` executable (a Linux capability of the toolchain — the Darwin SDK
-// rejects it). See `Sources/AemiKernelsFuzz`.
 let isFuzz = Context.environment["AEMI_FUZZ"] != nil
 
-// Non-dev dependencies:
-//   • swift-syntax      — backs AemiMacros and AemiMacroSupport (macro-plugin helpers).
-//   • swift-collections — `HeapModule` backs the AemiTestKit `TestClock` sleeper queue.
-//   • swift-system      — `SystemPackage` backs AemiTestKit's typed temp-file paths.
-//   • swift-crypto      — `Crypto` backs AemiDigest off Apple platforms (CryptoKit on them); aemi implements no
-//                         digest of its own (ADR 0029).
 var packageDependencies: [Package.Dependency] = [
-    // 603 builds with the Swift 6.3 toolchain the CI 6.3 lane uses; 604 is the Swift 6.4 release consumers on
-    // Xcode 27 pin. Both are accepted so a consumer's pin never conflicts with this range.
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.0" ..< "605.0.0"),
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.7.3"),
     .package(url: "https://github.com/apple/swift-system.git", from: "1.8.1"),
@@ -121,14 +59,11 @@ if isDev {
     packageDependencies.append(
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.5.0")
     )
-    // ordo-one benchmark suite (`AEMI_DEV=1 swift package benchmark`).
     packageDependencies.append(
         .package(url: "https://github.com/ordo-one/benchmark", from: "1.38.0")
     )
 }
 
-// The in-package LintBuild plugin runs `swift format lint --strict` as a prebuild step on the
-// kernel library targets — dev-gated so consumers never run it.
 let libraryBuildPlugins: [Target.PluginUsage] = isDev ? [.plugin(name: "LintBuild")] : []
 
 let heapModule: Target.Dependency = .product(name: "HeapModule", package: "swift-collections")
@@ -136,8 +71,6 @@ let systemPackage: Target.Dependency = .product(name: "SystemPackage", package: 
 
 let package = Package(
     name: "Aemi",
-    // Family floor: `Synchronization` (Mutex/Atomic) ships in macOS 15 / iOS 18 / tvOS 18 /
-    // watchOS 11 / visionOS 2.
     platforms: [
         .iOS(.v18),
         .macOS(.v15),
@@ -146,28 +79,17 @@ let package = Package(
         .visionOS(.v2)
     ],
     products: [
-        // ── Pre-existing app-level products ──
         .library(name: "Aemi", targets: ["Aemi"]),
         .library(name: "AemiCore", targets: ["AemiCore"]),
         .library(name: "AemiUI", targets: ["AemiUI"]),
         .library(name: "AemiTesting", targets: ["AemiTesting"]),
         .library(name: "InternedStrings", targets: ["InternedStrings"]),
         .library(name: "Loggable", targets: ["Loggable"]),
-        // ── Kernel tiers (absorbed from ADFoundation) ──
-        // Runtime umbrella: `import AemiFoundation` → every zero-dependency runtime tier.
         .library(name: "AemiFoundation", targets: ["AemiFoundation"]),
-        // Test umbrella product: the deterministic-testing kit (+ seams).
         .library(name: "AemiTestKit", targets: ["AemiTestKit", "AemiTestKitSeams"]),
-        // The C tiers are products so a CONSUMER can reach them. Without this, a dependent package
-        // that uses AemiKernel and wants the test kit fails with "unable to resolve module
-        // dependency: 'CAemiKernels'" — the C target's modulemap is not exported through any product,
-        // so the instrumentation Aemi already ships is unreachable from inside a consumer. Measured
-        // in TerminalKit; see its ADR-0007.
         .library(name: "CAemiKernels", targets: ["CAemiKernels"]),
         .library(name: "CAemiTestKitMalloc", targets: ["CAemiTestKitMalloc"]),
-        // Individual runtime tiers — link exactly what you need.
         .library(name: "AemiKernel", targets: ["AemiKernel"]),
-        // Runtime-dispatched SIMD byte kernels (JSON string scan, ASCII fold, byte search).
         .library(name: "AemiKernels", targets: ["AemiKernels"]),
         .library(name: "AemiUnicode", targets: ["AemiUnicode"]),
         .library(name: "AemiText", targets: ["AemiText"]),
@@ -176,21 +98,16 @@ let package = Package(
         .library(name: "AemiInterner", targets: ["AemiInterner"]),
         .library(name: "AemiMetrics", targets: ["AemiMetrics"]),
         .library(name: "AemiProcess", targets: ["AemiProcess"]),
-        // Syntax lexers, whole text or a line at a time; not in the AemiFoundation umbrella.
         .library(name: "AemiLexers", targets: ["AemiLexers"]),
         .library(name: "AemiDiff", targets: ["AemiDiff"]),
         .library(name: "AemiArgon2", targets: ["AemiArgon2"]),
-        // SHA-256 on CryptoKit or swift-crypto; not in the AemiFoundation umbrella, which takes no dependency.
         .library(name: "AemiDigest", targets: ["AemiDigest"]),
-        // Concurrency seams + pools (formerly ADConcurrency).
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
-        // Shared swift-syntax helpers for macro compiler plugins. Never re-exported by an umbrella.
         .library(name: "AemiMacroSupport", targets: ["AemiMacroSupport"]),
         .library(name: "AemiTestKitSeams", targets: ["AemiTestKitSeams"])
     ],
     dependencies: packageDependencies,
     targets: [
-        // ── Pre-existing app-level targets ──
         .macro(
             name: "AemiMacros",
             dependencies: [
@@ -217,37 +134,25 @@ let package = Package(
         .target(name: "InternedStrings", dependencies: ["AemiMacros"], swiftSettings: appSettings),
         .target(name: "Loggable", dependencies: ["AemiMacros"], swiftSettings: appSettings),
 
-        // ── Kernel runtime tiers (absorbed from ADFoundation) ──
-        // AemiKernel — pointer-level byte primitives; SE-0458 strict memory safety. Depends on
-        // AemiKernels for the shared runtime-dispatched SIMD scans. Acyclic: AemiKernels →
-        // CAemiKernels only.
         .target(
             name: "AemiKernel",
             dependencies: ["AemiKernels"],
             swiftSettings: kernelSettings,
             plugins: libraryBuildPlugins
         ),
-        // CAemiKernels — runtime-dispatched SIMD byte kernels in C (per-function
-        // `__attribute__((target))` + `pthread_once` feature probe).
-        // CAemiCPU — what this CPU can do, asked once: the feature set every C kernel target dispatches on.
         .target(name: "CAemiCPU", cSettings: strictCSettings),
         .target(name: "CAemiKernels", dependencies: ["CAemiCPU"], cSettings: strictCSettings),
-        // AemiKernels — the pure-Swift facade over CAemiKernels; strict-memory-safe like AemiKernel.
         .target(
             name: "AemiKernels",
             dependencies: ["CAemiKernels"],
             swiftSettings: kernelSettings,
             plugins: libraryBuildPlugins
         ),
-        // AemiKernelsProbe — standalone differential check (kernels vs scalar reference) + ISA-tier
-        // printer (`swift run --arch x86_64 AemiKernelsProbe` under Rosetta).
         .executableTarget(
             name: "AemiKernelsProbe",
             dependencies: ["AemiKernels"],
             swiftSettings: strictSettings
         ),
-        // AemiCodecProbe — the same for the codec and search kernels (Base64, hex, percent-coding, byte search)
-        // (`swift run --arch x86_64 AemiCodecProbe`, and with ROSETTA_ADVERTISE_AVX=1 for AVX2).
         .executableTarget(
             name: "AemiCodecProbe",
             dependencies: ["AemiKernel", "AemiKernels"],
@@ -271,14 +176,12 @@ let package = Package(
             swiftSettings: kernelSettings,
             plugins: libraryBuildPlugins
         ),
-        // AemiFileSystem — a parallel directory walker on readdir and d_type (ADR 0017).
         .target(
             name: "AemiFileSystem",
             dependencies: ["AemiIO"],
             swiftSettings: kernelSettings,
             plugins: libraryBuildPlugins
         ),
-        // AemiInterner — UTF-8 keys as dense symbols: a chunked arena, wyhash, a deterministic sharded merge (ADR 0019).
         .target(
             name: "AemiInterner",
             dependencies: ["AemiKernel"],
@@ -286,25 +189,14 @@ let package = Package(
             plugins: libraryBuildPlugins
         ),
         .target(name: "AemiMetrics", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
-        // AemiProcess — the user's process table (sessions, groups, start times, environments, live usage) for
-        // supervising children wherever they went (ADR 0028). Pointer-level syscalls: strict memory safety.
         .target(name: "AemiProcess", swiftSettings: kernelSettings, plugins: libraryBuildPlugins),
-        // AemiLexers — hand-written scanners over borrowed UTF-8 bytes for 20 languages, whole text or a line at a time
-        // from each line's entry state. Standard library only. Moved from Atelier's AtelierLexers.
         .target(name: "AemiLexers", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
-        // AemiDiff — line diffs (Myers, histogram) over interned lines, their refiners, intraline emphasis, moved
-        // blocks, hunk layout, unified patches and gutter change marks. Standard library only. Moved from Atelier's
-        // AtelierDiff.
         .target(
             name: "AemiDiff",
             dependencies: ["AemiKernel", "AemiText", "AemiLexers"],
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
         ),
-        // AemiArgon2 — BLAKE2b (RFC 7693) and Argon2d, Argon2i and Argon2id (RFC 9106), for a key from a password, which
-        // neither CryptoKit nor CommonCrypto offers. Standard library only.
-        // CAemiArgon2 — its kernels in C: G and the memory fill, BLAKE2b's F, a constant-time comparison and a wipe;
-        // scalar, NEON, NEON with SHA3, SSSE3 and AVX2, chosen at run time. -O3 in release: the fill is the whole cost.
         .target(
             name: "CAemiArgon2",
             dependencies: ["CAemiCPU"],
@@ -316,8 +208,6 @@ let package = Package(
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
         ),
-        // AemiDigest — content digests from the platform's cryptography: CryptoKit on Apple platforms, swift-crypto
-        // elsewhere (ADR 0029).
         .target(
             name: "AemiDigest",
             dependencies: [
@@ -331,11 +221,7 @@ let package = Package(
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
         ),
-        // AemiRuntime — zero-dep production seams (TaskProvider/Clock) + ResourcePool /
-        // BlockingOffloadPool. Separate from AemiCore's app-level TaskProvider/TaskRole.
         .target(name: "AemiRuntime", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
-        // Runtime umbrella — re-exports every kernel runtime tier (NOT AemiMacroSupport:
-        // swift-syntax stays opt-in; NOT AemiCore: app tier stays separate).
         .target(
             name: "AemiFoundation",
             dependencies: [
@@ -346,7 +232,6 @@ let package = Package(
             plugins: libraryBuildPlugins
         ),
 
-        // ── Macro support (the one swift-syntax kernel tier) ──
         .target(
             name: "AemiMacroSupport",
             dependencies: [
@@ -357,18 +242,13 @@ let package = Package(
             plugins: libraryBuildPlugins
         ),
 
-        // ── Kernel test tooling ──
-        // CAemiTestKitMalloc — C shim counting the heap allocations of the thread that measures.
         .target(name: "CAemiTestKitMalloc", cSettings: strictCSettings),
-        // AemiTestKitSeams — stable re-export of the AemiRuntime seams.
         .target(
             name: "AemiTestKitSeams",
             dependencies: ["AemiRuntime"],
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
         ),
-        // AemiTestKit — the deterministic-testing kit (Testing-backed asserts, SeededRNG, Fuzz,
-        // oracles, TestClock/AsyncProbe, gates).
         .target(
             name: "AemiTestKit",
             dependencies: ["AemiKernel", "AemiTestKitSeams", "CAemiTestKitMalloc", heapModule, systemPackage],
@@ -376,7 +256,6 @@ let package = Package(
             plugins: libraryBuildPlugins
         ),
 
-        // ── Pre-existing app-level tests ──
         .testTarget(
             name: "AemiCoreTests",
             dependencies: ["AemiCore"],
@@ -404,7 +283,6 @@ let package = Package(
             swiftSettings: appSettings
         ),
 
-        // ── Kernel tests (ported from ADFoundation) ──
         .testTarget(
             name: "AemiKernelTests",
             dependencies: ["AemiKernel", "AemiTestKit"],
@@ -468,7 +346,6 @@ let package = Package(
             dependencies: ["AemiMacroSupport"],
             swiftSettings: testSettings
         ),
-        // Folded suites keep their origin settings (no aggressive type-check timing gate).
         .testTarget(
             name: "AemiRuntimeTests",
             dependencies: ["AemiRuntime", "AemiTestKit"],
@@ -487,8 +364,6 @@ let package = Package(
     ]
 )
 
-// Consumers select these dependency-free plugins with their own development flags.
-// AEMI_DEV controls attachment to Aemi's targets, not availability to other packages.
 package.products.append(contentsOf: [
     .plugin(name: "Format", targets: ["Format"]),
     .plugin(name: "Lint", targets: ["Lint"]),
@@ -516,7 +391,6 @@ package.targets.append(contentsOf: [
     .plugin(name: "LintBuild", capability: .buildTool())
 ])
 
-// libFuzzer kernel target (AEMI_FUZZ-gated; Linux-CI-only — `-sanitize=fuzzer` is Darwin-rejected).
 if isFuzz {
     package.targets.append(
         .executableTarget(
@@ -530,7 +404,6 @@ if isFuzz {
     package.products.append(.executable(name: "AemiKernelsFuzz", targets: ["AemiKernelsFuzz"]))
 }
 
-// ordo-one benchmark suite (AEMI_DEV-gated).
 if isDev {
     package.targets.append(
         .executableTarget(

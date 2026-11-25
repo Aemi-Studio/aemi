@@ -23,7 +23,7 @@ env:
 jobs:
   ci:
     name: Checks
-    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@4506ce08ced6895bbc3982efec970e3955fb348a # swift-ci 4506ce0
+    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@f5edf0095e3033975b61e5c328cb7464ce1bb7e3 # swift-ci f5edf00
     permissions:
       contents: write # reusable publish permission; no archives are configured for this library
 

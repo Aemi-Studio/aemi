@@ -53,3 +53,7 @@ Pin a specific `revision:` for reproducible builds.
 ## License
 
 [MIT](LICENSE)
+## Privacy & Verification
+
+- **Privacy:** `Aemi` runs 100% offline with zero network calls, zero telemetry, and zero personal data collection. See [`PRIVACY.md`](PRIVACY.md).
+- **Security & Signatures:** Commits and release tags are GPG-signed (`1BF1 901A 8C67 2E9B C12E 1B31 9FE7 C7E8 522E E497`), and published release archives carry SHA-256 checksums and GitHub SLSA build provenance attestations (`gh attestation verify`). See [`SECURITY.md`](SECURITY.md).

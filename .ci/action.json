@@ -36,5 +36,25 @@
       "Tests/LoggableTests/**",
       "Sources/AemiTesting/**"
     ]
-  }
+  },
+  "commands": [
+    {
+      "id": "mutation",
+      "title": "Verification · Mutation (litmus)",
+      "os": "macOS",
+      "cadence": [
+        "nightly",
+        "dispatch"
+      ],
+      "mutation": {
+        "paths": [
+          "Sources/AemiKernel/**",
+          "Sources/AemiKernels/**",
+          "Sources/AemiRuntime/**"
+        ],
+        "budget": 3600,
+        "workspace": "in-place"
+      }
+    }
+  ]
 }

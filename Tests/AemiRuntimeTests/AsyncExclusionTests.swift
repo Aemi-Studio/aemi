@@ -163,4 +163,21 @@ struct AsyncExclusionTests {
         #expect(!exclusion.isHeld)
         #expect(exclusion.waiterCount == 0)
     }
+
+    @Test
+    func `waitUntilHeld wakes deterministically when the exclusion is acquired`() async throws {
+        let exclusion = AsyncExclusion()
+        let release = AsyncGate()
+        let waiter = Task { try await exclusion.waitUntilHeld() }
+        let holder = Task {
+            try await exclusion.withExclusiveAccess {
+                try await release.waitUntilOpen()
+            }
+        }
+        try await waiter.value
+        #expect(exclusion.isHeld)
+        release.open()
+        try await holder.value
+        #expect(!exclusion.isHeld)
+    }
 }

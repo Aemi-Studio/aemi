@@ -65,10 +65,18 @@ public final class AsyncExclusion: Sendable {
         /// cost an allocation per instance to save nothing measurable.
         var waiters: [Waiter] = []
         var countWaiters: [Waiter] = []
+        var holdWaiters: [Waiter] = []
 
         mutating func makeID() -> UInt64 {
             nextID &+= 1
             return nextID
+        }
+
+        /// Removes and returns all ``waitUntilHeld()`` parkers now that a holder owns the exclusion.
+        mutating func drainHoldWaiters() -> [Waiter] {
+            let woken = holdWaiters
+            holdWaiters.removeAll(keepingCapacity: true)
+            return woken
         }
 
         /// Removes and returns the ``waitForWaiters(atLeast:)`` parkers the current queue depth has
@@ -166,6 +174,33 @@ public final class AsyncExclusion: Sendable {
         }
     }
 
+    /// Suspends until a holder currently owns the exclusion (returns immediately if already held).
+    ///
+    /// Deterministic companion to ``waitForWaiters(atLeast:)``: removes `while !isHeld { await
+    /// Task.yield() }` spins when synchronizing on an operation entering its critical section.
+    public func waitUntilHeld() async throws {
+        let id = state.withLock { $0.makeID() }
+        try await withTaskCancellationHandler {
+            try await unsafe withUnsafeThrowingContinuation {
+                (continuation: UnsafeContinuation<Void, any Error>) in
+                let parker = unsafe Waiter(id: id, threshold: 0, continuation: continuation)
+                let admission = state.withLock { s -> Admission in
+                    if Task.isCancelled {
+                        return .cancelled
+                    }
+                    if s.isHeld {
+                        return .proceed
+                    }
+                    s.holdWaiters.append(parker)
+                    return .parked
+                }
+                Self.settle(parker, admission)
+            }
+        } onCancel: {
+            unpark(id: id, from: \.holdWaiters)?.settle(throwing: CancellationError())
+        }
+    }
+
     /// Takes the exclusion, suspending if a holder owns it.
     private func acquire() async throws {
         let id = state.withLock { $0.makeID() }
@@ -181,7 +216,7 @@ public final class AsyncExclusion: Sendable {
                     }
                     if !s.isHeld {
                         s.isHeld = true
-                        return (.proceed, [])
+                        return (.proceed, s.drainHoldWaiters())
                     }
                     s.waiters.append(claimant)
                     return (.parked, s.satisfiedCountWaiters())

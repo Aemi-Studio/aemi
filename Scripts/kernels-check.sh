@@ -58,10 +58,17 @@ threads() {
 }
 
 # ThreadSanitizer cannot map its shadow memory in a translated Linux VM (x86-64 under Rosetta in a container): that is skipped,
-# said so, and any other failure fails.
+# said so, and any other failure fails. On Linux x86-64 hosts with high-entropy ASLR (Ubuntu 24.04+), disabling ASLR via
+# `setarch $(uname -m) -R` keeps the memory map inside TSan's expected address range.
 run_threads() {
     local log
-    if log=$("$@" 2>&1); then
+    local cmd=("$@")
+    if [ "$(uname -s)" = Linux ] && command -v setarch >/dev/null 2>&1; then
+        if setarch "$(uname -m)" -R true 2>/dev/null; then
+            cmd=(setarch "$(uname -m)" -R "${cmd[@]}")
+        fi
+    fi
+    if log=$("${cmd[@]}" 2>&1); then
         echo "$log"
     elif echo "$log" | grep -q "memory layout is incompatible"; then
         echo "[SKIP] ThreadSanitizer cannot run in this translated environment"

@@ -40,8 +40,13 @@
                 sourceLocation: sourceLocation
             )
             self.values = values
-            observation = object.observe(keyPath, options: [.initial]) { object, _ in
-                values.record(object[keyPath: keyPath])
+            // On Swift 6.3, `KeyPath` is not yet `Sendable` even though Foundation's KVO observer
+            // closure is `@Sendable`. Read `change.newValue` (which is already `Value?`, `Sendable`)
+            // so the closure captures only `values` and never captures `keyPath`.
+            observation = object.observe(keyPath, options: [.initial, .new]) { _, change in
+                if let value = change.newValue {
+                    values.record(value)
+                }
             }
         }
 

@@ -114,7 +114,7 @@ jobs:
       - name: Setup · Check Out Sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # bench-c-kernels.sh rebuilds the previous kernels from cd4d1c4's parent, which a shallow clone lacks.
+          # bench-c-kernels.sh rebuilds the previous kernels from 8651f1a's parent, which a shallow clone lacks.
           fetch-depth: 0
       - name: Rosetta, for the x86-64 path
         run: sudo softwareupdate --install-rosetta --agree-to-license || true
@@ -151,7 +151,12 @@ jobs:
     # libFuzzer (ADR 0027). Every kernel check, then a minute of fuzzing per target.
     name: Kernels · Linux x86_64
     runs-on: ubuntu-latest
-    container: swift:6.4.1-noble
+    container:
+      image: swift:6.4.1-noble
+      # ThreadSanitizer on Linux x86_64 with high-entropy ASLR (vm.mmap_rnd_bits=32 on Ubuntu 24.04
+      # runners) fails with "unexpected memory mapping" unless personality(ADDR_NO_RANDOMIZE) is
+      # permitted via `setarch $(uname -m) -R`.
+      options: --security-opt seccomp=unconfined
     timeout-minutes: 30
     steps:
       - name: Setup · Check Out Sources

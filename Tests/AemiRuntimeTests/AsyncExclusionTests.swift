@@ -28,20 +28,23 @@ struct AsyncExclusionTests {
         // exclusion and the `Task.yield()` guarantees overlapping updates, so the total falls short.
         // Unlike the parking tests below, this one FAILS rather than hangs, which is what makes it
         // the one to run a mutation against.
+        final class Box: Sendable {
+            let value = Mutex(0)
+        }
         let exclusion = AsyncExclusion()
-        let counter = Mutex(0)
+        let counter = Box()
         await withTaskGroup(of: Void.self) { group in
             for _ in 0 ..< holders {
                 group.addTask {
                     try? await exclusion.withExclusiveAccess {
-                        let seen = counter.withLock(\.self)
+                        let seen = counter.value.withLock(\.self)
                         await Task.yield()
-                        counter.withLock { $0 = seen + 1 }
+                        counter.value.withLock { $0 = seen + 1 }
                     }
                 }
             }
         }
-        #expect(counter.withLock(\.self) == holders)
+        #expect(counter.value.withLock(\.self) == holders)
         #expect(!exclusion.isHeld)
     }
 

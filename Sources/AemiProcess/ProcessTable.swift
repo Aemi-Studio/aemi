@@ -71,8 +71,11 @@ public enum ProcessTable {
     public static var currentUser: UInt32 { UInt32(getuid()) }
 
     /// The processes of `user` (the caller's by default), the caller included. Empty when the table cannot be read.
-    public static func list(user: UInt32 = currentUser) -> [Process] {
-        platformList(user: user)
+    ///
+    /// When `startedSince` (microseconds since 1970) is provided, processes started strictly earlier are skipped
+    /// before per-process `getsid` / extra lookups run.
+    public static func list(user: UInt32 = currentUser, startedSince: Int64? = nil) -> [Process] {
+        platformList(user: user, startedSince: startedSince)
     }
 
     /// The members of `session`, other than the caller.
@@ -140,7 +143,7 @@ public enum ProcessTable {
 
 #if canImport(Darwin)
     extension ProcessTable {
-        static func platformList(user: UInt32) -> [Process] {
+        static func platformList(user: UInt32, startedSince: Int64?) -> [Process] {
             var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_UID, Int32(bitPattern: user)]
             for _ in 0 ..< 4 {
                 var size = 0
@@ -161,12 +164,14 @@ public enum ProcessTable {
                             let pid = unsafe entry.kp_proc.p_pid
                             guard pid > 0 else { return nil }
                             let start = unsafe entry.kp_proc.p_un.__p_starttime
+                            let started = Int64(start.tv_sec) * 1_000_000 + Int64(start.tv_usec)
+                            if let startedSince, started < startedSince { return nil }
                             return unsafe Process(
                                 pid: pid,
                                 parent: entry.kp_eproc.e_ppid,
                                 group: entry.kp_eproc.e_pgid,
                                 session: getsid(pid),
-                                started: Int64(start.tv_sec) * 1_000_000 + Int64(start.tv_usec)
+                                started: started
                             )
                         }
                 }
@@ -266,7 +271,7 @@ public enum ProcessTable {
             return rest.split(separator: " ", omittingEmptySubsequences: true)
         }
 
-        static func platformList(user: UInt32) -> [Process] {
+        static func platformList(user: UInt32, startedSince: Int64?) -> [Process] {
             guard let directory = unsafe opendir("/proc") else { return [] }
             defer { _ = unsafe closedir(directory) }
             var processes: [Process] = []
@@ -283,6 +288,7 @@ public enum ProcessTable {
                     let ticks = Int64(fields[19])
                 else { continue }
                 let started = (bootTime * ticksPerSecond + ticks) * 1_000_000 / ticksPerSecond
+                if let startedSince, started < startedSince { continue }
                 processes.append(Process(pid: pid, parent: parent, group: group, session: session, started: started))
             }
             return processes

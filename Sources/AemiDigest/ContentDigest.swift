@@ -4,10 +4,14 @@ import AemiKernel
     import CryptoKit
 
     private typealias PlatformSHA256 = CryptoKit.SHA256
+    private typealias PlatformHMAC<H: HashFunction> = CryptoKit.HMAC<H>
+    private typealias PlatformSymmetricKey = CryptoKit.SymmetricKey
 #else
     import Crypto
 
     private typealias PlatformSHA256 = Crypto.SHA256
+    private typealias PlatformHMAC<H: HashFunction> = Crypto.HMAC<H>
+    private typealias PlatformSymmetricKey = Crypto.SymmetricKey
 #endif
 
 /// Cryptographic content digests: SHA-256 (FIPS 180-4), for content identity that must hold against a chosen input
@@ -57,5 +61,39 @@ public enum ContentDigest {
         public mutating func finalize() -> [UInt8] {
             Array(hasher.finalize())
         }
+    }
+
+    /// The HMAC-SHA256 authentication code (RFC 2104) of `message` under `key`.
+    public static func hmacSHA256(key: [UInt8], message: [UInt8]) -> [UInt8] {
+        hmacSHA256(key: key[...], message: message[...])
+    }
+
+    /// The HMAC-SHA256 authentication code (RFC 2104) of `message` under `key`.
+    public static func hmacSHA256(key: ArraySlice<UInt8>, message: ArraySlice<UInt8>) -> [UInt8] {
+        let symmetricKey = PlatformSymmetricKey(data: key)
+        return Array(PlatformHMAC<PlatformSHA256>.authenticationCode(for: message, using: symmetricKey))
+    }
+
+    /// The HMAC-SHA256 authentication code (RFC 2104) of `message` under `key` in lower-case hexadecimal.
+    public static func hmacSHA256Hex(key: [UInt8], message: [UInt8]) -> String {
+        String(decoding: Hex.encode(hmacSHA256(key: key, message: message)), as: UTF8.self)
+    }
+
+    /// Constant-time comparison of two equal-length byte sequences (returns `false` on length mismatch).
+    /// Prevents timing side channels when verifying MACs or digests.
+    public static func constantTimeEqual(_ lhs: [UInt8], _ rhs: [UInt8]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        var diff: UInt8 = 0
+        for index in 0 ..< lhs.count {
+            diff |= lhs[index] ^ rhs[index]
+        }
+        return diff == 0
+    }
+
+    /// Verifies a lower-case hexadecimal HMAC-SHA256 tag in constant time.
+    public static func verifyHMACSHA256Hex(_ tagHex: String, key: [UInt8], message: [UInt8]) -> Bool {
+        let expected = Array(hmacSHA256Hex(key: key, message: message).utf8)
+        let actual = Array(tagHex.utf8)
+        return constantTimeEqual(expected, actual)
     }
 }

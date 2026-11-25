@@ -102,4 +102,12 @@ private func procargs(arguments: [String], environment: [String]) -> ArraySlice<
             )
         }
     #endif
+
+    @Test func `startedSince filters out older processes`() throws {
+        let me = try #require(ProcessTable.list().first { $0.pid == getpid() })
+        let included = ProcessTable.list(startedSince: me.started)
+        #expect(included.contains { $0.pid == me.pid })
+        let excluded = ProcessTable.list(startedSince: me.started + 60_000_000)
+        #expect(!excluded.contains { $0.pid == me.pid })
+    }
 }

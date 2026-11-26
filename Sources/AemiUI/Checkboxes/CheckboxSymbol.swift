@@ -5,11 +5,13 @@
 //  Created by Gigi on 28/01/25.
 //
 
-import Foundation
+#if canImport(SwiftUI)
+    import Foundation
 
-public enum CheckboxSymbol: String, Sendable, CaseIterable {
-    case checkmark
-    case xmark
-    case minus
-    case exclamationmark
-}
+    public enum CheckboxSymbol: String, Sendable, CaseIterable {
+        case checkmark
+        case xmark
+        case minus
+        case exclamationmark
+    }
+#endif

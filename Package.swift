@@ -53,7 +53,8 @@ var packageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.0" ..< "605.0.0"),
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.7.3"),
     .package(url: "https://github.com/apple/swift-system.git", from: "1.8.1"),
-    .package(url: "https://github.com/apple/swift-crypto.git", "5.1.2" ..< "6.0.0")
+    .package(url: "https://github.com/apple/swift-crypto.git", "5.1.2" ..< "6.0.0"),
+    .package(url: "https://github.com/apple/swift-log.git", from: "1.16.2")
 ]
 if isDev {
     packageDependencies.append(
@@ -132,7 +133,19 @@ let package = Package(
         .target(name: "AemiUI", dependencies: ["AemiCore"], swiftSettings: appSettings),
         .target(name: "AemiTesting", dependencies: ["AemiCore"], swiftSettings: appSettings),
         .target(name: "InternedStrings", dependencies: ["AemiMacros"], swiftSettings: appSettings),
-        .target(name: "Loggable", dependencies: ["AemiMacros"], swiftSettings: appSettings),
+        .target(
+            name: "Loggable",
+            dependencies: [
+                "AemiMacros",
+                // Apple platforms log through os.Logger; everywhere else through swift-log.
+                .product(
+                    name: "Logging",
+                    package: "swift-log",
+                    condition: .when(platforms: [.linux, .windows, .android, .wasi, .openbsd])
+                )
+            ],
+            swiftSettings: appSettings
+        ),
 
         .target(
             name: "AemiKernel",

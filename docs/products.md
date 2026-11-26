@@ -9,7 +9,7 @@ Select products per target. `AemiFoundation` does not re-export UI, application 
 | `AemiCore` | Typed identifiers, projections, task providers, throttling, and collection helpers. |
 | `AemiUI` | SwiftUI presentation, layout, visibility, and haptics helpers. Depends on `AemiCore`. |
 | `InternedStrings` | Attached and expression macros for string obfuscation. |
-| `Loggable` | Macro-generated logging support. |
+| `Loggable` | Macro-generated logging support: `os.Logger` on Apple platforms, swift-log's `Logger` elsewhere. |
 | `Aemi` | Apple application umbrella: re-exports `AemiCore`, `AemiUI`, `InternedStrings`, and `Loggable`. |
 
 Prefer a specific product when building a reusable library. Use the `Aemi`

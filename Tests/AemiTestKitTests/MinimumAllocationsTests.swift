@@ -11,7 +11,11 @@ private let isDebugBuild: Bool = {
     #endif
 }()
 
-@Suite("Allocation measurement helpers")
+/// Counting needs Darwin's libmalloc hook and no sanitizer; elsewhere `minimumAllocations` returns `nil` by design.
+@Suite(
+    "Allocation measurement helpers",
+    .enabled(if: allocationCountingAvailable, "allocation counting is Darwin-only")
+)
 struct MinimumAllocationsTests {
     @Test func `the minimum across repeats still counts every allocation the body makes`() throws {
         var sink: [String] = []

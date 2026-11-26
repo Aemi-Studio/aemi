@@ -220,7 +220,10 @@ struct DiffPhasesBenchmark {
     /// The process's CPU time, in milliseconds: the suite runs alone, so it is the benchmark's.
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)
     private static func cpu() -> Double {
-        Double(clock_gettime_nsec_np(CLOCK_PROCESS_CPUTIME_ID)) / 1e6
+        // POSIX `clock_gettime` rather than Darwin's `clock_gettime_nsec_np`, so the suite also builds on Linux.
+        var time = timespec()
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time)
+        return Double(time.tv_sec) * 1e3 + Double(time.tv_nsec) / 1e6
     }
 
     @available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)

@@ -2,7 +2,7 @@
 
 Shared Swift 6 building blocks for applications, libraries, and developer tools: typed identifiers, concurrency utilities, byte and text primitives, SIMD-accelerated C/Swift kernels, macros, SwiftUI helpers, and deterministic test support.
 
-Link only the products each target needs. Non-UI products build on Apple platforms and Linux.
+Link only the products each target needs. Every product builds on Apple platforms and Linux; the UI ones are empty on Linux.
 
 ```swift
 import AemiCore
@@ -18,7 +18,7 @@ let documentID = Identifier<Document, String>("document-42")
 
 - Swift 6.3+ (Swift 6 language mode)
 - iOS 18+, macOS 15+, tvOS 18+, watchOS 11+, visionOS 2+
-- Linux for kernel, I/O, digest, runtime, and text products
+- Linux for every product (`AemiUI` compiles empty there: it is SwiftUI)
 
 ## Installation
 

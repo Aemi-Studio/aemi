@@ -5,10 +5,12 @@
 //  Created by Gigi on 29/03/25.
 //
 
-import SwiftUI
+#if canImport(SwiftUI)
+    import SwiftUI
 
-public extension View {
-    func track(bounds: Binding<CGRect>, in coordinateSpace: CoordinateSpace = .global) -> some View {
-        modifier(BoundsTrackerModifier(bounds: bounds, in: coordinateSpace))
+    extension View {
+        public func track(bounds: Binding<CGRect>, in coordinateSpace: CoordinateSpace = .global) -> some View {
+            modifier(BoundsTrackerModifier(bounds: bounds, in: coordinateSpace))
+        }
     }
-}
+#endif

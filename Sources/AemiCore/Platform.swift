@@ -33,7 +33,7 @@ public enum Platform {
             .watch
         #elseif os(tvOS)
             .tv
-        #else
+        #elseif canImport(UIKit)
             switch UIDevice.current.userInterfaceIdiom {
                 case .phone:
                     .phone
@@ -52,6 +52,8 @@ public enum Platform {
                 @unknown default:
                     .unknown
             }
+        #else
+            .unknown
         #endif
     }
 }

@@ -183,3 +183,13 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           if echo "$RESULTS" | grep -E '"result": "(failure|cancelled)"'; then exit 1; fi
+
+  scan:
+    name: Code Scanning
+    uses: g-cqd/swift-ci/.github/workflows/code-scanning.yml@fda8ff085332c1883685384f975dff7227b1f7e5 # swift-ci fda8ff0
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    with:
+      codeql-languages: '["actions", "python"]'

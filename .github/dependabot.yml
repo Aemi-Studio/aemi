@@ -1,18 +1,22 @@
-# Dependabot (the family's dependency updates, 2026-10-30).
+# Dependabot, written by swift-ci (`swift-ci dependabot --write`) from the repository's manifests and workflows;
+# the quality check fails when it differs. Change the `dependabot` key of .ci/action.json, not this file.
 #
-# swift: the version requirements (from:, ranges, exact:). The family's own packages are pinned by revision, which Dependabot does
-# not read: they move together, in order, by hand or by a script (ask's roadmap 0166). Dependabot's Swift updater runs Swift 6.3.1 on
-# Linux, so a manifest that needs a newer toolchain fails there until Dependabot catches up; the entry is kept so it starts then.
-# github-actions: the workflows pin actions by commit SHA with the version in a comment; Dependabot updates both.
-# One grouped pull request per ecosystem, weekly, so the CI runs stay few.
+# swift: the version requirements of each package manifest. Revision pins are not Dependabot's to move, and
+# its Swift updater may run an older toolchain than a manifest needs: that directory fails until it catches up.
+# github-actions: actions pinned by commit SHA, the version in a comment; Dependabot updates both.
+# One grouped pull request per ecosystem, weekly, so the CI runs stay few; a release waits out the cooldown
+# before it is proposed (security updates do not).
 version: 2
 updates:
   - package-ecosystem: "swift"
-    directory: "/"
+    directories:
+      - "/"
     schedule:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       swift-packages:
         patterns: ["*"]
@@ -20,10 +24,13 @@ updates:
       prefix: "build"
 
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns: ["*"]

@@ -23,7 +23,7 @@ env:
 jobs:
   ci:
     name: Checks
-    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@fda8ff085332c1883685384f975dff7227b1f7e5 # swift-ci fda8ff0
+    uses: g-cqd/swift-ci/.github/workflows/swift-ci.yml@07936b09eef98d5fcef4eac36a7c3f97de133e19 # swift-ci 07936b0
     permissions:
       contents: write # reusable publish permission; no archives are configured for this library
 
@@ -95,7 +95,7 @@ jobs:
       - name: Setup · Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - name: Setup · Install Swift 6.4.1
-        uses: g-cqd/swift-ci/setup-swift@fda8ff085332c1883685384f975dff7227b1f7e5 # swift-ci fda8ff0
+        uses: g-cqd/swift-ci/setup-swift@07936b09eef98d5fcef4eac36a7c3f97de133e19 # swift-ci 07936b0
         with:
           swift-version: '6.4.1'
       - name: Build as Embedded and check the symbols the objects need
@@ -185,7 +185,7 @@ jobs:
 
   scan:
     name: Code Scanning
-    uses: g-cqd/swift-ci/.github/workflows/code-scanning.yml@fda8ff085332c1883685384f975dff7227b1f7e5 # swift-ci fda8ff0
+    uses: g-cqd/swift-ci/.github/workflows/code-scanning.yml@07936b09eef98d5fcef4eac36a7c3f97de133e19 # swift-ci 07936b0
     permissions:
       contents: read
       security-events: write

@@ -34,7 +34,7 @@ Pin a specific `revision:` for reproducible builds.
 
 | Group | Products |
 | --- | --- |
-| Application & UI | `Aemi`, `AemiCore`, `AemiUI`, `AemiFoundation` |
+| Application & UI | `Aemi`, `AemiCore`, `AemiUI`, `AemiFoundation`, `AemiColor` |
 | Macros | `InternedStrings`, `Loggable`, `AemiMacroSupport` |
 | Kernels & Bytes | `CAemiKernels`, `AemiKernels`, `AemiKernel`, `AemiUnicode`, `AemiText`, `AemiInterner`, `AemiLexers`, `AemiDiff` |
 | Systems & Crypto | `AemiIO`, `AemiFileSystem`, `AemiProcess`, `AemiRuntime`, `AemiMetrics`, `AemiDigest`, `AemiArgon2` |

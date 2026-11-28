@@ -101,6 +101,7 @@ let package = Package(
         .library(name: "AemiProcess", targets: ["AemiProcess"]),
         .library(name: "AemiLexers", targets: ["AemiLexers"]),
         .library(name: "AemiDiff", targets: ["AemiDiff"]),
+        .library(name: "AemiColor", targets: ["AemiColor"]),
         .library(name: "AemiArgon2", targets: ["AemiArgon2"]),
         .library(name: "AemiDigest", targets: ["AemiDigest"]),
         .library(name: "AemiRuntime", targets: ["AemiRuntime"]),
@@ -204,6 +205,7 @@ let package = Package(
         .target(name: "AemiMetrics", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         .target(name: "AemiProcess", swiftSettings: kernelSettings, plugins: libraryBuildPlugins),
         .target(name: "AemiLexers", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+        .target(name: "AemiColor", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
         .target(
             name: "AemiDiff",
             dependencies: ["AemiKernel", "AemiText", "AemiLexers"],
@@ -354,6 +356,7 @@ let package = Package(
             dependencies: ["AemiArgon2", "CAemiArgon2", "AemiTestKit"],
             swiftSettings: testSettings
         ),
+        .testTarget(name: "AemiColorTests", dependencies: ["AemiColor"], swiftSettings: testSettings),
         .testTarget(
             name: "AemiDiffTests",
             dependencies: ["AemiDiff", "AemiText", "AemiTestKit"],

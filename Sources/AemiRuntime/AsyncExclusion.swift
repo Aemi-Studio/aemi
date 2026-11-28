@@ -1,3 +1,6 @@
+private import AemiKernel
+internal import Synchronization
+
 //
 //  AsyncExclusion.swift
 //  HTTPConcurrency
@@ -21,8 +24,6 @@
 //  re-enters it on the same task waits forever. Callers keep the ungated core of a critical section in
 //  a separate method and take the exclusion once, at the outermost entry point.
 //
-
-internal import Synchronization
 
 /// A non-reentrant mutual exclusion that suspends its waiters instead of blocking a thread.
 ///
@@ -60,10 +61,9 @@ public final class AsyncExclusion: Sendable {
         /// the woken waiter, so no third party can cut in between them.
         var isHeld = false
         var nextID: UInt64 = 0
-        /// FIFO. `removeFirst()` is O(n), which is the right trade at the depths this serves (a
-        /// per-connection direction has one holder and a handful of waiters); a ring buffer would
-        /// cost an allocation per instance to save nothing measurable.
-        var waiters: [Waiter] = []
+        /// FIFO; a ``RingQueue`` takes the first in O(1) at any depth and, like an empty `Array`,
+        /// allocates nothing until the first waiter parks.
+        var waiters = RingQueue<Waiter>()
         var countWaiters: [Waiter] = []
         var holdWaiters: [Waiter] = []
 
@@ -230,7 +230,7 @@ public final class AsyncExclusion: Sendable {
             // A waiter already handed the exclusion by ``release()`` is no longer queued, so this
             // finds nothing and cannot double-resume: that caller proceeds, sees the cancellation at
             // the `checkCancellation` in ``withExclusiveAccess(_:)``, and releases on the way out.
-            unpark(id: id, from: \.waiters)?.settle(throwing: CancellationError())
+            state.withLock { s in s.waiters.removeFirst { $0.id == id } }?.settle(throwing: CancellationError())
         }
     }
 

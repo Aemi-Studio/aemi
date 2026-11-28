@@ -1,3 +1,4 @@
+private import AemiKernel
 import Dispatch
 public import Foundation  // Thread; QualityOfService appears in the public init signature
 private import Synchronization
@@ -56,39 +57,20 @@ public final class BlockingOffloadPool: Sendable {
     }
     /// The pending jobs, first in first out. Taking the first job must not shift the rest (an `Array`'s
     /// `removeFirst()` is O(n) under the lock, and the executor path has no depth bound, so draining a
-    /// burst of n jobs cost O(n²)): jobs are taken at `head`, each taken slot is cleared at once so its
-    /// closures are released, and the taken prefix is dropped in one move once it is at least half the
-    /// storage. A take is amortized O(1).
+    /// burst of n jobs cost O(n²)): a ``RingQueue`` takes it in O(1) and clears the slot at once, so
+    /// its closures are released.
     private struct JobQueue {
-        private var slots: [Job?] = []
-        private var head = 0
+        private var jobs = RingQueue<Job>()
 
         /// The number of jobs waiting for a worker.
-        var count: Int { slots.count - head }
+        var count: Int { jobs.count }
 
-        mutating func append(_ job: Job) {
-            slots.append(job)
-        }
+        mutating func append(_ job: Job) { jobs.append(job) }
 
-        mutating func popFirst() -> Job? {
-            guard head < slots.count else { return nil }
-            let job = slots[head].take()
-            head += 1
-            if head == slots.count {
-                slots.removeAll(keepingCapacity: true)
-                head = 0
-            } else if head >= 32, head * 2 >= slots.count {
-                slots.removeFirst(head)
-                head = 0
-            }
-            return job
-        }
+        mutating func popFirst() -> Job? { jobs.popFirst() }
 
         /// Remove the job `id` if no worker has taken it yet (a linear search, on the cancel path only).
-        mutating func remove(id: UInt64) -> Job? {
-            guard let index = slots[head...].firstIndex(where: { $0?.id == id }) else { return nil }
-            return slots.remove(at: index)
-        }
+        mutating func remove(id: UInt64) -> Job? { jobs.removeFirst { $0.id == id } }
     }
     private struct State {
         var queue = JobQueue()

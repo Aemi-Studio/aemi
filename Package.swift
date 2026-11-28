@@ -234,7 +234,12 @@ let package = Package(
             swiftSettings: strictSettings,
             plugins: libraryBuildPlugins
         ),
-        .target(name: "AemiRuntime", swiftSettings: strictSettings, plugins: libraryBuildPlugins),
+        .target(
+            name: "AemiRuntime",
+            dependencies: ["AemiKernel"],
+            swiftSettings: strictSettings,
+            plugins: libraryBuildPlugins
+        ),
         .target(
             name: "AemiFoundation",
             dependencies: [

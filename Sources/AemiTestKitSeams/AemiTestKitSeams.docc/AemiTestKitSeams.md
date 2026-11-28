@@ -1,7 +1,7 @@
 # ``AemiTestKitSeams``
 
 A stable re-export name for the shipped-safe production seams, which now live in the
-zero-dependency **`AemiRuntime`** package.
+**`AemiRuntime`** package.
 
 ## Overview
 
@@ -11,8 +11,8 @@ spawn through a provider, and to pin time a library's datetime functions must re
 injected clock. Those injection points can't live in the test-only module, because then
 shipping code couldn't call them.
 
-They used to live here. They now live in the `AemiRuntime` leaf package — a zero-dependency,
-shipped-safe module an async-heavy library links *directly*, so a production library (such as
+They used to live here. They now live in the `AemiRuntime` package — a shipped-safe module (it depends only on
+`AemiKernel`) that an async-heavy library links *directly*, so a production library (such as
 ADJSON) no longer depends on a package named "TestKit". `AemiTestKitSeams` is kept as a thin
 `@_exported import AemiRuntime`, so every existing `import AemiTestKitSeams` call site keeps
 working and the seam symbols below remain documented here. The storage kernels that never spawn

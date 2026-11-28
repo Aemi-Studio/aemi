@@ -1,3 +1,4 @@
+private import AemiKernel
 private import Synchronization
 
 /// A resource a `ResourcePool` can construct from a filesystem path. The single failable
@@ -39,7 +40,7 @@ public final class ResourcePool<Resource: Sendable>: Sendable {
     /// The free resources and the tasks waiting in ``acquire()``, oldest first.
     private struct State {
         var free: [Resource]
-        var waiters: [(id: UInt64, continuation: CheckedContinuation<Resource, any Error>)] = []
+        var waiters = RingQueue<(id: UInt64, continuation: CheckedContinuation<Resource, any Error>)>()
         var nextWaiter: UInt64 = 0
     }
 
@@ -91,8 +92,7 @@ public final class ResourcePool<Resource: Sendable>: Sendable {
             }
         } onCancel: {
             let waiter = state.withLock { state -> CheckedContinuation<Resource, any Error>? in
-                guard let index = state.waiters.firstIndex(where: { $0.id == id }) else { return nil }
-                return state.waiters.remove(at: index).continuation
+                state.waiters.removeFirst { $0.id == id }?.continuation
             }
             waiter?.resume(throwing: CancellationError())
         }

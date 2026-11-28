@@ -41,6 +41,9 @@ directories, and imports `CAemiKernels` through its shipped module map.
 - ``ByteReader``
 - ``ByteCompare``
 - ``ByteBufferPool``
+- ``ByteQueue``
+- ``RingQueue``
+- ``RegionRing``
 
 ### Integer & byte codecs
 

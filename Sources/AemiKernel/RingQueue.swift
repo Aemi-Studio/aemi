@@ -128,6 +128,13 @@ extension RingQueue: RandomAccessCollection, MutableCollection {
     @inlinable public var count: Int { size }
     @inlinable public var isEmpty: Bool { size == 0 }
 
+    /// The oldest element. Direct, not `Collection`'s default: unspecialized (debug) code reaching the
+    /// default through the protocol witness allocated on every read.
+    @inlinable public var first: Element? { size > 0 ? slots[head] : nil }
+
+    /// The newest element.
+    @inlinable public var last: Element? { size > 0 ? slots[slot(size - 1)] : nil }
+
     /// The element `offset` places from the front (0 is the oldest).
     @inlinable
     public subscript(offset: Int) -> Element {
